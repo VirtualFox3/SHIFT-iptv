@@ -1,0 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: #141414;
+  color: #fff;
+  font-family: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
+}
+
+:root {
+  --accent: #E50914;
+  --shift-accent: #E50914;
+  --shift-accent-hover: #f40612;
+  --bb-scrim-grad: linear-gradient(90deg, rgba(0,0,0,0.86) 0%, rgba(0,0,0,0.40) 45%, rgba(0,0,0,0) 72%);
+  --card-radius: 8px;
+  --logo-r: 24;
+  --fg-3: #b3b3b3;
+  --fg-4: #808080;
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* SHIFT wordmark — heavy, brand accent, tight tracking. Upright + clean. */
+.shift-wordmark {
+  font-family: "Arial Black", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: 900;
+  color: var(--shift-accent);
+  letter-spacing: -0.055em;
+  text-transform: uppercase;
+  line-height: 0.85;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* Scrollbars */
+.nfx-scroll::-webkit-scrollbar { display: none; }
+.nfx-scroll { scrollbar-width: none; }
+
+/* Rail arrows appear on hover */
+.rail-wrap:hover [data-arrow] { opacity: 1 !important; }
+button:focus { outline: none; }
+a { color: inherit; }
+a:hover { color: #b3b3b3; }
+
+/* Animations */
+@keyframes nfxPop2 {
+  from { transform: scale(0.86); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+@keyframes livePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.35; transform: scale(0.8); }
+}
+@keyframes sheenMove {
+  0%   { transform: translateX(-30%); }
+  100% { transform: translateX(60%); }
+}
+@keyframes feedPan {
+  0%   { transform: scale(1.05) translate(0, 0); }
+  50%  { transform: scale(1.12) translate(-2%, -1.5%); }
+  100% { transform: scale(1.05) translate(0, 0); }
+}
+@keyframes feedBlob {
+  0%, 100% { transform: translate(0, 0); opacity: 0.7; }
+  50%       { transform: translate(6%, 4%); opacity: 1; }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.live-dot  { animation: livePulse 1.4s var(--ease-in-out) infinite; }
+.bb-sheen  { animation: sheenMove 7s linear infinite; }
+.feed-pan  { animation: feedPan 22s ease-in-out infinite; }
+.feed-blob { animation: feedBlob 14s ease-in-out infinite; }
+.spin      { animation: spin 0.8s linear infinite; }
+
+/* No-motion mode */
+.no-motion .live-dot,
+.no-motion .bb-sheen,
+.no-motion .feed-pan,
+.no-motion .feed-blob { animation: none !important; }
+
+/* Critic ratings hidden when toggled off */
+.no-ratings .shift-ratings { display: none; }
+
+/* Volume range */
+input[type="range"] { cursor: pointer; }
