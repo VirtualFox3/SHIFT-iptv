@@ -122,14 +122,14 @@ export default function App() {
     return en.length >= 12 ? en : titles;
   }, [titles]);
 
-  // Home billboard — rotates through top ENGLISH movies/series (prefers artwork).
+  // Home billboard — rotates through top ENGLISH movies AND series with artwork.
+  // Popular flagship titles (Dexter, Supernatural, etc.) are pinned to the front.
   const heroPool = useMemo<Title[]>(() => {
-    const movies = enTitles.filter(isMovie);
-    const pool = movies.length >= 5 ? movies : enTitles;
-    return [...pool].sort((a, b) => {
-      const art = (b.logoUrl ? 1 : 0) - (a.logoUrl ? 1 : 0);
-      return art !== 0 ? art : (b.match || 0) - (a.match || 0);
-    }).slice(0, 12);
+    const FEATURED = /\b(dexter|supernatural|breaking bad|the boys|game of thrones|stranger things|the last of us)\b/i;
+    const withArt = enTitles.filter((t) => t.logoUrl);
+    const pool = withArt.length >= 5 ? withArt : enTitles;
+    const score = (t: Title) => (FEATURED.test(t.title) ? 100 : 0) + (t.logoUrl ? 10 : 0) + (t.match || 0) / 100;
+    return [...pool].sort((a, b) => score(b) - score(a)).slice(0, 12);
   }, [enTitles]);
 
   const [heroIdx, setHeroIdx] = useState(0);
@@ -330,28 +330,16 @@ export default function App() {
           </div>
         )}
 
-        {/* MOVIES / SERIES — billboard + genre rails (English-first) */}
-        {!searchOpen && !activeCategory && (tab === 'movies' || tab === 'series') && (() => {
-          const list = enTitles.filter((t) => tab === 'movies' ? isMovie(t) : !isMovie(t));
-          const hero = [...list].sort((a, b) => ((b.logoUrl ? 1 : 0) - (a.logoUrl ? 1 : 0)) || (b.match || 0) - (a.match || 0))[0];
-          const genreRails = buildGenreRails(list, tab === 'movies' ? 'Movies' : 'Series');
-          return (
-            <>
-              {hero && (
-                <Billboard channel={null as any} bbStyle={settings.bbStyle} channels={channels} titles={titles}
-                  vodHero={hero} heroKind={tab === 'movies' ? 'Film' : 'Series'}
-                  onPlay={setPlaying} onOpen={setDetail} accentColor={accent} />
-              )}
-              <div style={{ paddingTop: hero ? 130 : 24 }}>
-                {list.length === 0
-                  ? <p style={{ color: '#8a8a8a', fontSize: 16, padding: '0 48px' }}>No {tab === 'movies' ? 'movies' : 'series'} in this provider's catalogue.</p>
-                  : genreRails.map((rail, i) => (
-                      <LazyRail key={rail.id} index={i}><Rail rail={rail} titlesById={titlesById} channelsById={channelsById} onPlay={setPlaying} onOpen={setDetail} /></LazyRail>
-                    ))}
-              </div>
-            </>
-          );
-        })()}
+        {/* MOVIES / SERIES — billboard + rails / full grid (English-first) */}
+        {!searchOpen && !activeCategory && (tab === 'movies' || tab === 'series') && (
+          <TitleTab
+            kind={tab as 'movies' | 'series'}
+            list={enTitles.filter((t) => tab === 'movies' ? isMovie(t) : !isMovie(t))}
+            allList={titles.filter((t) => tab === 'movies' ? isMovie(t) : !isMovie(t))}
+            channels={channels} titles={titles} titlesById={titlesById} channelsById={channelsById}
+            settings={settings} accent={accent} onPlay={setPlaying} onOpen={setDetail}
+          />
+        )}
 
         {/* HOME — VOD only (no Live TV); billboard features a movie/series */}
         {!searchOpen && !activeCategory && tab === 'home' && (
@@ -406,5 +394,72 @@ function LazyRail({ children, index = 0 }: { children: React.ReactNode; index?: 
     return () => { io?.disconnect(); clearTimeout(t); };
   }, [show, index]);
   return <div ref={ref} style={{ minHeight: show ? undefined : 240 }}>{show ? children : null}</div>;
+}
+
+// Movies / Series tab: billboard + a "Rails" browse view and an "All" paginated
+// grid so the user can page through the ENTIRE catalogue (not just capped rails).
+function TitleTab({ kind, list, allList, channels, titles, titlesById, channelsById, settings, accent, onPlay, onOpen }: {
+  kind: 'movies' | 'series';
+  list: Title[];          // English-first
+  allList: Title[];       // everything of this kind
+  channels: Channel[];
+  titles: Title[];
+  titlesById: Record<string, Title>;
+  channelsById: Record<string, Channel>;
+  settings: any;
+  accent: string;
+  onPlay: (t: Title | Channel) => void;
+  onOpen: (t: Title | Channel) => void;
+}) {
+  const [view, setView] = useState<'rails' | 'all'>('rails');
+  const [shown, setShown] = useState(60);
+  const hero = useMemo(() => [...list].sort((a, b) => ((b.logoUrl ? 1 : 0) - (a.logoUrl ? 1 : 0)) || (b.match || 0) - (a.match || 0))[0], [list]);
+  const genreRails = useMemo(() => buildGenreRails(list, kind === 'movies' ? 'Movies' : 'Series'), [list, kind]);
+  const label = kind === 'movies' ? 'Movies' : 'Series';
+
+  const Toggle = (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 48px 12px', flexWrap: 'wrap', gap: 12 }}>
+      <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>{label} <span style={{ fontSize: 16, color: '#666', fontWeight: 600 }}>({allList.length.toLocaleString()})</span></h1>
+      <div style={{ display: 'flex', gap: 4, background: '#1a1a1a', padding: 4, borderRadius: 8 }}>
+        {(['rails', 'all'] as const).map((v) => (
+          <button key={v} onClick={() => setView(v)} style={{ padding: '7px 16px', border: 0, borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600, background: view === v ? accent : 'transparent', color: view === v ? '#fff' : '#b3b3b3' }}>
+            {v === 'rails' ? 'Browse' : `All ${label}`}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {hero && (
+        <Billboard channel={null as any} bbStyle={settings.bbStyle} channels={channels} titles={titles}
+          vodHero={hero} heroKind={kind === 'movies' ? 'Film' : 'Series'} onPlay={onPlay} onOpen={onOpen} accentColor={accent} />
+      )}
+      <div style={{ paddingTop: hero ? 130 : 24 }}>
+        {Toggle}
+        {allList.length === 0 && <p style={{ color: '#8a8a8a', fontSize: 16, padding: '0 48px' }}>No {label.toLowerCase()} in this provider's catalogue.</p>}
+
+        {view === 'rails' && genreRails.map((rail, i) => (
+          <LazyRail key={rail.id} index={i}><Rail rail={rail} titlesById={titlesById} channelsById={channelsById} onPlay={onPlay} onOpen={onOpen} /></LazyRail>
+        ))}
+
+        {view === 'all' && (
+          <div style={{ padding: '0 48px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              {allList.slice(0, shown).map((t, i) => <Poster key={t.id} title={t} idx={i} onPlay={onPlay} onOpen={onOpen} />)}
+            </div>
+            {shown < allList.length && (
+              <div style={{ textAlign: 'center', padding: '28px 0 8px' }}>
+                <button onClick={() => setShown((s) => s + 60)} style={{ background: '#1f1f1f', border: '1px solid #383838', color: '#fff', borderRadius: 6, padding: '11px 26px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Load more ({(allList.length - shown).toLocaleString()} left)
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
 }
 

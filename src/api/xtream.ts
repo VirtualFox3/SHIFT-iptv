@@ -6,9 +6,11 @@ import { proxify } from './proxy';
 
 interface XtreamAuth { serverUrl: string; username: string; password: string; }
 
-function api(auth: XtreamAuth, action: string) {
+// `extra` MUST be included before proxifying — otherwise on the deployed site
+// it lands outside the encoded ?url= param and the server ignores it.
+function api(auth: XtreamAuth, action: string, extra = '') {
   const base = auth.serverUrl.replace(/\/$/, '');
-  return proxify(`${base}/player_api.php?username=${encodeURIComponent(auth.username)}&password=${encodeURIComponent(auth.password)}&action=${action}`);
+  return proxify(`${base}/player_api.php?username=${encodeURIComponent(auth.username)}&password=${encodeURIComponent(auth.password)}&action=${action}${extra}`);
 }
 
 /** Verify credentials and return server info */
@@ -124,7 +126,7 @@ export interface VodInfo {
 /** Fetch rich VOD metadata (cast, director, plot, tmdb id) for one movie by stream id. */
 export async function xtreamGetVodInfo(auth: XtreamAuth, streamId: string | number): Promise<VodInfo | null> {
   try {
-    const res = await fetch(api(auth, 'get_vod_info') + `&vod_id=${streamId}`);
+    const res = await fetch(api(auth, 'get_vod_info', `&vod_id=${streamId}`));
     if (!res.ok) return null;
     const data = await res.json();
     const i = data.info || {};
@@ -170,28 +172,35 @@ export interface SeriesInfo {
 /** Fetch series detail (cast/plot + seasons → episodes with play URLs). */
 export async function xtreamGetSeriesInfo(auth: XtreamAuth, seriesId: string | number): Promise<SeriesInfo | null> {
   try {
-    const res = await fetch(api(auth, 'get_series_info') + `&series_id=${seriesId}`);
+    const res = await fetch(api(auth, 'get_series_info', `&series_id=${seriesId}`));
     if (!res.ok) return null;
     const data = await res.json();
     const info = data.info || {};
     const base = auth.serverUrl.replace(/\/$/, '');
+    // `episodes` can be an object keyed by season, or (rarely) an array.
     const epsBySeason = data.episodes || {};
     const seasons: SeriesInfo['seasons'] = [];
-    Object.keys(epsBySeason).sort((a, b) => Number(a) - Number(b)).forEach((sNum) => {
-      const eps: Episode[] = (epsBySeason[sNum] || []).map((e: any) => {
-        const ext = e.container_extension || 'mp4';
+    const seasonKeys = Array.isArray(epsBySeason)
+      ? epsBySeason.map((_: any, i: number) => String(i)).filter((k) => epsBySeason[Number(k)])
+      : Object.keys(epsBySeason);
+    seasonKeys.sort((a, b) => Number(a) - Number(b)).forEach((sNum) => {
+      const list = epsBySeason[sNum] || epsBySeason[Number(sNum)] || [];
+      const eps: Episode[] = (Array.isArray(list) ? list : []).map((e: any) => {
+        const ext = e.container_extension || e.containerExtension || 'mp4';
+        const epNum = Number(e.episode_num ?? e.episodeNum ?? e.num) || 0;
+        const inf = e.info || {};
         return {
-          id: String(e.id),
-          title: e.title || `Episode ${e.episode_num}`,
-          season: Number(sNum),
-          episode: Number(e.episode_num) || 0,
+          id: String(e.id ?? e.stream_id ?? ''),
+          title: e.title || inf.name || `Episode ${epNum}`,
+          season: Number(e.season ?? sNum) || Number(sNum),
+          episode: epNum,
           ext,
-          plot: e.info?.plot,
-          duration: e.info?.duration,
-          still: e.info?.movie_image,
-          playUrl: proxify(`${base}/series/${auth.username}/${auth.password}/${e.id}.${ext}`),
+          plot: inf.plot || inf.overview,
+          duration: inf.duration || (inf.duration_secs ? `${Math.round(inf.duration_secs / 60)} min` : undefined),
+          still: inf.movie_image || inf.cover_big || inf.still_path,
+          playUrl: proxify(`${base}/series/${auth.username}/${auth.password}/${e.id ?? e.stream_id}.${ext}`),
         };
-      });
+      }).filter((e: Episode) => e.id);
       if (eps.length) seasons.push({ season: Number(sNum), episodes: eps });
     });
     return {
