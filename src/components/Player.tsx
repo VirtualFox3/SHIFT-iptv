@@ -5,6 +5,7 @@ import { useStore } from '../store/useStore';
 import { type SubCue } from '../api/opensubtitles';
 import { findSubtitles, loadSubtitleCues, type SubResult } from '../api/subtitles';
 import { xtreamGetVodInfo } from '../api/xtream';
+import { deproxify } from '../api/proxy';
 import { traktScrobbleStart, traktScrobbleStop } from '../api/trakt';
 import * as Icons from './Icons';
 
@@ -62,6 +63,7 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   const [loadingSubs, setLoadingSubs] = useState(false);
 
   const [streamError, setStreamError] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
 
   // Stream setup — HLS for .m3u8 playlists, native <video> for direct files (.mp4/.mkv/.ts/.webm)
   useEffect(() => {
@@ -345,18 +347,31 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
 
       {/* Stream error */}
       {streamError && (
-        <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', textAlign: 'center', padding: 32, background: 'rgba(0,0,0,0.82)' }}>
-          <div style={{ background: '#181818', border: '1px solid #2a2a2a', borderRadius: 12, padding: '32px 40px', maxWidth: 520, boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', textAlign: 'center', padding: 32, background: 'rgba(0,0,0,0.85)', zIndex: 30 }}>
+          <div style={{ background: '#181818', border: '1px solid #2a2a2a', borderRadius: 12, padding: '32px 40px', maxWidth: 560, boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}>
             <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(229,9,20,0.15)', display: 'grid', placeItems: 'center', margin: '0 auto 16px' }}>
               <Icons.Info size={26} color="var(--accent,#E50914)" />
             </div>
-            <div style={{ fontSize: 19, fontWeight: 700, color: '#fff', marginBottom: 10 }}>This stream can't be played here</div>
-            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 1.55, marginBottom: 20 }}>
-              The provider's stream format isn't supported by the in-browser player, or the server blocked the request (CORS). Try another title or channel.
+            <div style={{ fontSize: 19, fontWeight: 700, color: '#fff', marginBottom: 10 }}>Can't play this format in the browser</div>
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 1.55, marginBottom: 22 }}>
+              This file is likely an <strong style={{ color: '#ddd' }}>MKV / HEVC</strong> stream — web browsers can only play MP4 (H.264/AAC) and HLS. Open it in <strong style={{ color: '#ddd' }}>VLC</strong> or another player to watch it.
             </div>
-            <button onClick={(e) => { e.stopPropagation(); onClose(); }} style={{ background: 'var(--accent,#E50914)', color: '#fff', border: 0, borderRadius: 6, padding: '11px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-              ← Go Back
-            </button>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button onClick={() => { const u = deproxify(streamUrl); window.open('vlc://' + u, '_self'); setTimeout(() => window.open(u, '_blank'), 300); }}
+                style={{ background: '#E8821E', color: '#fff', border: 0, borderRadius: 6, padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}>
+                ▶ Open in VLC
+              </button>
+              <button onClick={() => { navigator.clipboard.writeText(deproxify(streamUrl)).then(() => { setCopiedUrl(true); setTimeout(() => setCopiedUrl(false), 2000); }); }}
+                style={{ background: '#2a2a2a', color: '#fff', border: '1px solid #3a3a3a', borderRadius: 6, padding: '11px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Icons.Copy size={15} />{copiedUrl ? 'Copied!' : 'Copy stream link'}
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); onClose(); }} style={{ background: 'var(--accent,#E50914)', color: '#fff', border: 0, borderRadius: 6, padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                ← Go Back
+              </button>
+            </div>
+            <div style={{ fontSize: 12, color: '#666', marginTop: 16, lineHeight: 1.5 }}>
+              Tip: in VLC use <strong style={{ color: '#888' }}>Media → Open Network Stream</strong> and paste the copied link.
+            </div>
           </div>
         </div>
       )}

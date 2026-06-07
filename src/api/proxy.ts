@@ -15,3 +15,11 @@ export function proxify(url: string | undefined): string {
   if (url.includes('/api/proxy?url=')) return url;
   return `/api/proxy?url=${encodeURIComponent(url)}`;
 }
+
+/** Recover the original provider URL from a (possibly proxied) URL. */
+export function deproxify(url: string | undefined): string {
+  if (!url) return '';
+  const i = url.indexOf('/api/proxy?url=');
+  if (i === -1) return url;
+  try { return decodeURIComponent(url.slice(i + '/api/proxy?url='.length)); } catch { return url; }
+}
