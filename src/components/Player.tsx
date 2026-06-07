@@ -23,6 +23,7 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   const setProgress = useStore((s) => s.setProgress);
   const provider = useStore((s) => s.provider);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -51,6 +52,7 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   const [pip, setPip] = useState(false);
   const [aspect, setAspect] = useState<'fit' | 'fill' | '16:9' | '4:3' | 'stretch'>('fit');
   const [uiHidden, setUiHidden] = useState(false);  // explicit hide via 'h' / button
+  const [isFs, setIsFs] = useState(false);
 
   // Subtitles
   const [subtitles, setSubtitles] = useState<SubResult[]>([]);
@@ -172,6 +174,7 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
       else if (e.key === 'ArrowDown' && live) { zap(-1); }
       else if (e.key === 'm') { setMuted((m) => !m); }
       else if (e.key === 'h') { setUiHidden((h) => !h); }   // hide/show all UI
+      else if (e.key === 'f') { toggleFullscreen(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -275,6 +278,18 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
     }
   }
 
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else if (rootRef.current) await rootRef.current.requestFullscreen();
+    } catch {}
+  }
+  useEffect(() => {
+    const onFs = () => setIsFs(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
+
 
   const pct = live ? ((current as Channel).prog || 0) : (duration ? (currentTime / duration) * 100 : 0);
   const bufferedPct = duration ? (buffered / duration) * 100 : 0;
@@ -298,6 +313,7 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
 
   return (
     <div
+      ref={rootRef}
       onMouseMove={() => { if (!uiHidden) poke(); }}
       onClick={() => { if (uiHidden) { setUiHidden(false); return; } setShowQuality(false); setShowSubMenu(false); poke(); }}
       style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 200, cursor: chromeVisible ? 'default' : 'none', overflow: 'hidden' }}
@@ -535,6 +551,9 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
               </button>
             )}
 
+            <button onClick={toggleFullscreen} title="Fullscreen (F)" style={ctrlBtn}>
+              {isFs ? <Icons.FullscreenExit size={21} /> : <Icons.Fullscreen size={21} />}
+            </button>
             <button onClick={onClose} title="Close" style={ctrlBtn}><Icons.Close size={20} /></button>
           </div>
         </div>
