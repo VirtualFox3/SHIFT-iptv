@@ -41,8 +41,14 @@ export default async function handler(req: Request): Promise<Response> {
   const target = searchParams.get('url');
   if (!target) return new Response('Missing url', { status: 400, headers: CORS });
 
-  // Forward Range header so video seeking works.
-  const fwd: Record<string, string> = { 'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20' };
+  // Forward a *browser* User-Agent (not VLC). Many Xtream panels transcode VOD to
+  // browser-playable H.264 when a browser asks, but hand back the raw HEVC/MKV
+  // source when a native player (VLC) asks. Spoofing VLC was forcing the raw,
+  // unplayable file — so pass the real browser UA through instead.
+  const clientUa = req.headers.get('user-agent');
+  const fwd: Record<string, string> = {
+    'User-Agent': clientUa || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
+  };
   const range = req.headers.get('range');
   if (range) fwd['Range'] = range;
   const method = req.method === 'HEAD' ? 'HEAD' : 'GET';
