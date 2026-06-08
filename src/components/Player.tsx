@@ -114,26 +114,18 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
       }
     }
 
-    // Last resort for VOD: route the ORIGINAL provider URL through a transcoder
-    // that returns browser-playable H.264. Two backends:
-    //  - Render/Railway (settings.transcoderUrl): /stream -> fragmented MP4 (preferred, smoother)
-    //  - Built-in Vercel (when deployed): /api/hls -> on-demand HLS (no signup, cold-start prone)
-    // Render takes priority when configured; otherwise the built-in one is used.
-    const deployed = typeof location !== 'undefined' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1';
+    // Last resort for VOD: if a transcoder is configured (Render/Railway), route the
+    // ORIGINAL provider URL through it. It returns browser-playable H.264 (fragmented
+    // MP4), so MKV/HEVC titles with no playable rendition still play in the browser.
+    // (Vercel can't host FFmpeg — its functions cap at 250 MB — so the transcoder
+    // must run on an always-on host.)
     const tBase = (settings.transcoderUrl || '').trim().replace(/\/+$/, '');
-    let transcoderUrl = '';
-    let transcoderIsHls = false;
-    if (!live) {
-      if (tBase) {
-        transcoderUrl = `${tBase}/stream?url=${encodeURIComponent(streamUrl)}`;
-        transcoderIsHls = false;
-      } else if (deployed) {
-        transcoderUrl = `/api/hls?url=${encodeURIComponent(streamUrl)}`;
-        transcoderIsHls = true;
-      }
-    }
+    const transcoderUrl = (!live && tBase)
+      ? `${tBase}/stream?url=${encodeURIComponent(streamUrl)}`
+      : '';
     if (transcoderUrl) candidates.push(transcoderUrl);
     const transcoderIdx = transcoderUrl ? candidates.length - 1 : -1;
+    const transcoderIsHls = false;  // external transcoder returns progressive MP4
 
     let idx = 0;
     let cancelled = false;

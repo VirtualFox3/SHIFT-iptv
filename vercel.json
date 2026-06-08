@@ -2,9 +2,5 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "functions": {
-    "api/seg.ts": { "maxDuration": 60, "memory": 1024, "includeFiles": "node_modules/ffmpeg-static/**" },
-    "api/hls.ts": { "maxDuration": 60, "memory": 1024, "includeFiles": "node_modules/ffprobe-static/**" }
-  },
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/" }]
 }

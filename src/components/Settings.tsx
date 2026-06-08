@@ -301,15 +301,14 @@ function TranscoderSection({ settings, updateSettings }: { settings: SettingsTyp
   return (
     <Card title="Transcoder (play MKV / HEVC in-browser)">
       <div style={{ padding: 20 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#46D369', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#46D369', boxShadow: '0 0 6px #46D369' }} />
-          {on ? 'External transcoder connected' : 'Built-in transcoder active (Vercel)'}
+        <div style={{ fontSize: 15, fontWeight: 700, color: on ? '#46D369' : '#8a8a8a', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: on ? '#46D369' : '#666', boxShadow: on ? '0 0 6px #46D369' : 'none' }} />
+          {on ? 'Transcoder connected' : 'Not configured (MKV/HEVC open in VLC)'}
         </div>
         <p style={{ fontSize: 13, color: '#8a8a8a', margin: '0 0 14px', lineHeight: 1.5 }}>
-          Browsers can't decode MKV/HEVC, so they're transcoded to H.264 on the fly. The deployed app uses a{' '}
-          <strong style={{ color: '#b3b3b3' }}>built-in Vercel transcoder</strong> automatically (no setup, but cold-starts can stutter).
-          For smoother playback + seeking, deploy the <strong style={{ color: '#b3b3b3' }}>Render</strong> server (see{' '}
-          <strong style={{ color: '#b3b3b3' }}>transcoder/README.md</strong>) and paste its URL below — it takes priority when set.
+          Browsers can't decode MKV/HEVC (and Vercel can't host FFmpeg — its functions cap at 250 MB). Deploy the free
+          transcoder on <strong style={{ color: '#b3b3b3' }}>Render</strong> (see <strong style={{ color: '#b3b3b3' }}>transcoder/README.md</strong>),
+          then paste its URL here. Those titles will then play right in the app.
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 420 }}>
           <input style={inp} placeholder="https://your-transcoder.up.railway.app" value={url} onChange={(e) => { setUrl(e.target.value); setStatus('idle'); }} />
