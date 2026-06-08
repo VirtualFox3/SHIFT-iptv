@@ -19,6 +19,28 @@ function isChannel(item: Channel | Title): item is Channel {
   return 'num' in item;
 }
 
+// Platform detection for external-player deep links.
+const IS_IOS = typeof navigator !== 'undefined' && (/iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && (navigator as any).maxTouchPoints > 1));
+const IS_ANDROID = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
+
+// Hand a stream URL to a native player via its URL scheme.
+function openInExternal(kind: 'vlc' | 'infuse', rawUrl: string) {
+  const url = rawUrl;
+  let scheme: string;
+  if (kind === 'infuse') {
+    scheme = `infuse://x-callback-url/play?url=${encodeURIComponent(url)}`;
+  } else if (IS_IOS) {
+    scheme = `vlc-x-callback://x-callback-url/stream?url=${encodeURIComponent(url)}`;
+  } else if (IS_ANDROID) {
+    scheme = `intent:${url}#Intent;package=org.videolan.vlc;type=video/*;end`;
+  } else {
+    scheme = `vlc://${url}`;
+  }
+  // Copy as a safety net in case the scheme isn't registered.
+  try { navigator.clipboard.writeText(url); } catch {}
+  window.location.href = scheme;
+}
+
 export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   const settings = useStore((s) => s.settings);
   const setProgress = useStore((s) => s.setProgress);
@@ -285,9 +307,13 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   }
 
   async function toggleFullscreen() {
+    const v = videoRef.current as any;
+    // iPhone Safari only supports fullscreen on the <video> element itself.
+    if (IS_IOS && v?.webkitEnterFullscreen) { try { v.webkitEnterFullscreen(); } catch {} return; }
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
-      else if (rootRef.current) await rootRef.current.requestFullscreen();
+      else if (rootRef.current?.requestFullscreen) await rootRef.current.requestFullscreen();
+      else if (v?.webkitEnterFullscreen) v.webkitEnterFullscreen();
     } catch {}
   }
   useEffect(() => {
@@ -358,23 +384,31 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
             </div>
             <div style={{ fontSize: 19, fontWeight: 700, color: '#fff', marginBottom: 10 }}>Can't play this format in the browser</div>
             <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 1.55, marginBottom: 22 }}>
-              This file is likely an <strong style={{ color: '#ddd' }}>MKV / HEVC</strong> stream — web browsers can only play MP4 (H.264/AAC) and HLS. Open it in <strong style={{ color: '#ddd' }}>VLC</strong> or another player to watch it.
+              This file is an <strong style={{ color: '#ddd' }}>MKV / HEVC</strong> video — no web browser (incl. {IS_IOS ? 'iPhone/iPad Safari' : 'Chrome/Safari'}) can play that container. Open it in a free player like <strong style={{ color: '#ddd' }}>{IS_IOS ? 'VLC or Infuse' : 'VLC'}</strong> to watch it.
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button onClick={() => { const u = deproxify(streamUrl); window.open('vlc://' + u, '_self'); setTimeout(() => window.open(u, '_blank'), 300); }}
+              <button onClick={() => openInExternal('vlc', deproxify(streamUrl))}
                 style={{ background: '#E8821E', color: '#fff', border: 0, borderRadius: 6, padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}>
                 ▶ Open in VLC
               </button>
+              {IS_IOS && (
+                <button onClick={() => openInExternal('infuse', deproxify(streamUrl))}
+                  style={{ background: '#3478F6', color: '#fff', border: 0, borderRadius: 6, padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  ▶ Open in Infuse
+                </button>
+              )}
               <button onClick={() => { navigator.clipboard.writeText(deproxify(streamUrl)).then(() => { setCopiedUrl(true); setTimeout(() => setCopiedUrl(false), 2000); }); }}
                 style={{ background: '#2a2a2a', color: '#fff', border: '1px solid #3a3a3a', borderRadius: 6, padding: '11px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Icons.Copy size={15} />{copiedUrl ? 'Copied!' : 'Copy stream link'}
+                <Icons.Copy size={15} />{copiedUrl ? 'Copied!' : 'Copy link'}
               </button>
               <button onClick={(e) => { e.stopPropagation(); onClose(); }} style={{ background: 'var(--accent,#E50914)', color: '#fff', border: 0, borderRadius: 6, padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                 ← Go Back
               </button>
             </div>
             <div style={{ fontSize: 12, color: '#666', marginTop: 16, lineHeight: 1.5 }}>
-              Tip: in VLC use <strong style={{ color: '#888' }}>Media → Open Network Stream</strong> and paste the copied link.
+              {IS_IOS
+                ? <>Don't have it? Get <strong style={{ color: '#888' }}>VLC</strong> or <strong style={{ color: '#888' }}>Infuse</strong> free from the App Store — the link is copied, just paste it in.</>
+                : <>Tip: in VLC use <strong style={{ color: '#888' }}>Media → Open Network Stream</strong> and paste the copied link.</>}
             </div>
           </div>
         </div>
