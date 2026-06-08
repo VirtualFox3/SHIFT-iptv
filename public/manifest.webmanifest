@@ -1,0 +1,15 @@
+{
+  "name": "SHIFT — IPTV",
+  "short_name": "SHIFT",
+  "description": "Stream live TV, movies and series from your IPTV provider.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#141414",
+  "theme_color": "#E50914",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

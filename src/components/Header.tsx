@@ -121,6 +121,7 @@ export default function Header({
 
       {/* Right side */}
       <div style={{ marginLeft: 'auto', display: 'flex', gap: 18, alignItems: 'center', color: '#fff' }}>
+        <InstallButton />
         {/* TV Guide */}
         <button onClick={() => onNav('live')} title="TV Guide" style={iconBtn}><Icons.Grid size={19} /></button>
 
@@ -185,3 +186,25 @@ export default function Header({
 }
 
 const iconBtn: React.CSSProperties = { background: 'transparent', border: 0, color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0, opacity: 0.92 };
+
+// "Install app" — appears when Chrome fires beforeinstallprompt (and hides once installed).
+function InstallButton() {
+  const [deferred, setDeferred] = useState<any>(null);
+  useEffect(() => {
+    const onPrompt = (e: any) => { e.preventDefault(); setDeferred(e); };
+    const onInstalled = () => setDeferred(null);
+    window.addEventListener('beforeinstallprompt', onPrompt);
+    window.addEventListener('appinstalled', onInstalled);
+    return () => { window.removeEventListener('beforeinstallprompt', onPrompt); window.removeEventListener('appinstalled', onInstalled); };
+  }, []);
+  if (!deferred) return null;
+  return (
+    <button
+      onClick={async () => { deferred.prompt(); try { await deferred.userChoice; } catch {} setDeferred(null); }}
+      title="Install SHIFT as an app"
+      style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'var(--accent,#E50914)', border: 0, color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, padding: '7px 13px', borderRadius: 6, whiteSpace: 'nowrap' }}
+    >
+      <Icons.Download size={16} /> Install app
+    </button>
+  );
+}
