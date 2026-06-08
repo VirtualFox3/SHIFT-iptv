@@ -45,10 +45,24 @@ export default async function handler(req: Request): Promise<Response> {
   const fwd: Record<string, string> = { 'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20' };
   const range = req.headers.get('range');
   if (range) fwd['Range'] = range;
+  const method = req.method === 'HEAD' ? 'HEAD' : 'GET';
 
+  // Follow redirects MANUALLY so the Range header survives (fetch's automatic
+  // redirect-follow drops Range → origin returns the whole file → seeking breaks).
   let upstream: Response;
   try {
-    upstream = await fetch(target, { method: req.method === 'HEAD' ? 'HEAD' : 'GET', headers: fwd, redirect: 'follow' });
+    let current = target;
+    let hops = 0;
+    while (true) {
+      upstream = await fetch(current, { method, headers: fwd, redirect: 'manual' });
+      const loc = upstream.headers.get('location');
+      if (upstream.status >= 300 && upstream.status < 400 && loc && hops < 5) {
+        current = new URL(loc, current).toString();
+        hops++;
+        continue;
+      }
+      break;
+    }
   } catch (e: any) {
     return new Response('Upstream fetch failed: ' + (e?.message || e), { status: 502, headers: CORS });
   }
