@@ -87,52 +87,94 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   const [streamError, setStreamError] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
 
-  // Stream setup. For direct VOD files we try the provider URL DIRECTLY first
-  // (native byte-range seeking = fast); if that fails (UA block / mixed content)
-  // we fall back to the proxy (slower seek, but plays). HLS always uses the proxy
-  // (hls.js fetch needs CORS).
+  // Stream setup with a smart container-fallback chain (the trick Xtream web
+  // players use): browsers can't decode MKV/HEVC, but most panels also expose
+  // the SAME stream id as HLS (.m3u8 — transcoded server-side by the provider)
+  // and sometimes .mp4 / .ts. So when the original container fails to play, we
+  // retry the same URL with alternate extensions before giving up. Each non-HLS
+  // attempt also tries the proxy (UA spoof / mixed-content fix). Only after the
+  // whole chain is exhausted do we show the "open in VLC" screen.
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !streamUrl) return;
     setStreamError(false);
     setBuffering(true);
 
-    const isHls = /\.m3u8(\?|$)/i.test(streamUrl);
-    let usedProxy = false;
-    let hlsFellBack = false;
+    // Build the candidate chain. Swap a trailing video extension for alternates
+    // the provider may transcode to. HLS (.m3u8) first since it's most likely to
+    // be a browser-playable H.264 rendition.
+    const extMatch = streamUrl.match(/\.(mkv|avi|mp4|ts|m3u8|mov|m4v|flv|wmv)(\?.*)?$/i);
+    const candidates: string[] = [streamUrl];
+    if (extMatch) {
+      const qs = extMatch[2] || '';
+      const baseNoExt = streamUrl.slice(0, extMatch.index!);
+      for (const alt of ['m3u8', 'mp4', 'ts']) {
+        const url = `${baseNoExt}.${alt}${qs}`;
+        if (!candidates.includes(url)) candidates.push(url);
+      }
+    }
+
+    let idx = 0;
+    let cancelled = false;
 
     const playDirectFile = (src: string) => { video.src = src; video.play().catch(() => {}); };
 
-    if (isHls && Hls.isSupported()) {
-      const hls = new Hls({ enableWorker: true, lowLatencyMode: live });
-      hlsRef.current = hls;
-      hls.loadSource(proxify(streamUrl));
-      hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); });
-      hls.on(Hls.Events.ERROR, (_e, data) => {
-        if (!data.fatal) return;
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) { try { hls.startLoad(); return; } catch {} }
-        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !hlsFellBack) { try { hls.recoverMediaError(); return; } catch {} }
-        if (!hlsFellBack) { hlsFellBack = true; try { hls.destroy(); } catch {} hlsRef.current = null; playDirectFile(proxify(streamUrl)); }
-      });
-    } else {
-      // 1st attempt: direct (fast seeking when the provider allows it)
-      playDirectFile(streamSrc(streamUrl));
-    }
+    // Try candidate[idx]. Returns false when the chain is exhausted.
+    const tryCandidate = (): boolean => {
+      if (cancelled) return true;
+      if (idx >= candidates.length) return false;
+      const url = candidates[idx];
+      const isHls = /\.m3u8(\?|$)/i.test(url);
 
-    // On a genuine media error with no playback: first retry via the proxy,
-    // only then show the "can't play" screen.
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+
+      if (isHls && Hls.isSupported()) {
+        let hlsFellBack = false;
+        const hls = new Hls({ enableWorker: true, lowLatencyMode: live });
+        hlsRef.current = hls;
+        hls.loadSource(proxify(url));
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); });
+        hls.on(Hls.Events.ERROR, (_e, data) => {
+          if (!data.fatal) return;
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR && !hlsFellBack) { try { hls.startLoad(); return; } catch {} }
+          if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !hlsFellBack) { hlsFellBack = true; try { hls.recoverMediaError(); return; } catch {} }
+          // This HLS candidate failed — advance the chain.
+          try { hls.destroy(); } catch {}
+          hlsRef.current = null;
+          idx++;
+          if (!tryCandidate()) setStreamError(true);
+        });
+      } else {
+        // Non-HLS: try direct first (fast native seeking), proxy retry handled in onErr.
+        triedProxyForIdx = false;
+        playDirectFile(streamSrc(url));
+      }
+      return true;
+    };
+
+    let triedProxyForIdx = false;
+
+    // Genuine media error with no playback: proxy-retry this candidate once,
+    // then advance to the next container in the chain.
     const onErr = () => {
-      if (!video.error || video.currentTime > 0) return;
-      if (!isHls && !usedProxy) {
-        usedProxy = true;
-        const proxied = proxify(streamUrl);
+      if (cancelled || !video.error || video.currentTime > 0) return;
+      const url = candidates[idx];
+      const isHls = /\.m3u8(\?|$)/i.test(url || '');
+      if (!isHls && !triedProxyForIdx) {
+        triedProxyForIdx = true;
+        const proxied = proxify(url);
         if (proxied !== video.src) { playDirectFile(proxied); return; }
       }
-      setStreamError(true);
+      idx++;
+      if (!tryCandidate()) setStreamError(true);
     };
+
     video.addEventListener('error', onErr);
+    tryCandidate();
     return () => {
+      cancelled = true;
       video.removeEventListener('error', onErr);
       hlsRef.current?.destroy();
       hlsRef.current = null;
