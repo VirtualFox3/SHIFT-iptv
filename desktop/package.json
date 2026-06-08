@@ -1,0 +1,31 @@
+{
+  "name": "shift-desktop",
+  "version": "1.0.0",
+  "description": "SHIFT IPTV desktop app (Electron + mpv) — plays MKV/HEVC natively",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "get-mpv": "powershell -ExecutionPolicy Bypass -File scripts/get-mpv.ps1",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.shift.iptv",
+    "productName": "SHIFT",
+    "files": ["main.js", "preload.js"],
+    "extraResources": [
+      { "from": "bin", "to": "bin", "filter": ["**/*"] }
+    ],
+    "win": {
+      "target": "nsis",
+      "artifactName": "SHIFT-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  }
+}

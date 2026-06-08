@@ -5,6 +5,10 @@ node_modules/
 dist/
 dist-ssr/
 
+# Desktop app (Electron) — bundled binary + installers
+desktop/bin/
+desktop/dist/
+
 # Vercel
 .vercel/
 

@@ -60,6 +60,11 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   const current = live ? (channels[chIdx] || item) : item;
   const streamUrl = (current as any).streamUrl || '';
 
+  // Desktop app (Electron + mpv): hand playback to the native engine, which plays
+  // EVERYTHING (HEVC/MKV/AV1) with no browser codec limits.
+  const electronAPI = typeof window !== 'undefined' ? (window as any).electronAPI : undefined;
+  const isDesktop = !!electronAPI?.playStream;
+
   const [playing, setPlaying] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -94,7 +99,17 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   // retry the same URL with alternate extensions before giving up. Each non-HLS
   // attempt also tries the proxy (UA spoof / mixed-content fix). Only after the
   // whole chain is exhausted do we show the "open in VLC" screen.
+  // In the desktop app, mpv handles playback — skip the browser <video> pipeline.
   useEffect(() => {
+    if (!isDesktop || !streamUrl) return;
+    const title = live ? (current as Channel).name : (item as Title).title;
+    electronAPI.playStream({ url: deproxify(streamUrl), title });
+    const t = setTimeout(onClose, 600);  // hand off, then return to the library
+    return () => clearTimeout(t);
+  }, [isDesktop, streamUrl, chIdx]);
+
+  useEffect(() => {
+    if (isDesktop) return;
     const video = videoRef.current;
     if (!video || !streamUrl) return;
     setStreamError(false);
@@ -433,6 +448,19 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
 
   // When UI is explicitly hidden, suppress all chrome
   const chromeVisible = uiVisible && !uiHidden;
+
+  // Desktop: mpv plays in its own fullscreen window — show a brief hand-off screen.
+  if (isDesktop) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 200, display: 'grid', placeItems: 'center' }}>
+        <div style={{ textAlign: 'center', color: '#fff' }}>
+          <div className="spin" style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid rgba(255,255,255,0.2)', borderTopColor: '#E50914', margin: '0 auto 18px' }} />
+          <div style={{ fontSize: 17, fontWeight: 700 }}>Opening in player…</div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6 }}>Playing in mpv — close it to return here.</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
