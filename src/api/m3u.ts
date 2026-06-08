@@ -32,7 +32,7 @@ export function parseM3U(text: string): Channel[] {
       rating: 'TV-G',
       viewers: '—',
       desc: `${groupTitle} · ${tvgName}`,
-      streamUrl: proxify(urlLine),
+      streamUrl: urlLine,
       logoUrl: tvgLogo,
       epgId: tvgId,
     });

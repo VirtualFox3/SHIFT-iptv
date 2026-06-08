@@ -47,7 +47,7 @@ export async function xtreamGetLive(auth: XtreamAuth): Promise<Channel[]> {
       viewers: '—',
       desc: ch.name || '',
       // .m3u8 is the HLS-playlist form — playable by HLS.js in the browser.
-      streamUrl: proxify(`${base}/live/${auth.username}/${auth.password}/${ch.stream_id}.m3u8`),
+      streamUrl: `${base}/live/${auth.username}/${auth.password}/${ch.stream_id}.m3u8`,
       logoUrl: ch.stream_icon || '',
       epgId: ch.epg_channel_id || '',
     }));
@@ -76,7 +76,7 @@ export async function xtreamGetVOD(auth: XtreamAuth): Promise<Title[]> {
       grad: gradForCat(m.category_name || ''),
       isShift: false,
       synopsis: m.plot || m.description || '',
-      streamUrl: proxify(`${base}/movie/${auth.username}/${auth.password}/${m.stream_id}.${m.container_extension || 'mkv'}`),
+      streamUrl: `${base}/movie/${auth.username}/${auth.password}/${m.stream_id}.${m.container_extension || 'mkv'}`,
       logoUrl: m.stream_icon || m.cover || '',
     }));
   } catch {
@@ -198,7 +198,7 @@ export async function xtreamGetSeriesInfo(auth: XtreamAuth, seriesId: string | n
           plot: inf.plot || inf.overview,
           duration: inf.duration || (inf.duration_secs ? `${Math.round(inf.duration_secs / 60)} min` : undefined),
           still: inf.movie_image || inf.cover_big || inf.still_path,
-          playUrl: proxify(`${base}/series/${auth.username}/${auth.password}/${e.id ?? e.stream_id}.${ext}`),
+          playUrl: `${base}/series/${auth.username}/${auth.password}/${e.id ?? e.stream_id}.${ext}`,
         };
       }).filter((e: Episode) => e.id);
       if (eps.length) seasons.push({ season: Number(sNum), episodes: eps });

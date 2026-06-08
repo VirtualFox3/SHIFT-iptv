@@ -5,7 +5,7 @@ import { useStore } from '../store/useStore';
 import { type SubCue } from '../api/opensubtitles';
 import { findSubtitles, loadSubtitleCues, type SubResult } from '../api/subtitles';
 import { xtreamGetVodInfo } from '../api/xtream';
-import { deproxify } from '../api/proxy';
+import { deproxify, streamSrc } from '../api/proxy';
 import { traktScrobbleStart, traktScrobbleStop } from '../api/trakt';
 import * as Icons from './Icons';
 
@@ -73,12 +73,13 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
     setBuffering(true);
 
     const isHls = /\.m3u8(\?|$)/i.test(streamUrl);
+    const src = streamSrc(streamUrl);  // direct for VOD files (fast seeking), proxy only when needed
 
     let hlsFellBack = false;
     if (isHls && Hls.isSupported()) {
       const hls = new Hls({ enableWorker: true, lowLatencyMode: live });
       hlsRef.current = hls;
-      hls.loadSource(streamUrl);
+      hls.loadSource(src);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); });
       hls.on(Hls.Events.ERROR, (_e, data) => {
@@ -91,13 +92,13 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
           hlsFellBack = true;
           try { hls.destroy(); } catch {}
           hlsRef.current = null;
-          video.src = streamUrl;
+          video.src = src;
           video.play().catch(() => {});
         }
       });
     } else {
       // Direct file (VOD .mp4/.mkv, or native HLS on Safari)
-      video.src = streamUrl;
+      video.src = src;
       video.play().catch(() => {});  // autoplay block is not a stream failure
     }
 
