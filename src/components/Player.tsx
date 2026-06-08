@@ -114,6 +114,16 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
       }
     }
 
+    // Last resort for VOD: if a transcoder is configured, route the ORIGINAL
+    // provider URL through it. It returns browser-playable H.264 (fragmented MP4),
+    // so MKV/HEVC titles with no playable rendition still play in the browser.
+    const tBase = (settings.transcoderUrl || '').trim().replace(/\/+$/, '');
+    const transcoderUrl = (!live && tBase)
+      ? `${tBase}/stream?url=${encodeURIComponent(streamUrl)}`
+      : '';
+    if (transcoderUrl) candidates.push(transcoderUrl);
+    const transcoderIdx = transcoderUrl ? candidates.length - 1 : -1;
+
     let idx = 0;
     let cancelled = false;
     let watchdog: ReturnType<typeof setTimeout> | null = null;
@@ -132,11 +142,14 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
     // candidate as dead and fall through to the next container.
     const armWatch = () => {
       clearWatch();
+      // The transcoder needs time to probe + spin up FFmpeg before the first
+      // frame arrives, so give it a much longer grace period.
+      const ms = idx === transcoderIdx ? 30000 : 7000;
       watchdog = setTimeout(() => {
         if (cancelled) return;
         if (video.currentTime > 0.3) return;  // genuinely progressing
         advance();
-      }, 7000);
+      }, ms);
     };
 
     // Try candidate[idx]. Returns false when the chain is exhausted.
@@ -166,6 +179,10 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
           hlsRef.current = null;
           advance();
         });
+      } else if (idx === transcoderIdx) {
+        // Transcoder URL is an external host — play it raw, never through our proxy.
+        triedProxyForIdx = true;  // suppress the proxy-retry path for this candidate
+        playDirectFile(url);
       } else {
         // Non-HLS: try direct first (fast native seeking), proxy retry handled in onErr.
         triedProxyForIdx = false;
@@ -205,7 +222,7 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
       hlsRef.current?.destroy();
       hlsRef.current = null;
     };
-  }, [streamUrl, live, chIdx]);
+  }, [streamUrl, live, chIdx, settings.transcoderUrl]);
 
   // Video events
   useEffect(() => {
@@ -474,7 +491,9 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
               </button>
             </div>
             <div style={{ fontSize: 12, color: '#666', marginTop: 16, lineHeight: 1.5 }}>
-              {IS_IOS
+              {!settings.transcoderUrl
+                ? <>Want these to play <strong style={{ color: '#888' }}>in the browser</strong>? Set up the free transcoder in <strong style={{ color: '#888' }}>Settings → Integrations</strong> (see transcoder/README.md).</>
+                : IS_IOS
                 ? <>Don't have it? Get <strong style={{ color: '#888' }}>VLC</strong> or <strong style={{ color: '#888' }}>Infuse</strong> free from the App Store — the link is copied, just paste it in.</>
                 : <>Tip: in VLC use <strong style={{ color: '#888' }}>Media → Open Network Stream</strong> and paste the copied link.</>}
             </div>

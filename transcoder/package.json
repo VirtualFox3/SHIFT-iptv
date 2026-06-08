@@ -1,0 +1,15 @@
+{
+  "name": "shift-transcoder",
+  "version": "1.0.0",
+  "description": "On-the-fly FFmpeg transcoder for the SHIFT IPTV app — plays MKV/HEVC in the browser",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
