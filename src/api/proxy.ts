@@ -17,15 +17,13 @@ export function proxify(url: string | undefined): string {
 }
 
 /**
- * First-attempt playback URL. HLS goes through the proxy (hls.js fetch needs
- * CORS). Direct files are tried DIRECTLY first for fast native seeking — the
- * player falls back to the proxy automatically if that errors (UA block /
- * mixed content).
+ * Playback URL — always through the proxy when deployed. The proxy spoofs a
+ * player User-Agent (providers block browser UAs), fixes CORS + mixed content,
+ * AND now preserves Range across redirects so seeking returns 206 (fast). This
+ * is the reliable path that actually plays provider streams.
  */
 export function streamSrc(url: string | undefined): string {
-  if (!url) return '';
-  if (/\.m3u8(\?|$)/i.test(url)) return proxify(url);
-  return url; // direct file — fast seeking; player retries via proxy on failure
+  return proxify(url);
 }
 
 /** Recover the original provider URL from a (possibly proxied) URL. */
