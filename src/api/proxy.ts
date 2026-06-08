@@ -17,14 +17,15 @@ export function proxify(url: string | undefined): string {
 }
 
 /**
- * Best playback URL for a stream. Always route through the proxy when deployed:
- * the proxy spoofs a player User-Agent (many IPTV servers BLOCK browser UAs),
- * fixes CORS, and avoids http→https mixed content. On localhost it returns the
- * URL unchanged (direct). Seeking is a touch slower via the proxy, but this is
- * what actually makes provider streams play.
+ * First-attempt playback URL. HLS goes through the proxy (hls.js fetch needs
+ * CORS). Direct files are tried DIRECTLY first for fast native seeking — the
+ * player falls back to the proxy automatically if that errors (UA block /
+ * mixed content).
  */
 export function streamSrc(url: string | undefined): string {
-  return proxify(url);
+  if (!url) return '';
+  if (/\.m3u8(\?|$)/i.test(url)) return proxify(url);
+  return url; // direct file — fast seeking; player retries via proxy on failure
 }
 
 /** Recover the original provider URL from a (possibly proxied) URL. */

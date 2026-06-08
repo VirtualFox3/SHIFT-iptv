@@ -5,7 +5,7 @@ import { useStore } from '../store/useStore';
 import { type SubCue } from '../api/opensubtitles';
 import { findSubtitles, loadSubtitleCues, type SubResult } from '../api/subtitles';
 import { xtreamGetVodInfo } from '../api/xtream';
-import { deproxify, streamSrc } from '../api/proxy';
+import { deproxify, streamSrc, proxify } from '../api/proxy';
 import { traktScrobbleStart, traktScrobbleStop } from '../api/trakt';
 import * as Icons from './Icons';
 
@@ -65,7 +65,10 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   const [streamError, setStreamError] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
 
-  // Stream setup — HLS for .m3u8 playlists, native <video> for direct files (.mp4/.mkv/.ts/.webm)
+  // Stream setup. For direct VOD files we try the provider URL DIRECTLY first
+  // (native byte-range seeking = fast); if that fails (UA block / mixed content)
+  // we fall back to the proxy (slower seek, but plays). HLS always uses the proxy
+  // (hls.js fetch needs CORS).
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !streamUrl) return;
@@ -73,38 +76,38 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
     setBuffering(true);
 
     const isHls = /\.m3u8(\?|$)/i.test(streamUrl);
-    const src = streamSrc(streamUrl);  // direct for VOD files (fast seeking), proxy only when needed
-
+    let usedProxy = false;
     let hlsFellBack = false;
+
+    const playDirectFile = (src: string) => { video.src = src; video.play().catch(() => {}); };
+
     if (isHls && Hls.isSupported()) {
       const hls = new Hls({ enableWorker: true, lowLatencyMode: live });
       hlsRef.current = hls;
-      hls.loadSource(src);
+      hls.loadSource(proxify(streamUrl));
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); });
       hls.on(Hls.Events.ERROR, (_e, data) => {
         if (!data.fatal) return;
-        // Try HLS's own recovery for network/media errors first.
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) { try { hls.startLoad(); return; } catch {} }
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !hlsFellBack) { try { hls.recoverMediaError(); return; } catch {} }
-        // Last resort: drop HLS and try the URL directly.
-        if (!hlsFellBack) {
-          hlsFellBack = true;
-          try { hls.destroy(); } catch {}
-          hlsRef.current = null;
-          video.src = src;
-          video.play().catch(() => {});
-        }
+        if (!hlsFellBack) { hlsFellBack = true; try { hls.destroy(); } catch {} hlsRef.current = null; playDirectFile(proxify(streamUrl)); }
       });
     } else {
-      // Direct file (VOD .mp4/.mkv, or native HLS on Safari)
-      video.src = src;
-      video.play().catch(() => {});  // autoplay block is not a stream failure
+      // 1st attempt: direct (fast seeking when the provider allows it)
+      playDirectFile(streamSrc(streamUrl));
     }
 
-    // Only treat a genuine media error (with no playback) as a stream failure.
+    // On a genuine media error with no playback: first retry via the proxy,
+    // only then show the "can't play" screen.
     const onErr = () => {
-      if (video.error && video.currentTime === 0) setStreamError(true);
+      if (!video.error || video.currentTime > 0) return;
+      if (!isHls && !usedProxy) {
+        usedProxy = true;
+        const proxied = proxify(streamUrl);
+        if (proxied !== video.src) { playDirectFile(proxied); return; }
+      }
+      setStreamError(true);
     };
     video.addEventListener('error', onErr);
     return () => {
