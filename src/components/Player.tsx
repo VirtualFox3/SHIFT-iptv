@@ -116,13 +116,34 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
 
     let idx = 0;
     let cancelled = false;
+    let watchdog: ReturnType<typeof setTimeout> | null = null;
+    const clearWatch = () => { if (watchdog) { clearTimeout(watchdog); watchdog = null; } };
 
     const playDirectFile = (src: string) => { video.src = src; video.play().catch(() => {}); };
+
+    const advance = () => {
+      clearWatch();
+      idx++;
+      if (!tryCandidate()) setStreamError(true);
+    };
+
+    // Stall watchdog: HEVC/MKV often "plays" without ever firing an error event —
+    // the clock just never moves. If we don't see real progress in time, treat the
+    // candidate as dead and fall through to the next container.
+    const armWatch = () => {
+      clearWatch();
+      watchdog = setTimeout(() => {
+        if (cancelled) return;
+        if (video.currentTime > 0.3) return;  // genuinely progressing
+        advance();
+      }, 7000);
+    };
 
     // Try candidate[idx]. Returns false when the chain is exhausted.
     const tryCandidate = (): boolean => {
       if (cancelled) return true;
       if (idx >= candidates.length) return false;
+      setBuffering(true);
       const url = candidates[idx];
       const isHls = /\.m3u8(\?|$)/i.test(url);
 
@@ -143,14 +164,14 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
           // This HLS candidate failed — advance the chain.
           try { hls.destroy(); } catch {}
           hlsRef.current = null;
-          idx++;
-          if (!tryCandidate()) setStreamError(true);
+          advance();
         });
       } else {
         // Non-HLS: try direct first (fast native seeking), proxy retry handled in onErr.
         triedProxyForIdx = false;
         playDirectFile(streamSrc(url));
       }
+      armWatch();  // catch the silent "plays but clock never moves" HEVC case
       return true;
     };
 
@@ -165,17 +186,22 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
       if (!isHls && !triedProxyForIdx) {
         triedProxyForIdx = true;
         const proxied = proxify(url);
-        if (proxied !== video.src) { playDirectFile(proxied); return; }
+        if (proxied !== video.src) { clearWatch(); playDirectFile(proxied); armWatch(); return; }
       }
-      idx++;
-      if (!tryCandidate()) setStreamError(true);
+      advance();
     };
 
+    // Real playback progress → the current candidate works; disarm the watchdog.
+    const onProgress = () => { if (video.currentTime > 0.3) clearWatch(); };
+
     video.addEventListener('error', onErr);
+    video.addEventListener('timeupdate', onProgress);
     tryCandidate();
     return () => {
       cancelled = true;
+      clearWatch();
       video.removeEventListener('error', onErr);
+      video.removeEventListener('timeupdate', onProgress);
       hlsRef.current?.destroy();
       hlsRef.current = null;
     };
