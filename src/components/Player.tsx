@@ -114,13 +114,24 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
       }
     }
 
-    // Last resort for VOD: if a transcoder is configured, route the ORIGINAL
-    // provider URL through it. It returns browser-playable H.264 (fragmented MP4),
-    // so MKV/HEVC titles with no playable rendition still play in the browser.
+    // Last resort for VOD: route the ORIGINAL provider URL through a transcoder
+    // that returns browser-playable H.264. Two backends:
+    //  - Render/Railway (settings.transcoderUrl): /stream -> fragmented MP4 (preferred, smoother)
+    //  - Built-in Vercel (when deployed): /api/hls -> on-demand HLS (no signup, cold-start prone)
+    // Render takes priority when configured; otherwise the built-in one is used.
+    const deployed = typeof location !== 'undefined' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1';
     const tBase = (settings.transcoderUrl || '').trim().replace(/\/+$/, '');
-    const transcoderUrl = (!live && tBase)
-      ? `${tBase}/stream?url=${encodeURIComponent(streamUrl)}`
-      : '';
+    let transcoderUrl = '';
+    let transcoderIsHls = false;
+    if (!live) {
+      if (tBase) {
+        transcoderUrl = `${tBase}/stream?url=${encodeURIComponent(streamUrl)}`;
+        transcoderIsHls = false;
+      } else if (deployed) {
+        transcoderUrl = `/api/hls?url=${encodeURIComponent(streamUrl)}`;
+        transcoderIsHls = true;
+      }
+    }
     if (transcoderUrl) candidates.push(transcoderUrl);
     const transcoderIdx = transcoderUrl ? candidates.length - 1 : -1;
 
@@ -158,7 +169,9 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
       if (idx >= candidates.length) return false;
       setBuffering(true);
       const url = candidates[idx];
-      const isHls = /\.m3u8(\?|$)/i.test(url);
+      const isTranscoder = idx === transcoderIdx;
+      // Built-in Vercel transcoder is HLS; external (Render) is progressive MP4.
+      const isHls = /\.m3u8(\?|$)/i.test(url) || (isTranscoder && transcoderIsHls);
 
       hlsRef.current?.destroy();
       hlsRef.current = null;
@@ -167,7 +180,8 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
         let hlsFellBack = false;
         const hls = new Hls({ enableWorker: true, lowLatencyMode: live });
         hlsRef.current = hls;
-        hls.loadSource(proxify(url));
+        // Transcoder/built-in HLS is same-origin or external — never wrap in our proxy.
+        hls.loadSource(isTranscoder ? url : proxify(url));
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); });
         hls.on(Hls.Events.ERROR, (_e, data) => {
