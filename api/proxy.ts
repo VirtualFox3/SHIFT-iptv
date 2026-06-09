@@ -52,6 +52,10 @@ export default async function handler(req: any, res: any): Promise<void> {
   const clientUa = req.headers['user-agent'] as string | undefined;
   const fwd: Record<string, string> = {
     'User-Agent': clientUa || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+    // Ask for UNCOMPRESSED responses. Node's fetch auto-decompresses gzip, which
+    // makes the upstream content-length wrong → forwarding it truncates JSON
+    // ("Unterminated string in JSON"). Requesting identity keeps length === body.
+    'Accept-Encoding': 'identity',
   };
   const range = req.headers['range'] as string | undefined;
   if (range) fwd['Range'] = range;
@@ -93,10 +97,17 @@ export default async function handler(req: any, res: any): Promise<void> {
   const ct = upstream.headers.get('content-type') || '';
   const isM3U8 = /mpegurl|m3u8/i.test(ct) || /\.m3u8(\?|$)/i.test(target);
 
-  ['content-type', 'content-length', 'content-range', 'accept-ranges', 'cache-control'].forEach((h) => {
+  // Forward content-range/accept-ranges (needed for video seeking) but only
+  // forward content-length when the body was NOT compressed upstream — otherwise
+  // the length is the compressed size and the (decompressed) body gets truncated.
+  ['content-type', 'content-range', 'accept-ranges', 'cache-control'].forEach((h) => {
     const v = upstream.headers.get(h);
     if (v) res.setHeader(h, v);
   });
+  if (!upstream.headers.get('content-encoding')) {
+    const cl = upstream.headers.get('content-length');
+    if (cl) res.setHeader('content-length', cl);
+  }
 
   if (isM3U8) {
     const text = await upstream.text();
