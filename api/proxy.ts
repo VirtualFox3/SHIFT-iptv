@@ -57,6 +57,16 @@ export default async function handler(req: any, res: any): Promise<void> {
   if (range) fwd['Range'] = range;
   const method = req.method === 'HEAD' ? 'HEAD' : 'GET';
 
+  // CRITICAL: abort the upstream fetch the moment the client disconnects (the
+  // browser closes a Range request to open the next one). The provider allows only
+  // ONE simultaneous connection — orphaned upstream connections trip that limit and
+  // the provider starts rejecting requests. Aborting frees the slot immediately.
+  const ac = new AbortController();
+  let done = false;
+  const onClientGone = () => { if (!done) { try { ac.abort(); } catch {} } };
+  req.on('close', onClientGone);
+  res.on('close', onClientGone);
+
   // Follow redirects MANUALLY so the Range header survives every hop (the stream
   // node is often a different host/IP than the panel).
   let upstream: Response;
@@ -64,7 +74,7 @@ export default async function handler(req: any, res: any): Promise<void> {
     let current = target;
     let hops = 0;
     while (true) {
-      upstream = await fetch(current, { method, headers: fwd, redirect: 'manual' });
+      upstream = await fetch(current, { method, headers: fwd, redirect: 'manual', signal: ac.signal });
       const loc = upstream.headers.get('location');
       if (upstream.status >= 300 && upstream.status < 400 && loc && hops < 5) {
         current = new URL(loc, current).toString();
@@ -74,6 +84,7 @@ export default async function handler(req: any, res: any): Promise<void> {
       break;
     }
   } catch (e: any) {
+    done = true;
     res.statusCode = 502;
     res.end('Upstream fetch failed: ' + (e?.message || e));
     return;
@@ -89,6 +100,7 @@ export default async function handler(req: any, res: any): Promise<void> {
 
   if (isM3U8) {
     const text = await upstream.text();
+    done = true;
     const rewritten = rewriteM3U8(text, upstream.url || target, origin);
     res.setHeader('content-type', 'application/vnd.apple.mpegurl');
     res.removeHeader('content-length');
@@ -99,8 +111,12 @@ export default async function handler(req: any, res: any): Promise<void> {
 
   res.statusCode = upstream.status;
   if (upstream.body && method !== 'HEAD') {
-    Readable.fromWeb(upstream.body as any).pipe(res);
+    const node = Readable.fromWeb(upstream.body as any);
+    node.on('end', () => { done = true; });
+    node.on('error', () => { try { res.end(); } catch {} });
+    node.pipe(res);
   } else {
+    done = true;
     res.end();
   }
 }
