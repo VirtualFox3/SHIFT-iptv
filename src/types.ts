@@ -115,7 +115,6 @@ export interface Settings {
   openSubtitlesToken?: string;
   openSubtitlesUsername?: string;
   openSubtitlesApiKey?: string;
-  transcoderUrl?: string;     // optional FFmpeg transcoder base URL (plays MKV/HEVC in-browser)
   traktAccessToken?: string;
   traktRefreshToken?: string;
   traktUsername?: string;

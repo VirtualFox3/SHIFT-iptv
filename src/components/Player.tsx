@@ -60,11 +60,6 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   const current = live ? (channels[chIdx] || item) : item;
   const streamUrl = (current as any).streamUrl || '';
 
-  // Desktop app (Electron + mpv): hand playback to the native engine, which plays
-  // EVERYTHING (HEVC/MKV/AV1) with no browser codec limits.
-  const electronAPI = typeof window !== 'undefined' ? (window as any).electronAPI : undefined;
-  const isDesktop = !!electronAPI?.playStream;
-
   const [playing, setPlaying] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -92,158 +87,57 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   const [streamError, setStreamError] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
 
-  // Stream setup with a smart container-fallback chain (the trick Xtream web
-  // players use): browsers can't decode MKV/HEVC, but most panels also expose
-  // the SAME stream id as HLS (.m3u8 — transcoded server-side by the provider)
-  // and sometimes .mp4 / .ts. So when the original container fails to play, we
-  // retry the same URL with alternate extensions before giving up. Each non-HLS
-  // attempt also tries the proxy (UA spoof / mixed-content fix). Only after the
-  // whole chain is exhausted do we show the "open in VLC" screen.
-  // In the desktop app, mpv handles playback — skip the browser <video> pipeline.
+  // Stream setup. For direct VOD files we try the provider URL DIRECTLY first
+  // (native byte-range seeking = fast); if that fails (UA block / mixed content)
+  // we fall back to the proxy (slower seek, but plays). HLS always uses the proxy
+  // (hls.js fetch needs CORS).
   useEffect(() => {
-    if (!isDesktop || !streamUrl) return;
-    const title = live ? (current as Channel).name : (item as Title).title;
-    electronAPI.playStream({ url: deproxify(streamUrl), title });
-    const t = setTimeout(onClose, 600);  // hand off, then return to the library
-    return () => clearTimeout(t);
-  }, [isDesktop, streamUrl, chIdx]);
-
-  useEffect(() => {
-    if (isDesktop) return;
     const video = videoRef.current;
     if (!video || !streamUrl) return;
     setStreamError(false);
     setBuffering(true);
 
-    // Build the candidate chain. Swap a trailing video extension for alternates
-    // the provider may transcode to. HLS (.m3u8) first since it's most likely to
-    // be a browser-playable H.264 rendition.
-    const extMatch = streamUrl.match(/\.(mkv|avi|mp4|ts|m3u8|mov|m4v|flv|wmv)(\?.*)?$/i);
-    const candidates: string[] = [streamUrl];
-    if (extMatch) {
-      const qs = extMatch[2] || '';
-      const baseNoExt = streamUrl.slice(0, extMatch.index!);
-      for (const alt of ['m3u8', 'mp4', 'ts']) {
-        const url = `${baseNoExt}.${alt}${qs}`;
-        if (!candidates.includes(url)) candidates.push(url);
-      }
-    }
-
-    // Last resort for VOD: if a transcoder is configured (Render/Railway), route the
-    // ORIGINAL provider URL through it. It returns browser-playable H.264 (fragmented
-    // MP4), so MKV/HEVC titles with no playable rendition still play in the browser.
-    // (Vercel can't host FFmpeg — its functions cap at 250 MB — so the transcoder
-    // must run on an always-on host.)
-    const tBase = (settings.transcoderUrl || '').trim().replace(/\/+$/, '');
-    const transcoderUrl = (!live && tBase)
-      ? `${tBase}/stream?url=${encodeURIComponent(streamUrl)}`
-      : '';
-    if (transcoderUrl) candidates.push(transcoderUrl);
-    const transcoderIdx = transcoderUrl ? candidates.length - 1 : -1;
-    const transcoderIsHls = false;  // external transcoder returns progressive MP4
-
-    let idx = 0;
-    let cancelled = false;
-    let watchdog: ReturnType<typeof setTimeout> | null = null;
-    const clearWatch = () => { if (watchdog) { clearTimeout(watchdog); watchdog = null; } };
+    const isHls = /\.m3u8(\?|$)/i.test(streamUrl);
+    let usedProxy = false;
+    let hlsFellBack = false;
 
     const playDirectFile = (src: string) => { video.src = src; video.play().catch(() => {}); };
 
-    const advance = () => {
-      clearWatch();
-      idx++;
-      if (!tryCandidate()) setStreamError(true);
-    };
+    if (isHls && Hls.isSupported()) {
+      const hls = new Hls({ enableWorker: true, lowLatencyMode: live });
+      hlsRef.current = hls;
+      hls.loadSource(proxify(streamUrl));
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); });
+      hls.on(Hls.Events.ERROR, (_e, data) => {
+        if (!data.fatal) return;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) { try { hls.startLoad(); return; } catch {} }
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !hlsFellBack) { try { hls.recoverMediaError(); return; } catch {} }
+        if (!hlsFellBack) { hlsFellBack = true; try { hls.destroy(); } catch {} hlsRef.current = null; playDirectFile(proxify(streamUrl)); }
+      });
+    } else {
+      // 1st attempt: direct (fast seeking when the provider allows it)
+      playDirectFile(streamSrc(streamUrl));
+    }
 
-    // Stall watchdog: HEVC/MKV often "plays" without ever firing an error event —
-    // the clock just never moves. If we don't see real progress in time, treat the
-    // candidate as dead and fall through to the next container.
-    const armWatch = () => {
-      clearWatch();
-      // The transcoder needs time to probe + spin up FFmpeg before the first
-      // frame arrives, so give it a much longer grace period.
-      const ms = idx === transcoderIdx ? 30000 : 7000;
-      watchdog = setTimeout(() => {
-        if (cancelled) return;
-        if (video.currentTime > 0.3) return;  // genuinely progressing
-        advance();
-      }, ms);
-    };
-
-    // Try candidate[idx]. Returns false when the chain is exhausted.
-    const tryCandidate = (): boolean => {
-      if (cancelled) return true;
-      if (idx >= candidates.length) return false;
-      setBuffering(true);
-      const url = candidates[idx];
-      const isTranscoder = idx === transcoderIdx;
-      // Built-in Vercel transcoder is HLS; external (Render) is progressive MP4.
-      const isHls = /\.m3u8(\?|$)/i.test(url) || (isTranscoder && transcoderIsHls);
-
-      hlsRef.current?.destroy();
-      hlsRef.current = null;
-
-      if (isHls && Hls.isSupported()) {
-        let hlsFellBack = false;
-        const hls = new Hls({ enableWorker: true, lowLatencyMode: live });
-        hlsRef.current = hls;
-        // Transcoder/built-in HLS is same-origin or external — never wrap in our proxy.
-        hls.loadSource(isTranscoder ? url : proxify(url));
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); });
-        hls.on(Hls.Events.ERROR, (_e, data) => {
-          if (!data.fatal) return;
-          if (data.type === Hls.ErrorTypes.NETWORK_ERROR && !hlsFellBack) { try { hls.startLoad(); return; } catch {} }
-          if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !hlsFellBack) { hlsFellBack = true; try { hls.recoverMediaError(); return; } catch {} }
-          // This HLS candidate failed — advance the chain.
-          try { hls.destroy(); } catch {}
-          hlsRef.current = null;
-          advance();
-        });
-      } else if (idx === transcoderIdx) {
-        // Transcoder URL is an external host — play it raw, never through our proxy.
-        triedProxyForIdx = true;  // suppress the proxy-retry path for this candidate
-        playDirectFile(url);
-      } else {
-        // Non-HLS: try direct first (fast native seeking), proxy retry handled in onErr.
-        triedProxyForIdx = false;
-        playDirectFile(streamSrc(url));
-      }
-      armWatch();  // catch the silent "plays but clock never moves" HEVC case
-      return true;
-    };
-
-    let triedProxyForIdx = false;
-
-    // Genuine media error with no playback: proxy-retry this candidate once,
-    // then advance to the next container in the chain.
+    // On a genuine media error with no playback: first retry via the proxy,
+    // only then show the "can't play" screen.
     const onErr = () => {
-      if (cancelled || !video.error || video.currentTime > 0) return;
-      const url = candidates[idx];
-      const isHls = /\.m3u8(\?|$)/i.test(url || '');
-      if (!isHls && !triedProxyForIdx) {
-        triedProxyForIdx = true;
-        const proxied = proxify(url);
-        if (proxied !== video.src) { clearWatch(); playDirectFile(proxied); armWatch(); return; }
+      if (!video.error || video.currentTime > 0) return;
+      if (!isHls && !usedProxy) {
+        usedProxy = true;
+        const proxied = proxify(streamUrl);
+        if (proxied !== video.src) { playDirectFile(proxied); return; }
       }
-      advance();
+      setStreamError(true);
     };
-
-    // Real playback progress → the current candidate works; disarm the watchdog.
-    const onProgress = () => { if (video.currentTime > 0.3) clearWatch(); };
-
     video.addEventListener('error', onErr);
-    video.addEventListener('timeupdate', onProgress);
-    tryCandidate();
     return () => {
-      cancelled = true;
-      clearWatch();
       video.removeEventListener('error', onErr);
-      video.removeEventListener('timeupdate', onProgress);
       hlsRef.current?.destroy();
       hlsRef.current = null;
     };
-  }, [streamUrl, live, chIdx, settings.transcoderUrl]);
+  }, [streamUrl, live, chIdx]);
 
   // Video events
   useEffect(() => {
@@ -449,19 +343,6 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   // When UI is explicitly hidden, suppress all chrome
   const chromeVisible = uiVisible && !uiHidden;
 
-  // Desktop: mpv plays in its own fullscreen window — show a brief hand-off screen.
-  if (isDesktop) {
-    return (
-      <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 200, display: 'grid', placeItems: 'center' }}>
-        <div style={{ textAlign: 'center', color: '#fff' }}>
-          <div className="spin" style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid rgba(255,255,255,0.2)', borderTopColor: '#E50914', margin: '0 auto 18px' }} />
-          <div style={{ fontSize: 17, fontWeight: 700 }}>Opening in player…</div>
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6 }}>Playing in mpv — close it to return here.</div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       ref={rootRef}
@@ -525,9 +406,7 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
               </button>
             </div>
             <div style={{ fontSize: 12, color: '#666', marginTop: 16, lineHeight: 1.5 }}>
-              {!settings.transcoderUrl
-                ? <>Want these to play <strong style={{ color: '#888' }}>in the browser</strong>? Set up the free transcoder in <strong style={{ color: '#888' }}>Settings → Integrations</strong> (see transcoder/README.md).</>
-                : IS_IOS
+              {IS_IOS
                 ? <>Don't have it? Get <strong style={{ color: '#888' }}>VLC</strong> or <strong style={{ color: '#888' }}>Infuse</strong> free from the App Store — the link is copied, just paste it in.</>
                 : <>Tip: in VLC use <strong style={{ color: '#888' }}>Media → Open Network Stream</strong> and paste the copied link.</>}
             </div>

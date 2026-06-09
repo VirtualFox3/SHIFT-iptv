@@ -273,54 +273,9 @@ function SubtitlesPane({ settings, set }: { settings: SettingsType; set: any }) 
 function IntegrationsPane({ settings, updateSettings }: { settings: SettingsType; updateSettings: any }) {
   return (
     <>
-      <TranscoderSection settings={settings} updateSettings={updateSettings} />
       <OpenSubtitlesSection settings={settings} updateSettings={updateSettings} />
       <TraktSection settings={settings} updateSettings={updateSettings} />
     </>
-  );
-}
-
-// Transcoder — optional FFmpeg server that converts MKV/HEVC to browser-playable
-// H.264 on the fly, so those titles play in-browser instead of falling back to VLC.
-function TranscoderSection({ settings, updateSettings }: { settings: SettingsType; updateSettings: any }) {
-  const [url, setUrl] = useState(settings.transcoderUrl || '');
-  const [status, setStatus] = useState<'idle' | 'checking' | 'ok' | 'fail'>('idle');
-
-  async function save() {
-    const clean = url.trim().replace(/\/+$/, '');
-    updateSettings({ transcoderUrl: clean || undefined });
-    if (!clean) { setStatus('idle'); return; }
-    setStatus('checking');
-    try {
-      const r = await fetch(`${clean}/health`, { method: 'GET' });
-      setStatus(r.ok ? 'ok' : 'fail');
-    } catch { setStatus('fail'); }
-  }
-
-  const on = !!settings.transcoderUrl;
-  return (
-    <Card title="Transcoder (play MKV / HEVC in-browser)">
-      <div style={{ padding: 20 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: on ? '#46D369' : '#8a8a8a', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: on ? '#46D369' : '#666', boxShadow: on ? '0 0 6px #46D369' : 'none' }} />
-          {on ? 'Transcoder connected' : 'Not configured (MKV/HEVC open in VLC)'}
-        </div>
-        <p style={{ fontSize: 13, color: '#8a8a8a', margin: '0 0 14px', lineHeight: 1.5 }}>
-          Browsers can't decode MKV/HEVC (and Vercel can't host FFmpeg — its functions cap at 250 MB). Deploy the free
-          transcoder on <strong style={{ color: '#b3b3b3' }}>Render</strong> (see <strong style={{ color: '#b3b3b3' }}>transcoder/README.md</strong>),
-          then paste its URL here. Those titles will then play right in the app.
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 420 }}>
-          <input style={inp} placeholder="https://your-transcoder.up.railway.app" value={url} onChange={(e) => { setUrl(e.target.value); setStatus('idle'); }} />
-          {status === 'ok' && <p style={{ color: '#46D369', fontSize: 13, margin: 0 }}>✓ Reachable — MKV/HEVC will now play in-browser.</p>}
-          {status === 'fail' && <p style={{ color: '#E50914', fontSize: 13, margin: 0 }}>Couldn't reach /health — check the URL is live.</p>}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={save} disabled={status === 'checking'} style={primaryBtn}>{status === 'checking' ? 'Checking…' : 'Save & test'}</button>
-            {on && <button onClick={() => { setUrl(''); updateSettings({ transcoderUrl: undefined }); setStatus('idle'); }} style={outlineBtn}>Remove</button>}
-          </div>
-        </div>
-      </div>
-    </Card>
   );
 }
 
