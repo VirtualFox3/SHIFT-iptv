@@ -1,16 +1,19 @@
-// Vercel Edge proxy — forwards IPTV requests with permissive CORS and upgrades
-// http→https-origin mixed content. Rewrites HLS (.m3u8) playlists so their
-// segment/variant URLs route back through this proxy too.
+// Vercel proxy (Node.js runtime) — forwards IPTV requests with permissive CORS.
+// Rewrites HLS (.m3u8) playlists so their segment/variant URLs route back through
+// this proxy too, and preserves the Range header across redirects so seeking
+// returns 206 (fast).
+//
+// IMPORTANT: this runs on the NODE runtime, not Edge. Xtream `/movie/` URLs
+// 301-redirect to a streaming node identified by a RAW IP address, and Vercel's
+// EDGE runtime refuses to fetch bare IPs ("Direct IP access is not allowed in
+// Vercel's Edge environment"). The Node runtime has no such restriction, so the
+// proxy can follow the redirect to the real stream node.
 //
 // Usage from the app:  /api/proxy?url=<encoded absolute url>
 
-export const config = { runtime: 'edge' };
+import { Readable } from 'node:stream';
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,HEAD,OPTIONS',
-  'Access-Control-Allow-Headers': '*',
-};
+export const config = { runtime: 'nodejs', maxDuration: 60 };
 
 function proxiedUrl(origin: string, target: string): string {
   return `${origin}/api/proxy?url=${encodeURIComponent(target)}`;
@@ -25,36 +28,37 @@ function rewriteM3U8(text: string, baseUrl: string, origin: string): string {
   return text.split('\n').map((line) => {
     const t = line.trim();
     if (!t) return line;
-    // URI="..." attributes (EXT-X-KEY, EXT-X-MEDIA, EXT-X-MAP, etc.)
     if (t.startsWith('#')) {
       return line.replace(/URI="([^"]+)"/g, (_m, u) => `URI="${proxiedUrl(origin, abs(u))}"`);
     }
-    // Bare segment / variant URL lines
     return proxiedUrl(origin, abs(t));
   }).join('\n');
 }
 
-export default async function handler(req: Request): Promise<Response> {
-  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+export default async function handler(req: any, res: any): Promise<void> {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', '*');
+  if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return; }
 
-  const { searchParams, origin } = new URL(req.url);
-  const target = searchParams.get('url');
-  if (!target) return new Response('Missing url', { status: 400, headers: CORS });
+  const host = req.headers['host'];
+  const proto = (req.headers['x-forwarded-proto'] as string) || 'https';
+  const origin = `${proto}://${host}`;
+  const reqUrl = new URL(req.url, origin);
+  const target = reqUrl.searchParams.get('url');
+  if (!target) { res.statusCode = 400; res.end('Missing url'); return; }
 
-  // Forward the caller's BROWSER User-Agent — exactly what localhost sends when it
-  // plays directly. Many panels transcode VOD to browser-playable H.264 when a
-  // browser asks (raw HEVC when a player like VLC asks), so this makes the proxy
-  // relay the same playable stream localhost gets. Falls back to a Chrome UA.
-  const clientUa = req.headers.get('user-agent');
+  // Forward the caller's browser User-Agent (matches what localhost sends).
+  const clientUa = req.headers['user-agent'] as string | undefined;
   const fwd: Record<string, string> = {
     'User-Agent': clientUa || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
   };
-  const range = req.headers.get('range');
+  const range = req.headers['range'] as string | undefined;
   if (range) fwd['Range'] = range;
   const method = req.method === 'HEAD' ? 'HEAD' : 'GET';
 
-  // Follow redirects MANUALLY so the Range header survives (fetch's automatic
-  // redirect-follow drops Range → origin returns the whole file → seeking breaks).
+  // Follow redirects MANUALLY so the Range header survives every hop (the stream
+  // node is often a different host/IP than the panel).
   let upstream: Response;
   try {
     let current = target;
@@ -70,26 +74,33 @@ export default async function handler(req: Request): Promise<Response> {
       break;
     }
   } catch (e: any) {
-    return new Response('Upstream fetch failed: ' + (e?.message || e), { status: 502, headers: CORS });
+    res.statusCode = 502;
+    res.end('Upstream fetch failed: ' + (e?.message || e));
+    return;
   }
 
   const ct = upstream.headers.get('content-type') || '';
   const isM3U8 = /mpegurl|m3u8/i.test(ct) || /\.m3u8(\?|$)/i.test(target);
 
-  const headers = new Headers(CORS);
   ['content-type', 'content-length', 'content-range', 'accept-ranges', 'cache-control'].forEach((h) => {
     const v = upstream.headers.get(h);
-    if (v) headers.set(h, v);
+    if (v) res.setHeader(h, v);
   });
 
   if (isM3U8) {
     const text = await upstream.text();
     const rewritten = rewriteM3U8(text, upstream.url || target, origin);
-    headers.set('content-type', 'application/vnd.apple.mpegurl');
-    headers.delete('content-length');
-    return new Response(rewritten, { status: upstream.status, headers });
+    res.setHeader('content-type', 'application/vnd.apple.mpegurl');
+    res.removeHeader('content-length');
+    res.statusCode = upstream.status;
+    res.end(rewritten);
+    return;
   }
 
-  // Stream everything else straight through (segments, mp4, JSON, m3u, etc.)
-  return new Response(upstream.body, { status: upstream.status, headers });
+  res.statusCode = upstream.status;
+  if (upstream.body && method !== 'HEAD') {
+    Readable.fromWeb(upstream.body as any).pipe(res);
+  } else {
+    res.end();
+  }
 }

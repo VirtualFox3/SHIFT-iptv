@@ -17,15 +17,15 @@ export function proxify(url: string | undefined): string {
 }
 
 /**
- * Playback URL — play the provider stream DIRECTLY, exactly like localhost (where
- * titles the panel transcodes for browser clients actually played). The browser
- * hits the provider with its own User-Agent + native byte-range requests. The
- * Player falls back to the proxy on error, so HTTPS providers play directly while
- * HTTP providers (blocked by mixed-content on the deployed https page) still work
- * through the proxy fallback.
+ * Playback URL — always through the proxy when deployed. The provider streams are
+ * HTTP-only, so on the HTTPS deployed page a direct <video src> is blocked as
+ * mixed content (hangs forever). The proxy serves them over HTTPS (same origin),
+ * follows the redirect to the raw-IP stream node (Node runtime), preserves Range
+ * for fast seeking, and forwards a browser UA. On localhost proxify is a no-op
+ * (same-origin http), so it plays directly there.
  */
 export function streamSrc(url: string | undefined): string {
-  return url || '';
+  return proxify(url);
 }
 
 /** Recover the original provider URL from a (possibly proxied) URL. */
