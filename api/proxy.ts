@@ -41,9 +41,14 @@ export default async function handler(req: Request): Promise<Response> {
   const target = searchParams.get('url');
   if (!target) return new Response('Missing url', { status: 400, headers: CORS });
 
-  // Spoof a player User-Agent — provider panels block browser UAs (403). This is
-  // the reliable fetch path for the streams that DO play (Live HLS, H.264 MP4).
-  const fwd: Record<string, string> = { 'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20' };
+  // Forward the caller's BROWSER User-Agent — exactly what localhost sends when it
+  // plays directly. Many panels transcode VOD to browser-playable H.264 when a
+  // browser asks (raw HEVC when a player like VLC asks), so this makes the proxy
+  // relay the same playable stream localhost gets. Falls back to a Chrome UA.
+  const clientUa = req.headers.get('user-agent');
+  const fwd: Record<string, string> = {
+    'User-Agent': clientUa || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+  };
   const range = req.headers.get('range');
   if (range) fwd['Range'] = range;
   const method = req.method === 'HEAD' ? 'HEAD' : 'GET';
