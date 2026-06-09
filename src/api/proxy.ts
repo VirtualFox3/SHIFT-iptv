@@ -17,13 +17,15 @@ export function proxify(url: string | undefined): string {
 }
 
 /**
- * Playback URL — always through the proxy when deployed. The proxy spoofs a
- * player User-Agent (providers block browser UAs), fixes CORS + mixed content,
- * AND now preserves Range across redirects so seeking returns 206 (fast). This
- * is the reliable path that actually plays provider streams.
+ * Playback URL — play the provider stream DIRECTLY, exactly like localhost (where
+ * titles the panel transcodes for browser clients actually played). The browser
+ * hits the provider with its own User-Agent + native byte-range requests. The
+ * Player falls back to the proxy on error, so HTTPS providers play directly while
+ * HTTP providers (blocked by mixed-content on the deployed https page) still work
+ * through the proxy fallback.
  */
 export function streamSrc(url: string | undefined): string {
-  return proxify(url);
+  return url || '';
 }
 
 /** Recover the original provider URL from a (possibly proxied) URL. */
