@@ -73,19 +73,32 @@ export default async function handler(req: any, res: any): Promise<void> {
 
   // Follow redirects MANUALLY so the Range header survives every hop (the stream
   // node is often a different host/IP than the panel).
-  let upstream: Response;
-  try {
+  const fetchFollowing = async (headers: Record<string, string>): Promise<Response> => {
     let current = target;
     let hops = 0;
     while (true) {
-      upstream = await fetch(current, { method, headers: fwd, redirect: 'manual', signal: ac.signal });
-      const loc = upstream.headers.get('location');
-      if (upstream.status >= 300 && upstream.status < 400 && loc && hops < 5) {
+      const r = await fetch(current, { method, headers, redirect: 'manual', signal: ac.signal });
+      const loc = r.headers.get('location');
+      if (r.status >= 300 && r.status < 400 && loc && hops < 5) {
         current = new URL(loc, current).toString();
         hops++;
         continue;
       }
-      break;
+      return r;
+    }
+  };
+
+  let upstream: Response;
+  try {
+    upstream = await fetchFollowing(fwd);
+    // Panels disagree on User-Agents: some only transcode VOD to H.264 for
+    // browser UAs (why we forward the browser's), while others flat-out 403
+    // every browser UA. On 403, retry once identifying as a real player.
+    if (upstream.status === 403) {
+      try { await upstream.body?.cancel(); } catch {}
+      const retry = await fetchFollowing({ ...fwd, 'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20' });
+      if (retry.status === 403) { try { await retry.body?.cancel(); } catch {} }
+      else upstream = retry;
     }
   } catch (e: any) {
     done = true;
