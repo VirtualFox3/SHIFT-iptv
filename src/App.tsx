@@ -84,6 +84,8 @@ export default function App() {
   const searchOpen = useStore((s) => s.searchOpen);
   const setSearchOpen = useStore((s) => s.setSearchOpen);
   const myList = useStore((s) => s.myList);
+  const continueWatching = useStore((s) => s.continueWatching);
+  const watchedAt = useStore((s) => s.watchedAt);
 
   const [playing, setPlaying] = useState<Channel | Title | null>(null);
   const [detail, setDetail] = useState<Channel | Title | null>(null);
@@ -195,6 +197,16 @@ export default function App() {
   }, [searchQuery, channels, titles]);
 
   const myListTitles = useMemo(() => myList.map((id) => titlesById[id]).filter(Boolean) as Title[], [myList, titlesById]);
+
+  // Continue Watching rail — titles with 1–94% progress, most recently watched first.
+  const continueWatchingRail = useMemo<RailType | null>(() => {
+    const ids = Object.keys(continueWatching)
+      .filter((id) => { const p = continueWatching[id]; return p > 0 && p < 95 && titlesById[id]; })
+      .sort((a, b) => (watchedAt[b] || 0) - (watchedAt[a] || 0))
+      .slice(0, 40);
+    if (!ids.length) return null;
+    return { id: 'continue-watching', title: 'Continue Watching', kind: 'title', ids, progress: continueWatching };
+  }, [continueWatching, watchedAt, titlesById]);
   const categoryItems = useMemo(() => {
     if (!activeCategory) return { titles: [] as Title[], channels: [] as Channel[] };
     const cat = activeCategory.toLowerCase();
@@ -350,7 +362,10 @@ export default function App() {
                 onPlay={setPlaying} onOpen={setDetail} accentColor={accent} />
             )}
             <div style={{ paddingTop: homeHero ? 130 : 24 }}>
-              {rails.length === 0 && (
+              {continueWatchingRail && (
+                <Rail rail={continueWatchingRail} titlesById={titlesById} channelsById={channelsById} onPlay={setPlaying} onOpen={setDetail} />
+              )}
+              {rails.length === 0 && !continueWatchingRail && (
                 <p style={{ color: '#8a8a8a', fontSize: 16, padding: '0 48px' }}>
                   No movies or series in this provider yet. Check the <strong>Live TV</strong> tab for channels.
                 </p>

@@ -44,6 +44,7 @@ function openInExternal(kind: 'vlc' | 'infuse', rawUrl: string) {
 export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   const settings = useStore((s) => s.settings);
   const setProgress = useStore((s) => s.setProgress);
+  const continueWatching = useStore((s) => s.continueWatching);
   const provider = useStore((s) => s.provider);
   const videoRef = useRef<HTMLVideoElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -138,6 +139,21 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
       hlsRef.current = null;
     };
   }, [streamUrl, live, chIdx]);
+
+  // Resume VOD from saved position (runs once per item load, skipped for live).
+  useEffect(() => {
+    if (live) return;
+    const pct = continueWatching[item.id];
+    if (!pct || pct >= 95) return;  // nothing saved, or effectively finished
+    const video = videoRef.current;
+    if (!video) return;
+    const seek = () => {
+      const target = (pct / 100) * video.duration;
+      if (target > 0 && isFinite(target)) video.currentTime = target;
+    };
+    video.addEventListener('loadedmetadata', seek, { once: true });
+    return () => video.removeEventListener('loadedmetadata', seek);
+  }, [item.id, streamUrl]);
 
   // Video events
   useEffect(() => {
