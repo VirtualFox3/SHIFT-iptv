@@ -31,6 +31,7 @@ interface AppStore {
 
   // Continue watching
   continueWatching: Record<string, number>;
+  watchedAt: Record<string, number>;  // title id → last-watched timestamp (ms)
   setProgress: (id: string, pct: number) => void;
 
   // Settings
@@ -129,7 +130,11 @@ export const useStore = create<AppStore>()(
       })),
 
       continueWatching: {},
-      setProgress: (id, pct) => set((s) => ({ continueWatching: { ...s.continueWatching, [id]: pct } })),
+      watchedAt: {},
+      setProgress: (id, pct) => set((s) => ({
+        continueWatching: { ...s.continueWatching, [id]: pct },
+        watchedAt: { ...s.watchedAt, [id]: Date.now() },
+      })),
 
       settings: DEFAULT_SETTINGS,
       updateSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
@@ -153,6 +158,7 @@ export const useStore = create<AppStore>()(
         savedProviders: s.savedProviders,
         myList: s.myList,
         continueWatching: s.continueWatching,
+        watchedAt: s.watchedAt,
         settings: s.settings,
       }),
     }
