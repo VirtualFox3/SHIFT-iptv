@@ -133,6 +133,10 @@ export default async function handler(req: any, res: any): Promise<void> {
     return;
   }
 
+  // Advertise byte-range support so the browser seeks via Range requests
+  // (confident, fast seeking) instead of conservatively re-reading.
+  if (!res.getHeader('accept-ranges')) res.setHeader('accept-ranges', 'bytes');
+
   res.statusCode = upstream.status;
   if (upstream.body && method !== 'HEAD') {
     const node = Readable.fromWeb(upstream.body as any);

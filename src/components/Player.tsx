@@ -199,6 +199,9 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
     };
     const onDur = () => setDuration(video.duration);
     const onWait = () => setBuffering(true);
+    const onSeeking = () => setBuffering(true);     // instant feedback on scrub
+    const onSeeked = () => { if (video.readyState >= 3) setBuffering(false); };
+    const onCanPlay = () => setBuffering(false);
     const onPlay2 = () => { setPlaying(true); setBuffering(false); setStreamError(false); };
     const onPause = () => setPlaying(false);
     const onPipEnter = () => setPip(true);
@@ -207,6 +210,9 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
     video.addEventListener('timeupdate', onTime);
     video.addEventListener('durationchange', onDur);
     video.addEventListener('waiting', onWait);
+    video.addEventListener('seeking', onSeeking);
+    video.addEventListener('seeked', onSeeked);
+    video.addEventListener('canplay', onCanPlay);
     video.addEventListener('playing', onPlay2);
     video.addEventListener('pause', onPause);
     video.addEventListener('enterpictureinpicture', onPipEnter);
@@ -215,6 +221,9 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
       video.removeEventListener('timeupdate', onTime);
       video.removeEventListener('durationchange', onDur);
       video.removeEventListener('waiting', onWait);
+      video.removeEventListener('seeking', onSeeking);
+      video.removeEventListener('seeked', onSeeked);
+      video.removeEventListener('canplay', onCanPlay);
       video.removeEventListener('playing', onPlay2);
       video.removeEventListener('pause', onPause);
       video.removeEventListener('enterpictureinpicture', onPipEnter);
@@ -425,6 +434,7 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
         muted={muted}
         autoPlay
         playsInline
+        preload="auto"
         onVolumeChange={() => {
           const v = videoRef.current;
           if (v) { setVol(v.volume); setMuted(v.muted); }
