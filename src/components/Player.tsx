@@ -61,6 +61,12 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   const current = live ? (channels[chIdx] || item) : item;
   const streamUrl = (current as any).streamUrl || '';
 
+  // Desktop app (Electron + mpv): hand playback to the native engine, which plays
+  // EVERYTHING (HEVC/MKV/AV1) and connects DIRECTLY to the provider (home IP, one
+  // clean connection) — no browser codec limits, no proxy, no 1-connection clash.
+  const electronAPI = typeof window !== 'undefined' ? (window as any).electronAPI : undefined;
+  const isDesktop = !!electronAPI?.playStream;
+
   const [playing, setPlaying] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -88,11 +94,22 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   const [streamError, setStreamError] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
 
+  // In the desktop app, mpv handles playback — pass the ORIGINAL provider URL
+  // (deproxified) and return to the library. mpv connects directly and plays it.
+  useEffect(() => {
+    if (!isDesktop || !streamUrl) return;
+    const title = live ? (current as Channel).name : (item as Title).title;
+    electronAPI.playStream({ url: deproxify(streamUrl), title });
+    const t = setTimeout(onClose, 600);
+    return () => clearTimeout(t);
+  }, [isDesktop, streamUrl, chIdx]);
+
   // Stream setup. For direct VOD files we try the provider URL DIRECTLY first
   // (native byte-range seeking = fast); if that fails (UA block / mixed content)
   // we fall back to the proxy (slower seek, but plays). HLS always uses the proxy
   // (hls.js fetch needs CORS).
   useEffect(() => {
+    if (isDesktop) return;
     const video = videoRef.current;
     if (!video || !streamUrl) return;
     setStreamError(false);
@@ -358,6 +375,19 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
 
   // When UI is explicitly hidden, suppress all chrome
   const chromeVisible = uiVisible && !uiHidden;
+
+  // Desktop: mpv plays in its own window — show a brief hand-off screen.
+  if (isDesktop) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 200, display: 'grid', placeItems: 'center' }}>
+        <div style={{ textAlign: 'center', color: '#fff' }}>
+          <div className="spin" style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid rgba(255,255,255,0.2)', borderTopColor: '#E50914', margin: '0 auto 18px' }} />
+          <div style={{ fontSize: 17, fontWeight: 700 }}>Opening in player…</div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6 }}>Playing in mpv — close it to return here.</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
