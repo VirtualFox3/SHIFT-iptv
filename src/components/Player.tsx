@@ -94,6 +94,8 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   const [loadingSubs, setLoadingSubs] = useState(false);
 
   const [streamError, setStreamError] = useState(false);
+  const [errorKind, setErrorKind] = useState<'format' | 'busy'>('format');
+  const [retryNonce, setRetryNonce] = useState(0);
   const [copiedUrl, setCopiedUrl] = useState(false);
 
   // In the desktop app, mpv handles playback — pass the ORIGINAL provider URL
@@ -149,7 +151,19 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
         const proxied = proxify(streamUrl);
         if (proxied !== video.src) { playDirectFile(proxied); return; }
       }
-      setStreamError(true);
+      // Classify the failure: is the provider rejecting us (busy — only 1
+      // connection allowed, e.g. it's open on the phone) or is it a codec the
+      // browser genuinely can't decode (MKV/HEVC)? A quick range probe tells us.
+      (async () => {
+        let kind: 'format' | 'busy' = 'format';
+        try {
+          const r = await fetch(proxify(streamUrl), { headers: { Range: 'bytes=0-1' } });
+          if (r.status === 458 || r.status === 403 || r.status === 429 || r.status >= 500) kind = 'busy';
+          try { await r.body?.cancel(); } catch {}
+        } catch { kind = 'busy'; }
+        setErrorKind(kind);
+        setStreamError(true);
+      })();
     };
     video.addEventListener('error', onErr);
     return () => {
@@ -157,7 +171,7 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
       hlsRef.current?.destroy();
       hlsRef.current = null;
     };
-  }, [streamUrl, live, chIdx]);
+  }, [streamUrl, live, chIdx, retryNonce]);
 
   // Resume VOD from saved position (runs once per item load, skipped for live).
   useEffect(() => {
@@ -436,11 +450,19 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
             <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(229,9,20,0.15)', display: 'grid', placeItems: 'center', margin: '0 auto 16px' }}>
               <Icons.Info size={26} color="var(--accent,#E50914)" />
             </div>
-            <div style={{ fontSize: 19, fontWeight: 700, color: '#fff', marginBottom: 10 }}>Can't play this format in the browser</div>
+            <div style={{ fontSize: 19, fontWeight: 700, color: '#fff', marginBottom: 10 }}>
+              {errorKind === 'busy' ? 'Stream is busy' : "Can't play this format in the browser"}
+            </div>
             <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 1.55, marginBottom: 22 }}>
-              This file is an <strong style={{ color: '#ddd' }}>MKV / HEVC</strong> video — no web browser (incl. {IS_IOS ? 'iPhone/iPad Safari' : 'Chrome/Safari'}) can play that container. Open it in a free player like <strong style={{ color: '#ddd' }}>{IS_IOS ? 'VLC or Infuse' : 'VLC'}</strong> to watch it.
+              {errorKind === 'busy'
+                ? <>Your provider allows only <strong style={{ color: '#ddd' }}>one connection at a time</strong>. Make sure it's <strong style={{ color: '#ddd' }}>closed on your phone and any other device/app</strong>, then hit Retry.</>
+                : <>This file is an <strong style={{ color: '#ddd' }}>MKV / HEVC</strong> video — no web browser (incl. {IS_IOS ? 'iPhone/iPad Safari' : 'Chrome/Safari'}) can play that container. Open it in a free player like <strong style={{ color: '#ddd' }}>{IS_IOS ? 'VLC or Infuse' : 'VLC'}</strong> to watch it.</>}
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button onClick={() => { setStreamError(false); setBuffering(true); setRetryNonce((n) => n + 1); }}
+                style={{ background: errorKind === 'busy' ? '#1DB954' : '#2a2a2a', color: '#fff', border: errorKind === 'busy' ? 0 : '1px solid #3a3a3a', borderRadius: 6, padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}>
+                ↻ Retry
+              </button>
               <button onClick={() => openInExternal('vlc', deproxify(streamUrl))}
                 style={{ background: '#E8821E', color: '#fff', border: 0, borderRadius: 6, padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}>
                 ▶ Open in VLC
@@ -460,7 +482,9 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
               </button>
             </div>
             <div style={{ fontSize: 12, color: '#666', marginTop: 16, lineHeight: 1.5 }}>
-              {IS_IOS
+              {errorKind === 'busy'
+                ? <>This is why it works sometimes and not others — only one device can watch at a time on your plan.</>
+                : IS_IOS
                 ? <>Don't have it? Get <strong style={{ color: '#888' }}>VLC</strong> or <strong style={{ color: '#888' }}>Infuse</strong> free from the App Store — the link is copied, just paste it in.</>
                 : <>Tip: in VLC use <strong style={{ color: '#888' }}>Media → Open Network Stream</strong> and paste the copied link.</>}
             </div>
