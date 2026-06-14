@@ -17,6 +17,7 @@ interface AppStore {
 
   // Reconnect a real (xtream/m3u) provider — re-fetches content
   reconnecting: boolean;
+  loadFailed: boolean;
   reconnectProvider: (p: Provider) => Promise<void>;
 
   // Content
@@ -95,13 +96,17 @@ export const useStore = create<AppStore>()(
       removeSavedProvider: (id) => set((s) => ({ savedProviders: s.savedProviders.filter((x) => x.id !== id) })),
 
       reconnecting: false,
+      loadFailed: false,
       reconnectProvider: async (p) => {
         if (p.type === 'demo') { get().setProvider(p); return; }
         // Keep the user logged in immediately — set the provider before fetching
         // so a slow/failed re-fetch never bounces them back to the login screen.
-        set({ reconnecting: true, provider: p });
+        set({ reconnecting: true, loadFailed: false, provider: p });
         get().saveProvider(p);
-        try {
+        // Retry a few times: the provider's single connection is often briefly
+        // busy (open on another device), so a transient failure shouldn't strand
+        // the user on an empty screen needing a manual page refresh.
+        const attempt = async () => {
           if (p.type === 'm3u' && p.m3uUrl) {
             const channels = await fetchM3U(p.m3uUrl);
             set({ channels, titles: [] });
@@ -112,11 +117,16 @@ export const useStore = create<AppStore>()(
             ]);
             set({ channels, titles: [...vod, ...series] });
           }
-        } catch {
-          // Stay logged in even if the catalogue fetch fails; user can retry.
-        } finally {
-          set({ reconnecting: false });
+        };
+        let ok = false;
+        for (let i = 0; i < 3 && !ok; i++) {
+          try {
+            if (i > 0) await new Promise((r) => setTimeout(r, 1500 * i));
+            await attempt();
+            ok = get().channels.length > 0 || get().titles.length > 0;
+          } catch { /* try again */ }
         }
+        set({ reconnecting: false, loadFailed: !ok });
       },
 
       channels: [],

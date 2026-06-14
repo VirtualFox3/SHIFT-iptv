@@ -105,6 +105,7 @@ export default function App() {
 
   const reconnectProvider = useStore((s) => s.reconnectProvider);
   const reconnecting = useStore((s) => s.reconnecting);
+  const loadFailed = useStore((s) => s.loadFailed);
 
   // Keep the OpenSubtitles API key in sync with settings.
   useEffect(() => { setOsApiKey(settings.openSubtitlesApiKey); }, [settings.openSubtitlesApiKey]);
@@ -227,6 +228,31 @@ export default function App() {
         <div style={{ textAlign: 'center' }}>
           <div style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid #2a2a2a', borderTopColor: settings.accentColor, animation: 'spin 0.7s linear infinite', margin: '0 auto 20px' }} />
           <div style={{ fontSize: 16, color: '#b3b3b3' }}>Loading your channels & titles…</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Catalogue failed to load (often the line was busy on another device). Let the
+  // user retry in-app instead of refreshing the whole page.
+  if (loadFailed && channels.length === 0 && titles.length === 0) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#141414', padding: 24 }}>
+        <div style={{ textAlign: 'center', maxWidth: 420 }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 10 }}>Couldn't load your channels</div>
+          <div style={{ fontSize: 14, color: '#8a8a8a', lineHeight: 1.55, marginBottom: 22 }}>
+            Your provider may be busy — it allows one connection at a time, so make sure it's closed on your phone and other devices, then try again.
+          </div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+            <button onClick={() => provider && reconnectProvider(provider)}
+              style={{ background: settings.accentColor, color: '#fff', border: 0, borderRadius: 6, padding: '12px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              ↻ Try again
+            </button>
+            <button onClick={() => setShowSettings(true)}
+              style={{ background: '#2a2a2a', color: '#fff', border: '1px solid #3a3a3a', borderRadius: 6, padding: '12px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Settings
+            </button>
+          </div>
         </div>
       </div>
     );
