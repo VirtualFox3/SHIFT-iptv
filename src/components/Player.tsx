@@ -79,6 +79,8 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   const [showQuality, setShowQuality] = useState(false);
   const [showSubMenu, setShowSubMenu] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [scrubPct, setScrubPct] = useState(0);          // 0–1 visual drag position
+  const [hoverPct, setHoverPct] = useState<number | null>(null);  // hover preview
   const [pip, setPip] = useState(false);
   const [aspect, setAspect] = useState<'fit' | 'fill' | '16:9' | '4:3' | 'stretch'>('fit');
   const [uiHidden, setUiHidden] = useState(false);  // explicit hide via 'h' / button
@@ -206,11 +208,18 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
     };
   }, []);
 
-  // Progress bar drag
+  // Progress bar drag — YouTube-style: while dragging we only move the bar
+  // visually (no seeking, so no re-buffer on every pixel); the actual seek
+  // happens ONCE on release.
   useEffect(() => {
     if (!dragging) return;
-    const move = (e: PointerEvent) => seekFromEvent(e);
-    const up = () => setDragging(false);
+    const move = (e: PointerEvent) => setScrubPct(pctFromEvent(e));
+    const up = (e: PointerEvent) => {
+      const frac = pctFromEvent(e);
+      const v = videoRef.current;
+      if (v && v.duration) v.currentTime = frac * v.duration;
+      setDragging(false);
+    };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
@@ -315,12 +324,11 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
     v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime + delta));
   }
 
-  function seekFromEvent(e: PointerEvent | React.PointerEvent) {
-    const v = videoRef.current;
-    if (!v || live || !barRef.current) return;
+  // Fraction (0–1) of the bar at the cursor's x position.
+  function pctFromEvent(e: PointerEvent | React.PointerEvent): number {
+    if (!barRef.current) return 0;
     const r = barRef.current.getBoundingClientRect();
-    const frac = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-    v.currentTime = frac * v.duration;
+    return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
   }
 
   function zap(dir: number) {
@@ -537,22 +545,35 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
         {/* SCRUBBER */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0 8px' }}>
           <span style={{ fontSize: 13, color: '#fff', fontWeight: 600, minWidth: 48, textAlign: 'right' }}>
-            {live ? fmt(((current as Channel).prog / 100) * 7200) : fmt(currentTime)}
+            {live ? fmt(((current as Channel).prog / 100) * 7200) : fmt(dragging ? scrubPct * duration : currentTime)}
           </span>
+          {(() => { const barPct = live ? pct : (dragging ? scrubPct * 100 : pct); return (
           <div
             ref={barRef}
-            onPointerDown={(e) => { if (!live) { e.preventDefault(); setDragging(true); seekFromEvent(e as any); } }}
-            style={{ position: 'relative', flex: 1, height: 5, background: 'rgba(255,255,255,0.25)', borderRadius: 3, cursor: live ? 'default' : 'pointer', userSelect: 'none' }}
+            onPointerDown={(e) => { if (!live) { e.preventDefault(); setScrubPct(pctFromEvent(e)); setDragging(true); } }}
+            onPointerMove={(e) => { if (!live && !dragging) setHoverPct(pctFromEvent(e)); }}
+            onPointerLeave={() => setHoverPct(null)}
+            style={{ position: 'relative', flex: 1, height: dragging ? 7 : 5, background: 'rgba(255,255,255,0.25)', borderRadius: 4, cursor: live ? 'default' : 'pointer', userSelect: 'none', transition: 'height 120ms', touchAction: 'none' }}
           >
             {/* Buffered */}
-            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${bufferedPct}%`, background: 'rgba(255,255,255,0.2)', borderRadius: 3 }} />
+            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${bufferedPct}%`, background: 'rgba(255,255,255,0.2)', borderRadius: 4 }} />
+            {/* Hover preview fill */}
+            {!live && hoverPct != null && !dragging && (
+              <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${hoverPct * 100}%`, background: 'rgba(255,255,255,0.35)', borderRadius: 4, pointerEvents: 'none' }} />
+            )}
             {/* Progress */}
-            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, background: 'var(--accent,#E50914)', borderRadius: 3, transition: dragging ? 'none' : 'width 250ms linear' }} />
+            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${barPct}%`, background: 'var(--accent,#E50914)', borderRadius: 4, transition: dragging ? 'none' : 'width 250ms linear' }} />
             {/* Thumb */}
             {!live && (
-              <div style={{ position: 'absolute', left: `${pct}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 14, height: 14, borderRadius: '50%', background: 'var(--accent,#E50914)', boxShadow: '0 0 0 4px rgba(229,9,20,0.28)', transition: dragging ? 'none' : 'left 250ms linear' }} />
+              <div style={{ position: 'absolute', left: `${barPct}%`, top: '50%', transform: 'translate(-50%,-50%)', width: dragging ? 18 : 14, height: dragging ? 18 : 14, borderRadius: '50%', background: 'var(--accent,#E50914)', boxShadow: '0 0 0 4px rgba(229,9,20,0.28)', transition: dragging ? 'none' : 'left 250ms linear, width 120ms, height 120ms', pointerEvents: 'none' }} />
             )}
-          </div>
+            {/* Time bubble (drag or hover) */}
+            {!live && duration > 0 && (dragging || hoverPct != null) && (
+              <div style={{ position: 'absolute', bottom: 18, left: `${(dragging ? scrubPct : (hoverPct || 0)) * 100}%`, transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.85)', color: '#fff', fontSize: 12, fontWeight: 700, padding: '3px 8px', borderRadius: 5, pointerEvents: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+                {fmt((dragging ? scrubPct : (hoverPct || 0)) * duration)}
+              </div>
+            )}
+          </div> ); })()}
           <span style={{ fontSize: 13, color: '#fff', fontWeight: 600, minWidth: 52 }}>
             {live
               ? <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--accent,#E50914)' }}><LiveDot />LIVE</span>
