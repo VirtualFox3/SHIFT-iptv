@@ -88,6 +88,7 @@ export default function App() {
   const watchedAt = useStore((s) => s.watchedAt);
 
   const [playing, setPlaying] = useState<Channel | Title | null>(null);
+  const [nextItem, setNextItem] = useState<Title | null>(null);
   const [detail, setDetail] = useState<Channel | Title | null>(null);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -241,12 +242,18 @@ export default function App() {
 
       {/* Player overlay */}
       {playing && (
-        <Player item={playing} channels={channels} onClose={() => setPlaying(null)} />
+        <Player
+          item={playing}
+          channels={channels}
+          onClose={() => { setPlaying(null); setNextItem(null); }}
+          nextEpisode={nextItem || undefined}
+          onNext={() => { if (nextItem) { setPlaying(nextItem); setNextItem(null); } }}
+        />
       )}
 
       {/* Detail modal */}
       {detail && !playing && (
-        <DetailModal item={detail} onClose={() => setDetail(null)} onPlay={(item) => { setDetail(null); setPlaying(item); }} />
+        <DetailModal item={detail} onClose={() => setDetail(null)} onPlay={(item, next) => { setDetail(null); setPlaying(item as Title); setNextItem((next as Title) || null); }} />
       )}
 
       {/* Main app */}

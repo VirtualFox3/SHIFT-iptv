@@ -13,6 +13,8 @@ interface PlayerProps {
   item: Channel | Title;
   onClose: () => void;
   channels?: Channel[];
+  nextEpisode?: Title;
+  onNext?: () => void;
 }
 
 function isChannel(item: Channel | Title): item is Channel {
@@ -41,7 +43,7 @@ function openInExternal(kind: 'vlc' | 'infuse', rawUrl: string) {
   window.location.href = scheme;
 }
 
-export default function Player({ item, onClose, channels = [] }: PlayerProps) {
+export default function Player({ item, onClose, channels = [], nextEpisode, onNext }: PlayerProps) {
   const settings = useStore((s) => s.settings);
   const setProgress = useStore((s) => s.setProgress);
   const continueWatching = useStore((s) => s.continueWatching);
@@ -87,6 +89,7 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
 
   const [streamError, setStreamError] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [nextDismissed, setNextDismissed] = useState(false);
 
   // Stream setup. For direct VOD files we try the provider URL DIRECTLY first
   // (native byte-range seeking = fast); if that fails (UA block / mixed content)
@@ -139,6 +142,17 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
       hlsRef.current = null;
     };
   }, [streamUrl, live, chIdx]);
+
+  // Reset next-episode card whenever item changes
+  useEffect(() => { setNextDismissed(false); }, [item.id]);
+
+  // Auto-advance to next episode when video ends (if user hasn't dismissed the card)
+  useEffect(() => {
+    if (live || !nextEpisode || !onNext || nextDismissed) return;
+    if (duration > 0 && currentTime >= duration - 1) {
+      onNext();
+    }
+  }, [currentTime, duration]);
 
   // Resume VOD from saved position (runs once per item load, skipped for live).
   useEffect(() => {
@@ -430,12 +444,43 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
         </div>
       )}
 
-      {/* Subtitle display */}
+      {/* Subtitle display — slides up when controls are visible */}
       {(activeSub || settings.subEnabled) && currentCue && (
-        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 110, textAlign: 'center', pointerEvents: 'none', padding: '0 64px' }}>
-          <span style={{ background: 'rgba(0,0,0,0.8)', color: '#fff', fontSize: subSize, padding: '5px 14px', borderRadius: 4, lineHeight: 1.5, display: 'inline-block' }}>
-            {currentCue}
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: chromeVisible ? 110 : 32, textAlign: 'center', pointerEvents: 'none', padding: '0 64px', transition: 'bottom 250ms ease', zIndex: 15 }}>
+          <span style={{ background: 'rgba(0,0,0,0.82)', color: '#fff', fontSize: subSize, padding: '6px 16px', borderRadius: 5, lineHeight: 1.55, display: 'inline-block', whiteSpace: 'pre-line', textShadow: '0 1px 4px rgba(0,0,0,0.9)', letterSpacing: '0.01em' }}>
+            {currentCue.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')}
           </span>
+        </div>
+      )}
+
+      {/* Up Next card (last 60s of VOD episode) — inspired by Netflix/UHF */}
+      {!live && nextEpisode && !nextDismissed && duration > 0 && (duration - currentTime) < 60 && (duration - currentTime) > 0 && (
+        <div onClick={(e) => e.stopPropagation()} style={{
+          position: 'absolute', bottom: chromeVisible ? 110 : 32, right: 24,
+          background: 'rgba(16,16,16,0.96)', border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: 10, padding: 16, width: 300,
+          boxShadow: '0 12px 48px rgba(0,0,0,0.7)',
+          backdropFilter: 'blur(16px)',
+          transition: 'bottom 250ms ease',
+          zIndex: 20,
+          animation: 'slideInRight 300ms ease',
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
+            Up Next · {Math.ceil(duration - currentTime)}s
+          </div>
+          {nextEpisode.logoUrl && (
+            <img src={nextEpisode.logoUrl} alt="" style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 6, marginBottom: 10, display: 'block' }}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+          )}
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 12, lineHeight: 1.35 }}>{nextEpisode.title}</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={(e) => { e.stopPropagation(); onNext?.(); }} style={{ flex: 1, background: '#fff', color: '#000', border: 0, borderRadius: 6, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <Icons.Play size={13} color="#000" /> Play Now
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); setNextDismissed(true); }} style={{ background: 'rgba(255,255,255,0.08)', color: '#aaa', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '9px 12px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+              ✕
+            </button>
+          </div>
         </div>
       )}
 
@@ -628,7 +673,7 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
         </div>
       </div>
 
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}@keyframes slideInRight{from{transform:translateX(20px);opacity:0}to{transform:none;opacity:1}}`}</style>
     </div>
   );
 }

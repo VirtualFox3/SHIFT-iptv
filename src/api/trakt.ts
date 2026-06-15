@@ -127,3 +127,29 @@ export async function traktGetWatchedMovies(accessToken: string): Promise<Set<st
   const data = await res.json();
   return new Set((data as any[]).map((m: any) => m.movie?.title?.toLowerCase()));
 }
+
+/** Fetch audience rating (0–100%) for a movie or show by title. No auth required. */
+export async function traktFetchRating(type: 'movie' | 'show', title: string, year?: number): Promise<number | null> {
+  try {
+    const q = encodeURIComponent(title);
+    const yearParam = year ? `&years=${year}` : '';
+    const res = await fetch(`${BASE}/search/${type}?query=${q}${yearParam}&limit=1`, {
+      headers: { 'trakt-api-version': '2', 'trakt-api-key': CLIENT_ID },
+    });
+    if (!res.ok) return null;
+    const results = await res.json();
+    if (!Array.isArray(results) || !results.length) return null;
+    const found = results[0][type];
+    const traktId = found?.ids?.trakt;
+    if (!traktId) return null;
+
+    const rRes = await fetch(`${BASE}/${type}s/${traktId}/ratings`, {
+      headers: { 'trakt-api-version': '2', 'trakt-api-key': CLIENT_ID },
+    });
+    if (!rRes.ok) return null;
+    const rData = await rRes.json();
+    return rData.rating ? Math.round(rData.rating * 10) : null;  // 1–10 → 10–100
+  } catch {
+    return null;
+  }
+}
