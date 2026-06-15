@@ -3,7 +3,6 @@ import type { Channel, Title } from '../types';
 import { useStore } from '../store/useStore';
 import { xtreamGetVodInfo, xtreamGetSeriesInfo, type VodInfo, type SeriesInfo, type Episode } from '../api/xtream';
 import { traktFetchRating } from '../api/trakt';
-import { fetchOMDB, type OMDBResult } from '../api/omdb';
 import * as Icons from './Icons';
 
 interface DetailModalProps {
@@ -31,15 +30,7 @@ function RatingBadge({ label, value, color, bg, border }: { label: string; value
   );
 }
 
-function RTBadge({ score }: { score: number }) {
-  const fresh = score >= 60;
-  return (
-    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: fresh ? 'rgba(250,60,60,0.12)' : 'rgba(90,50,20,0.25)', border: `1px solid ${fresh ? 'rgba(250,60,60,0.3)' : 'rgba(180,100,20,0.3)'}`, borderRadius: 7, padding: '5px 11px', flexShrink: 0 }}>
-      <span style={{ fontSize: 14 }}>{fresh ? '🍅' : '🫙'}</span>
-      <span style={{ fontWeight: 700, fontSize: 14, color: fresh ? '#FF6060' : '#E5883A' }}>{score}%</span>
-    </div>
-  );
-}
+
 
 export default function DetailModal({ item, onClose, onPlay }: DetailModalProps) {
   const myList = useStore((s) => s.myList);
@@ -56,8 +47,6 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
 
   // Live-fetched ratings
   const [traktScore, setTraktScore] = useState<number | null>(null);
-  const [rtScore, setRtScore] = useState<number | null>(null);
-  const [omdbImdb, setOmdbImdb] = useState<string | null>(null);
   const [loadingRatings, setLoadingRatings] = useState(false);
 
   const xtAuth = provider?.type === 'xtream' && provider.serverUrl && provider.username
@@ -66,7 +55,7 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
   // Fetch Xtream metadata
   useEffect(() => {
     setVodInfo(null); setSeriesInfo(null); setActiveSeason(0);
-    setTraktScore(null); setRtScore(null); setOmdbImdb(null);
+    setTraktScore(null);
     if (!isTitle(item) || !xtAuth) return;
     const mv = item.id.match(/^xt_vod_(.+)$/);
     const sr = item.id.match(/^xt_series_(.+)$/);
@@ -81,21 +70,17 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
     }
   }, [item, provider]);
 
-  // Fetch Trakt + OMDB ratings (parallel, non-blocking)
+  // Fetch Trakt rating (keyless — public client ID)
   useEffect(() => {
     if (!isTitle(item)) return;
     const t = item as Title;
     const title = t.title.replace(/·.*$/, '').replace(/^(EN|US|UK|4K)[\s\-|:]+/i, '').trim() || t.title;
     const type = isMovie(t) ? 'movie' : 'show';
     setLoadingRatings(true);
-    Promise.all([
-      traktFetchRating(type, title, t.year).catch(() => null),
-      settings.omdbApiKey ? fetchOMDB(title, t.year, settings.omdbApiKey).catch(() => ({} as OMDBResult)) : Promise.resolve({} as OMDBResult),
-    ]).then(([trakt, omdb]) => {
-      if (trakt != null) setTraktScore(trakt);
-      if (omdb.rt != null) setRtScore(omdb.rt);
-      if (omdb.imdb) setOmdbImdb(omdb.imdb);
-    }).finally(() => setLoadingRatings(false));
+    traktFetchRating(type, title, t.year)
+      .catch(() => null)
+      .then((trakt) => { if (trakt != null) setTraktScore(trakt); })
+      .finally(() => setLoadingRatings(false));
   }, [item]);
 
   const cast = vodInfo?.cast || seriesInfo?.cast;
@@ -105,9 +90,8 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
   const seasonObj = seriesInfo?.seasons.find((s) => s.season === activeSeason) || seriesInfo?.seasons[0];
 
   // Compose display ratings: prefer fetched scores, fall back to stored values
-  const displayImdb = omdbImdb || (isTitle(item) ? (item as Title).imdbRating : undefined);
+  const displayImdb = isTitle(item) ? (item as Title).imdbRating : undefined;
   const displayTrakt = traktScore ?? (isTitle(item) ? (item as Title).trakt : undefined);
-  const displayRT = rtScore ?? (isTitle(item) ? (item as Title).rt : undefined);
 
   function playEpisode(ep: Episode, idx: number) {
     if (!isTitle(item)) return;
@@ -196,7 +180,7 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
           )}
 
           {/* ── Ratings row (UHF/IPTVX-style badges) ── */}
-          {isTitle(item) && (displayImdb || displayTrakt != null || displayRT != null) && (
+          {isTitle(item) && (displayImdb || displayTrakt != null) && (
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20, alignItems: 'center' }}>
               {displayImdb && (
                 <RatingBadge
@@ -207,7 +191,6 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
                   border="rgba(245,197,24,0.28)"
                 />
               )}
-              {displayRT != null && <RTBadge score={displayRT} />}
               {displayTrakt != null && (
                 <RatingBadge
                   label="Trakt"
@@ -217,7 +200,7 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
                   border="rgba(237,95,54,0.28)"
                 />
               )}
-              {loadingRatings && !displayTrakt && !displayRT && (
+              {loadingRatings && !displayTrakt && (
                 <span style={{ fontSize: 12, color: '#555', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #333', borderTopColor: '#777', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
                   Fetching ratings…
