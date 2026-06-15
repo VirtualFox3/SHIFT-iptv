@@ -2,17 +2,35 @@ import React, { useState, useEffect } from 'react';
 import type { Channel, Title } from '../types';
 import { useStore } from '../store/useStore';
 import { xtreamGetVodInfo, xtreamGetSeriesInfo, type VodInfo, type SeriesInfo, type Episode } from '../api/xtream';
+import { traktFetchRating } from '../api/trakt';
 import * as Icons from './Icons';
 
 interface DetailModalProps {
   item: Channel | Title;
   onClose: () => void;
-  onPlay: (item: Channel | Title) => void;
+  onPlay: (item: Channel | Title, next?: Title) => void;
 }
 
 function isTitle(item: Channel | Title): item is Title {
   return 'title' in item;
 }
+
+function isMovie(t: Title) {
+  const s = (t.seasons || '').toLowerCase();
+  return s === 'movie' || s === 'film' || s.includes('part') || s.includes('limited');
+}
+
+// ── Ratings badges (inspired by UHF / IPTVX) ──────────────────────────────
+function RatingBadge({ label, value, color, bg, border }: { label: string; value: string; color: string; bg: string; border: string }) {
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: bg, border: `1px solid ${border}`, borderRadius: 7, padding: '5px 11px', flexShrink: 0 }}>
+      <span style={{ fontWeight: 800, fontSize: 12, color, letterSpacing: '0.03em' }}>{label}</span>
+      <span style={{ fontWeight: 700, fontSize: 14, color: '#fff' }}>{value}</span>
+    </div>
+  );
+}
+
+
 
 export default function DetailModal({ item, onClose, onPlay }: DetailModalProps) {
   const myList = useStore((s) => s.myList);
@@ -22,16 +40,22 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
   const inList = isTitle(item) && myList.includes(item.id);
   const accentColor = settings.accentColor;
 
-  // Lazy-fetch rich metadata for Xtream movies (vod_info) and series (series_info).
   const [vodInfo, setVodInfo] = useState<VodInfo | null>(null);
   const [seriesInfo, setSeriesInfo] = useState<SeriesInfo | null>(null);
   const [activeSeason, setActiveSeason] = useState(0);
   const [loadingEps, setLoadingEps] = useState(false);
+
+  // Live-fetched ratings
+  const [traktScore, setTraktScore] = useState<number | null>(null);
+  const [loadingRatings, setLoadingRatings] = useState(false);
+
   const xtAuth = provider?.type === 'xtream' && provider.serverUrl && provider.username
     ? { serverUrl: provider.serverUrl, username: provider.username, password: provider.password || '' } : null;
 
+  // Fetch Xtream metadata
   useEffect(() => {
     setVodInfo(null); setSeriesInfo(null); setActiveSeason(0);
+    setTraktScore(null);
     if (!isTitle(item) || !xtAuth) return;
     const mv = item.id.match(/^xt_vod_(.+)$/);
     const sr = item.id.match(/^xt_series_(.+)$/);
@@ -44,41 +68,72 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
         .catch(() => {})
         .finally(() => setLoadingEps(false));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, provider]);
+
+  // Fetch Trakt rating (keyless — public client ID)
+  useEffect(() => {
+    if (!isTitle(item)) return;
+    const t = item as Title;
+    const title = t.title.replace(/·.*$/, '').replace(/^(EN|US|UK|4K)[\s\-|:]+/i, '').trim() || t.title;
+    const type = isMovie(t) ? 'movie' : 'show';
+    setLoadingRatings(true);
+    traktFetchRating(type, title, t.year)
+      .catch(() => null)
+      .then((trakt) => { if (trakt != null) setTraktScore(trakt); })
+      .finally(() => setLoadingRatings(false));
+  }, [item]);
 
   const cast = vodInfo?.cast || seriesInfo?.cast;
   const director = vodInfo?.director || seriesInfo?.director;
   const heroImg = isTitle(item) ? (vodInfo?.backdrop || vodInfo?.cover || seriesInfo?.backdrop || seriesInfo?.cover || item.logoUrl) : undefined;
   const synopsis = isTitle(item) ? (vodInfo?.plot || seriesInfo?.plot || item.synopsis) : (item as Channel).desc;
-
-  function playEpisode(ep: Episode) {
-    if (!isTitle(item)) return;
-    onPlay({ ...item, id: item.id + '_s' + ep.season + 'e' + ep.episode, title: `${item.title} · S${ep.season} E${ep.episode}`, streamUrl: ep.playUrl } as Title);
-  }
   const seasonObj = seriesInfo?.seasons.find((s) => s.season === activeSeason) || seriesInfo?.seasons[0];
+
+  // Compose display ratings: prefer fetched scores, fall back to stored values
+  const displayImdb = isTitle(item) ? (item as Title).imdbRating : undefined;
+  const displayTrakt = traktScore ?? (isTitle(item) ? (item as Title).trakt : undefined);
+
+  function playEpisode(ep: Episode, idx: number) {
+    if (!isTitle(item)) return;
+    const current: Title = {
+      ...item,
+      id: item.id + '_s' + ep.season + 'e' + ep.episode,
+      title: `${item.title} · S${ep.season} E${ep.episode}`,
+      streamUrl: ep.playUrl,
+      logoUrl: ep.still || item.logoUrl,
+    } as Title;
+    const nextEp = seasonObj?.episodes[idx + 1];
+    const next: Title | undefined = nextEp ? {
+      ...item,
+      id: item.id + '_s' + nextEp.season + 'e' + nextEp.episode,
+      title: `${item.title} · S${nextEp.season} E${nextEp.episode}`,
+      streamUrl: nextEp.playUrl,
+      logoUrl: nextEp.still || item.logoUrl,
+    } as Title : undefined;
+    onPlay(current, next);
+  }
 
   return (
     <div
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.82)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, backdropFilter: 'blur(4px)' }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         className="nfx-scroll"
-        style={{ width: '100%', maxWidth: 860, maxHeight: '92vh', overflowY: 'auto', background: '#181818', borderRadius: 10, boxShadow: '0 25px 60px rgba(0,0,0,0.8)' }}
+        style={{ width: '100%', maxWidth: 900, maxHeight: '92vh', overflowY: 'auto', background: '#181818', borderRadius: 12, boxShadow: '0 32px 80px rgba(0,0,0,0.85)' }}
       >
         {/* Hero */}
-        <div style={{ position: 'relative', height: 360, background: `linear-gradient(135deg, ${(item as any).grad?.[0] || '#111'} 0%, ${(item as any).grad?.[1] || '#333'} 100%)`, overflow: 'hidden' }}>
+        <div style={{ position: 'relative', height: 380, background: `linear-gradient(135deg, ${(item as any).grad?.[0] || '#111'} 0%, ${(item as any).grad?.[1] || '#333'} 100%)`, overflow: 'hidden', borderRadius: '12px 12px 0 0' }}>
           {heroImg && (
             <img src={heroImg} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
           )}
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 30%, #181818 100%)' }} />
-          <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '55%', background: 'linear-gradient(90deg, rgba(0,0,0,0.5) 0%, transparent 100%)' }} />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, #181818 100%)' }} />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(0,0,0,0.65) 0%, transparent 60%)' }} />
 
-          <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, width: 36, height: 36, borderRadius: '50%', background: '#181818', border: 0, color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', zIndex: 2 }}>
-            <Icons.Close size={18} />
+          <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, width: 36, height: 36, borderRadius: '50%', background: 'rgba(24,24,24,0.85)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', zIndex: 2, backdropFilter: 'blur(4px)' }}>
+            <Icons.Close size={16} />
           </button>
 
           {'num' in item && (
@@ -94,16 +149,16 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
             </div>
           )}
 
-          <div style={{ position: 'absolute', left: 32, bottom: 36 }}>
-            <h2 style={{ fontWeight: 900, fontSize: isTitle(item) ? 'clamp(28px,3vw,48px)' : 28, lineHeight: 1.05, letterSpacing: '-0.02em', margin: '0 0 10px', textShadow: '0 3px 12px rgba(0,0,0,0.5)', color: '#fff' }}>
+          <div style={{ position: 'absolute', left: 32, bottom: 32 }}>
+            <h2 style={{ fontWeight: 900, fontSize: 'clamp(24px,3vw,46px)', lineHeight: 1.05, letterSpacing: '-0.02em', margin: '0 0 14px', textShadow: '0 3px 16px rgba(0,0,0,0.6)', color: '#fff', maxWidth: '55%' }}>
               {isTitle(item) ? item.title : item.now}
             </h2>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <button onClick={() => onPlay(item)} style={{ background: '#fff', border: 0, borderRadius: 4, padding: '9px 20px', color: '#000', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}>
+              <button onClick={() => onPlay(item)} style={{ background: '#fff', border: 0, borderRadius: 6, padding: '10px 22px', color: '#000', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'inherit', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
                 <Icons.Play size={18} color="#000" />{isTitle(item) ? 'Play' : 'Watch Live'}
               </button>
               {isTitle(item) && (
-                <button onClick={() => toggleMyList(item.id)} style={{ background: 'rgba(109,109,110,0.6)', border: '2px solid rgba(255,255,255,0.4)', borderRadius: 4, padding: '9px 20px', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}>
+                <button onClick={() => toggleMyList(item.id)} style={{ background: 'rgba(30,30,30,0.75)', border: '2px solid rgba(255,255,255,0.3)', borderRadius: 6, padding: '10px 20px', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'inherit', backdropFilter: 'blur(8px)' }}>
                   {inList ? <Icons.Check size={18} /> : <Icons.Plus size={18} />}
                   {inList ? 'In My List' : 'My List'}
                 </button>
@@ -113,117 +168,136 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
         </div>
 
         {/* Info panel */}
-        <div style={{ padding: '24px 32px 32px', display: 'flex', gap: 32 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {isTitle(item) && (
-              <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'center' }}>
-                {item.match != null && <span style={{ color: '#46D369', fontWeight: 700, fontSize: 15 }}>{item.match}% Match</span>}
-                {item.imdbRating && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 700, fontSize: 14 }}><Icons.Star size={15} filled />{item.imdbRating}</span>}
-                <span style={{ fontSize: 13, color: '#ddd' }}>{item.year}</span>
-                <span style={{ fontSize: 12, border: '1px solid rgba(255,255,255,0.4)', padding: '1px 6px', borderRadius: 2, color: '#ccc' }}>{item.rating}</span>
-                <span style={{ fontSize: 13, color: '#ddd' }}>{item.seasons}</span>
-              </div>
-            )}
-            {'num' in item && (
-              <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'center' }}>
-                <span style={{ fontSize: 13, color: '#ddd' }}>{(item as Channel).cat}</span>
-                <span style={{ fontSize: 12, border: '1px solid rgba(255,255,255,0.4)', padding: '1px 6px', borderRadius: 2, color: '#ccc' }}>{(item as Channel).rating}</span>
-                <span style={{ fontSize: 13, color: '#ddd', display: 'flex', alignItems: 'center', gap: 4 }}><Icons.Volume size={13} />{(item as Channel).viewers} watching</span>
-              </div>
-            )}
-            <p style={{ fontSize: 15, lineHeight: 1.55, color: '#ddd', margin: '0 0 16px' }}>
-              {synopsis || 'No description available.'}
-            </p>
-            {/* Cast / director (Xtream movies + series) */}
-            {isTitle(item) && (cast || director) && (
-              <div style={{ fontSize: 13.5, lineHeight: 1.6, marginBottom: 16 }}>
-                {cast && <div><span style={{ color: '#777' }}>Cast: </span><span style={{ color: '#ddd' }}>{cast}</span></div>}
-                {director && <div><span style={{ color: '#777' }}>Director: </span><span style={{ color: '#ddd' }}>{director}</span></div>}
-              </div>
-            )}
-            {isTitle(item) && (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-                {item.genres.map((g) => (
-                  <span key={g} style={{ fontSize: 12, background: 'rgba(255,255,255,0.08)', padding: '4px 10px', borderRadius: 999, color: '#ccc' }}>{g}</span>
-                ))}
-              </div>
-            )}
-            {'now' in item && 'next' in item && (
-              <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 6, padding: '12px 16px', marginBottom: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#666', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>On Now</div>
-                <div style={{ fontSize: 14, color: '#fff', fontWeight: 600, marginBottom: 4 }}>{(item as Channel).now}</div>
-                <div style={{ fontSize: 12, color: '#8a8a8a' }}>Up next: {(item as Channel).next}</div>
-                <div style={{ marginTop: 10, height: 3, background: 'rgba(255,255,255,0.15)', borderRadius: 2 }}>
-                  <div style={{ width: `${(item as Channel).prog}%`, height: '100%', background: accentColor, borderRadius: 2 }} />
-                </div>
-              </div>
-            )}
-          </div>
+        <div style={{ padding: '24px 32px 32px' }}>
+          {/* Metadata row */}
+          {isTitle(item) && (
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 18 }}>
+              {item.match != null && <span style={{ color: '#46D369', fontWeight: 700, fontSize: 15 }}>{item.match}% Match</span>}
+              <span style={{ fontSize: 14, color: '#ccc' }}>{item.year}</span>
+              <span style={{ fontSize: 12, border: '1px solid rgba(255,255,255,0.3)', padding: '1px 7px', borderRadius: 3, color: '#aaa' }}>{item.rating}</span>
+              <span style={{ fontSize: 14, color: '#ccc' }}>{item.seasons}</span>
+            </div>
+          )}
 
-          {isTitle(item) && (item.imdbRating || item.trakt != null || item.rt != null) && (
-            <div style={{ width: 200, flexShrink: 0, fontSize: 13 }}>
-              {item.imdbRating && (
-                <div style={{ marginBottom: 12 }}><span style={{ color: '#666' }}>IMDb: </span><span style={{ color: '#ddd', fontWeight: 600 }}>{item.imdbRating}</span></div>
+          {/* ── Ratings row (UHF/IPTVX-style badges) ── */}
+          {isTitle(item) && (displayImdb || displayTrakt != null) && (
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20, alignItems: 'center' }}>
+              {displayImdb && (
+                <RatingBadge
+                  label="IMDb"
+                  value={displayImdb}
+                  color="#F5C518"
+                  bg="rgba(245,197,24,0.1)"
+                  border="rgba(245,197,24,0.28)"
+                />
               )}
-              {item.trakt != null && (
-                <div style={{ marginBottom: 12 }}><span style={{ color: '#666' }}>Trakt: </span><span style={{ color: '#ddd', fontWeight: 600 }}>{item.trakt}%</span></div>
+              {displayTrakt != null && (
+                <RatingBadge
+                  label="Trakt"
+                  value={`${displayTrakt}%`}
+                  color="#ED5F36"
+                  bg="rgba(237,95,54,0.1)"
+                  border="rgba(237,95,54,0.28)"
+                />
               )}
-              {item.rt != null && (
-                <div style={{ marginBottom: 12 }}><span style={{ color: '#666' }}>RT: </span><span style={{ color: '#ddd', fontWeight: 600 }}>{item.rt}%</span></div>
+              {loadingRatings && !displayTrakt && (
+                <span style={{ fontSize: 12, color: '#555', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #333', borderTopColor: '#777', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} />
+                  Fetching ratings…
+                </span>
               )}
-              {item.watchers && (
-                <div style={{ marginBottom: 12 }}><span style={{ color: '#666' }}>Watchers: </span><span style={{ color: '#ddd', fontWeight: 600 }}>{item.watchers}</span></div>
-              )}
+            </div>
+          )}
+
+          {'num' in item && (
+            <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'center' }}>
+              <span style={{ fontSize: 13, color: '#ddd' }}>{(item as Channel).cat}</span>
+              <span style={{ fontSize: 12, border: '1px solid rgba(255,255,255,0.4)', padding: '1px 6px', borderRadius: 2, color: '#ccc' }}>{(item as Channel).rating}</span>
+              <span style={{ fontSize: 13, color: '#ddd', display: 'flex', alignItems: 'center', gap: 4 }}><Icons.Volume size={13} />{(item as Channel).viewers} watching</span>
+            </div>
+          )}
+
+          <p style={{ fontSize: 15, lineHeight: 1.6, color: '#ccc', margin: '0 0 16px', maxWidth: 640 }}>
+            {synopsis || 'No description available.'}
+          </p>
+
+          {/* Cast / director */}
+          {isTitle(item) && (cast || director) && (
+            <div style={{ fontSize: 13.5, lineHeight: 1.7, marginBottom: 16, color: '#aaa' }}>
+              {cast && <div><span style={{ color: '#666' }}>Cast: </span><span style={{ color: '#ccc' }}>{cast}</span></div>}
+              {director && <div><span style={{ color: '#666' }}>Director: </span><span style={{ color: '#ccc' }}>{director}</span></div>}
+            </div>
+          )}
+
+          {/* Genres */}
+          {isTitle(item) && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+              {item.genres.map((g) => (
+                <span key={g} style={{ fontSize: 12, background: 'rgba(255,255,255,0.07)', padding: '4px 12px', borderRadius: 999, color: '#bbb', border: '1px solid rgba(255,255,255,0.08)' }}>{g}</span>
+              ))}
+            </div>
+          )}
+
+          {/* Live channel "On Now" */}
+          {'now' in item && 'next' in item && (
+            <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 8, padding: '14px 18px', marginTop: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#666', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>On Now</div>
+              <div style={{ fontSize: 14, color: '#fff', fontWeight: 600, marginBottom: 4 }}>{(item as Channel).now}</div>
+              <div style={{ fontSize: 12, color: '#8a8a8a' }}>Up next: {(item as Channel).next}</div>
+              <div style={{ marginTop: 10, height: 3, background: 'rgba(255,255,255,0.12)', borderRadius: 2 }}>
+                <div style={{ width: `${(item as Channel).prog}%`, height: '100%', background: accentColor, borderRadius: 2 }} />
+              </div>
             </div>
           )}
         </div>
 
-        {/* Episodes & Seasons (Xtream series) — full width */}
+        {/* Episodes & Seasons */}
         {isTitle(item) && (loadingEps || seriesInfo) && (
-          <div style={{ padding: '0 32px 32px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, borderTop: '1px solid #2a2a2a', paddingTop: 24 }}>
+          <div style={{ padding: '0 32px 40px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, borderTop: '1px solid #242424', paddingTop: 24 }}>
               <h3 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>
                 Episodes{seasonObj ? ` · ${seasonObj.episodes.length}` : ''}
               </h3>
               {seriesInfo && seriesInfo.seasons.length > 1 && (
                 <select value={activeSeason} onChange={(e) => setActiveSeason(Number(e.target.value))}
-                  style={{ appearance: 'none', WebkitAppearance: 'none', background: '#2a2a2a', border: '1px solid #383838', color: '#fff', borderRadius: 6, padding: '9px 16px', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }}>
+                  style={{ appearance: 'none', WebkitAppearance: 'none', background: '#252525', border: '1px solid #383838', color: '#fff', borderRadius: 7, padding: '9px 18px', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }}>
                   {seriesInfo.seasons.map((s) => <option key={s.season} value={s.season} style={{ background: '#202020' }}>Season {s.season} ({s.episodes.length})</option>)}
                 </select>
               )}
             </div>
 
             {loadingEps && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#8a8a8a', fontSize: 14, padding: '8px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#666', fontSize: 14, padding: '8px 0' }}>
                 <div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid #333', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />
                 Loading episodes…
               </div>
             )}
             {!loadingEps && seriesInfo && !seasonObj?.episodes.length && (
-              <p style={{ color: '#8a8a8a', fontSize: 14 }}>No episodes listed for this series.</p>
+              <p style={{ color: '#666', fontSize: 14 }}>No episodes listed for this series.</p>
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {seasonObj?.episodes.map((ep) => (
-                <button key={ep.id} onClick={() => playEpisode(ep)} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 8px', background: 'transparent', border: 0, borderTop: '1px solid #242424', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%', transition: 'background 120ms' }}
+              {seasonObj?.episodes.map((ep, idx) => (
+                <button key={ep.id} onClick={() => playEpisode(ep, idx)} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 8px', background: 'transparent', border: 0, borderTop: '1px solid #1e1e1e', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%', transition: 'background 120ms', borderRadius: 4 }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = '#1f1f1f')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
-                  <span style={{ fontSize: 20, fontWeight: 800, color: '#888', width: 30, flexShrink: 0, textAlign: 'center' }}>{ep.episode}</span>
-                  <div style={{ position: 'relative', width: 130, height: 73, borderRadius: 6, background: '#0a0a0a', flexShrink: 0, overflow: 'hidden', display: 'grid', placeItems: 'center' }}>
+                  <span style={{ fontSize: 18, fontWeight: 800, color: '#666', width: 32, flexShrink: 0, textAlign: 'center' }}>{ep.episode}</span>
+                  <div style={{ position: 'relative', width: 140, height: 78, borderRadius: 7, background: '#0f0f0f', flexShrink: 0, overflow: 'hidden', display: 'grid', placeItems: 'center' }}>
                     {ep.still
                       ? <img src={ep.still} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                      : <Icons.Play size={20} color="#555" />}
-                    <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.25)', opacity: 0, transition: 'opacity 120ms' }}
-                      onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}>
+                      : <Icons.Play size={20} color="#444" />}
+                    <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0)', transition: 'background 150ms' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.45)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0)')}>
                       <Icons.Play size={24} />
                     </div>
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                      <span style={{ fontSize: 15, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ep.title}</span>
-                      {ep.duration && <span style={{ fontSize: 12.5, color: '#888', flexShrink: 0 }}>{ep.duration}</span>}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 5 }}>
+                      <span style={{ fontSize: 15, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ep.title}</span>
+                      {ep.duration && <span style={{ fontSize: 12, color: '#666', flexShrink: 0 }}>{ep.duration}</span>}
                     </div>
-                    {ep.plot && <div style={{ fontSize: 13, color: '#8a8a8a', marginTop: 5, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{ep.plot}</div>}
+                    {ep.plot && <div style={{ fontSize: 13, color: '#777', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{ep.plot}</div>}
                   </div>
                 </button>
               ))}

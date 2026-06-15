@@ -118,6 +118,7 @@ export interface Settings {
   traktAccessToken?: string;
   traktRefreshToken?: string;
   traktUsername?: string;
+  omdbApiKey?: string;
   // Profile
   profilePic?: string;     // data URL of uploaded profile image
   profileName?: string;
