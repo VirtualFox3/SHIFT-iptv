@@ -175,9 +175,9 @@ export default function PlayerScreen({ item, onClose }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
-  bufferingWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  bufferingWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   bufferingText: { color: '#fff', fontSize: 32, opacity: 0.7 },
-  overlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'space-between' },
+  overlay: { ...StyleSheet.absoluteFill, justifyContent: 'space-between' },
   topBar: {
     flexDirection: 'row', alignItems: 'center',
     padding: 16, paddingTop: Platform.OS === 'ios' ? 48 : 16,

@@ -1,9 +1,8 @@
 node_modules/
-.gradle/
-android/build/
-android/app/build/
-android/.cxx/
-android/local.properties
+.expo/
+dist/
+android/
+ios/
 *.hprof
 .idea/
 *.iml

@@ -1,4 +1,31 @@
 {
-  "name": "SHIFTiptv",
-  "displayName": "SHIFT"
+  "expo": {
+    "name": "SHIFT",
+    "slug": "shift-iptv",
+    "version": "1.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#141414"
+    },
+    "android": {
+      "package": "com.shift.iptv",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png",
+        "backgroundColor": "#E50914"
+      },
+      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "./plugins/withAndroidTv.js",
+      "./plugins/withVlcMavenRepos.js"
+    ]
+  }
 }
