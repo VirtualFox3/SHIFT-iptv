@@ -690,7 +690,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
               <div style={{ position: 'relative' }}>
                 <button onClick={(e) => { e.stopPropagation(); setShowSubMenu((s) => !s); setShowQuality(false); }} title="Subtitles"
                   style={{ ...ctrlBtn, opacity: activeSub ? 1 : 0.7, borderBottom: activeSub ? '2px solid var(--accent,#E50914)' : '2px solid transparent' }}>
-                  <Icons.Subtitles size={22} />
+                  <Icons.Cc size={22} />
                 </button>
                 {showSubMenu && (
                   <div onClick={(e) => e.stopPropagation()} style={menuPanel}>
