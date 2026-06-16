@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, StatusBar,
   Platform, BackHandler,
 } from 'react-native';
-import VLCPlayer from 'react-native-vlc-media-player';
+import { VLCPlayer } from 'react-native-vlc-media-player';
 import { useStore } from '../store';
 import type { Title, Channel } from '../types';
 

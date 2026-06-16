@@ -15,7 +15,7 @@ export default function ChannelCard({ channel, onPress }: Props) {
       style={styles.card}
       onPress={onPress}
       activeOpacity={0.8}
-      isTVSelectable={Platform.isTV}
+      {...({ isTVSelectable: Platform.isTV } as object)}
     >
       <View style={styles.logoWrap}>
         {channel.logoUrl ? (

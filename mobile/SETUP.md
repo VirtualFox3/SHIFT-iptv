@@ -13,27 +13,12 @@ React Native app using VLC for playback (supports MKV, HEVC, H.264, HLS — ever
 
 ```bash
 cd mobile
-
-# 1. Install JS dependencies
 npm install
-
-# 2. React Native needs its own Android native files — scaffold them:
-npx react-native init SHIFTiptv --template react-native-template-typescript --skip-install
-
-# 3. Copy the generated native files into this folder:
-cp -r SHIFTiptv/android/app/src/main/java android/app/src/main/
-cp -r SHIFTiptv/android/app/src/main/res/mipmap-* android/app/src/main/res/
-cp SHIFTiptv/android/app/src/main/res/values/styles.xml android/app/src/main/res/values/
-cp SHIFTiptv/android/gradlew android/
-cp SHIFTiptv/android/gradlew.bat android/
-cp -r SHIFTiptv/android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/
-
-# 4. Clean up the temp project
-rm -rf SHIFTiptv
-
-# 5. Update the package name in java files from 'com.shiftiptv' → 'com.shift.iptv'
-# (Android Studio will do this automatically if you open android/ as a project)
 ```
+
+That's it — the native Android project (gradlew, gradle wrapper jar, debug keystore,
+MainActivity.kt, MainApplication.kt, launcher icons, TV banner) is already
+checked in under `android/`. No scaffolding step needed.
 
 ## Run on device / Fire Stick
 

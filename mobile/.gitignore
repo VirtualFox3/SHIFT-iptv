@@ -1,0 +1,10 @@
+node_modules/
+.gradle/
+android/build/
+android/app/build/
+android/.cxx/
+android/local.properties
+*.hprof
+.idea/
+*.iml
+.vscode/

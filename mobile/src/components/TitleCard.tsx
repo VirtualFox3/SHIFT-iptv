@@ -17,8 +17,7 @@ export default function TitleCard({ title, progress, accentColor, onPress }: Pro
       style={styles.card}
       onPress={onPress}
       activeOpacity={0.8}
-      isTVSelectable={Platform.isTV}
-      hasTVPreferredFocus={false}
+      {...({ isTVSelectable: Platform.isTV, hasTVPreferredFocus: false } as object)}
     >
       <View style={styles.imageWrap}>
         {title.logoUrl ? (

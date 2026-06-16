@@ -6,7 +6,17 @@ import { useStore } from './store';
 import AuthScreen from './screens/AuthScreen';
 import HomeScreen from './screens/HomeScreen';
 import PlayerScreen from './screens/PlayerScreen';
+import EpisodesScreen from './screens/EpisodesScreen';
 import type { Title, Channel } from './types';
+
+function isTitle(item: Title | Channel): item is Title {
+  return 'title' in item;
+}
+
+function isMovie(t: Title) {
+  const s = (t.seasons || '').toLowerCase();
+  return s === 'movie' || s === 'film';
+}
 
 type RootParamList = {
   Auth: undefined;
@@ -48,11 +58,30 @@ export default function App() {
   );
 }
 
-function HomeWithPlayer() {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function HomeWithPlayer(_props: any) {
   const [playing, setPlaying] = useState<Title | Channel | null>(null);
+  const [seriesDetail, setSeriesDetail] = useState<Title | null>(null);
+
+  function handlePlay(item: Title | Channel) {
+    if (isTitle(item) && !isMovie(item) && item.id.startsWith('xt_series_')) {
+      setSeriesDetail(item);
+      return;
+    }
+    setPlaying(item);
+  }
 
   if (playing) {
     return <PlayerScreen item={playing} onClose={() => setPlaying(null)} />;
   }
-  return <HomeScreen onPlay={setPlaying} />;
+  if (seriesDetail) {
+    return (
+      <EpisodesScreen
+        series={seriesDetail}
+        onClose={() => setSeriesDetail(null)}
+        onPlayEpisode={(item) => { setSeriesDetail(null); setPlaying(item); }}
+      />
+    );
+  }
+  return <HomeScreen onPlay={handlePlay} />;
 }
