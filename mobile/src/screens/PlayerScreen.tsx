@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, StatusBar,
   Platform, BackHandler,
 } from 'react-native';
-import { VLCPlayer } from 'react-native-vlc-media-player';
+import { VLCPlayer, type Track, type VideoInfo } from 'react-native-vlc-media-player';
 import { useStore } from '../store';
 import type { Title, Channel } from '../types';
 
@@ -41,6 +41,9 @@ export default function PlayerScreen({ item, onClose }: Props) {
   const [buffering, setBuffering] = useState(true);
   const [uiVisible, setUiVisible] = useState(true);
   const [seeked, setSeeked] = useState(false);
+  const [textTracks, setTextTracks] = useState<Track[]>([]);
+  const [selectedTextTrack, setSelectedTextTrack] = useState(-1);
+  const [showCcMenu, setShowCcMenu] = useState(false);
 
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -85,6 +88,10 @@ export default function PlayerScreen({ item, onClose }: Props) {
     }
   };
 
+  const onLoad = (info: VideoInfo) => {
+    setTextTracks(info.textTracks || []);
+  };
+
   const seekRel = (delta: number) => {
     const targetMs = Math.max(0, (currentTime + delta) * 1000);
     playerRef.current?.seek(targetMs);
@@ -109,6 +116,8 @@ export default function PlayerScreen({ item, onClose }: Props) {
           onBuffering={() => setBuffering(true)}
           onError={() => setBuffering(false)}
           onStopped={() => setPaused(true)}
+          onLoad={onLoad}
+          textTrack={selectedTextTrack}
           videoAspectRatio="16:9"
         />
       </TouchableOpacity>
@@ -158,15 +167,51 @@ export default function PlayerScreen({ item, onClose }: Props) {
           </View>
 
           {/* Bottom bar with progress */}
-          {!live && duration > 0 && (
+          {(!live && duration > 0) || textTracks.length > 0 ? (
             <View style={styles.bottomBar}>
-              <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-              <View style={styles.progressBg}>
-                <View style={[styles.progressFill, { width: `${progress * 100}%` as any, backgroundColor: accent }]} />
-              </View>
-              <Text style={styles.timeText}>{formatTime(duration)}</Text>
+              {!live && duration > 0 && (
+                <View style={styles.scrubRow}>
+                  <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+                  <View style={styles.progressBg}>
+                    <View style={[styles.progressFill, { width: `${progress * 100}%` as any, backgroundColor: accent }]} />
+                  </View>
+                  <Text style={styles.timeText}>{formatTime(duration)}</Text>
+                </View>
+              )}
+              {textTracks.length > 0 && (
+                <View style={styles.controlRow}>
+                  <View style={{ marginLeft: 'auto', position: 'relative' }}>
+                    <TouchableOpacity
+                      onPress={() => setShowCcMenu((s) => !s)}
+                      style={[styles.ccBtn, selectedTextTrack >= 0 ? { opacity: 1, borderBottomColor: accent } : { opacity: 0.7, borderBottomColor: 'transparent' }]}
+                    >
+                      <Text style={styles.ccIcon}>CC</Text>
+                    </TouchableOpacity>
+                    {showCcMenu && (
+                      <View style={styles.ccMenu}>
+                        <Text style={styles.ccMenuHead}>SUBTITLES</Text>
+                        <TouchableOpacity
+                          style={styles.ccMenuItem}
+                          onPress={() => { setSelectedTextTrack(-1); setShowCcMenu(false); }}
+                        >
+                          <Text style={[styles.ccMenuItemText, selectedTextTrack === -1 && { color: accent }]}>Off</Text>
+                        </TouchableOpacity>
+                        {textTracks.map((t) => (
+                          <TouchableOpacity
+                            key={t.id}
+                            style={styles.ccMenuItem}
+                            onPress={() => { setSelectedTextTrack(t.id); setShowCcMenu(false); }}
+                          >
+                            <Text style={[styles.ccMenuItemText, selectedTextTrack === t.id && { color: accent }]}>{t.name}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
             </View>
-          )}
+          ) : null}
         </View>
       )}
     </View>
@@ -202,13 +247,26 @@ const styles = StyleSheet.create({
   },
   seekText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   bottomBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
     padding: 16, paddingBottom: Platform.OS === 'ios' ? 32 : 16,
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
+  scrubRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  controlRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
   timeText: { color: '#fff', fontSize: 13, minWidth: 44, textAlign: 'center' },
   progressBg: {
     flex: 1, height: 4, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 2, overflow: 'hidden',
   },
   progressFill: { height: '100%', borderRadius: 2 },
+  ccBtn: {
+    paddingHorizontal: 6, paddingVertical: 4, borderBottomWidth: 2,
+  },
+  ccIcon: { color: '#fff', fontSize: 15, fontWeight: '800', letterSpacing: 0.5 },
+  ccMenu: {
+    position: 'absolute', bottom: 36, right: 0, width: 180,
+    backgroundColor: 'rgba(20,20,20,0.97)', borderRadius: 8,
+    borderWidth: 1, borderColor: '#2a2a2a', padding: 8,
+  },
+  ccMenuHead: { color: '#888', fontSize: 11, fontWeight: '700', letterSpacing: 1, padding: 6 },
+  ccMenuItem: { paddingHorizontal: 10, paddingVertical: 10 },
+  ccMenuItemText: { color: '#fff', fontSize: 14 },
 });
