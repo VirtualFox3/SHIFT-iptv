@@ -266,7 +266,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const poke = useCallback(() => {
     setUiVisible(true);
     if (hideTimer.current) clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => { setUiVisible(false); setShowQuality(false); }, 3200);
+    hideTimer.current = setTimeout(() => { setUiVisible(false); setShowQuality(false); setShowSubMenu(false); }, 3200);
   }, []);
   useEffect(() => { poke(); return () => { if (hideTimer.current) clearTimeout(hideTimer.current); }; }, [poke]);
 
@@ -419,7 +419,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   })();
 
   // When UI is explicitly hidden, suppress all chrome
-  const chromeVisible = uiVisible && !uiHidden;
+  const chromeVisible = (uiVisible || showSubMenu || showQuality) && !uiHidden;
 
   // Desktop: mpv plays in its own window — show a brief hand-off screen.
   if (isDesktop) {
@@ -698,31 +698,38 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
                   const showName = cleanSubtitleQuery(t.title);
                   const epLabel = season != null && episode != null ? ` · S${String(season).padStart(2,'0')} E${String(episode).padStart(2,'0')}` : '';
                   return (
-                    <div onClick={(e) => e.stopPropagation()} style={menuPanel}>
-                      {/* Header — source badge + detected show/episode */}
-                      <div style={{ padding: '10px 12px 6px', borderBottom: '1px solid #2a2a2a' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                          <Icons.Cc size={13} style={{ opacity: 0.5 }} />
-                          <span style={{ fontSize: 11, color: '#666', fontWeight: 700, letterSpacing: '0.06em' }}>OPENSUBTITLES.COM</span>
+                    <div onClick={(e) => e.stopPropagation()} style={{ ...menuPanel, width: 260, maxHeight: 420, display: 'flex', flexDirection: 'column' }}>
+                      {/* Header */}
+                      <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid #2a2a2a', flexShrink: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                          <Icons.Cc size={13} style={{ opacity: 0.45 }} />
+                          <span style={{ fontSize: 10, color: '#555', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>OpenSubtitles.com</span>
                         </div>
-                        <div style={{ fontSize: 13, color: '#fff', fontWeight: 600, lineHeight: 1.3 }}>{showName}{epLabel}</div>
+                        <div style={{ fontSize: 14, color: '#fff', fontWeight: 700 }}>{showName}{epLabel}</div>
                       </div>
-                      {loadingSubs && (
-                        <div style={{ padding: '10px 12px', fontSize: 12.5, color: '#8a8a8a', display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #444', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />
-                          Searching…
-                        </div>
-                      )}
-                      {!loadingSubs && subtitles.length > 0 && (
-                        <div style={{ ...menuHead, marginTop: 2 }}>MATCHING SUBTITLES</div>
-                      )}
-                      {!loadingSubs && subtitles.length === 0 && (
-                        <div style={{ padding: '10px 12px', fontSize: 12.5, color: '#8a8a8a' }}>No subtitles found.</div>
-                      )}
-                      {activeSub && <SubMenuItem label="Off" active={false} onClick={() => { setActiveSub(null); setSubCues([]); setCurrentCue(''); setShowSubMenu(false); }} />}
-                      {subtitles.map((s) => (
-                        <SubMenuItem key={s.id} label={s.label} active={activeSub === s.id} onClick={() => loadSubtitle(s)} />
-                      ))}
+                      {/* Body */}
+                      <div style={{ overflowY: 'auto', flex: 1 }}>
+                        {loadingSubs && (
+                          <div style={{ padding: '14px', fontSize: 13, color: '#666', display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid #333', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+                            Searching…
+                          </div>
+                        )}
+                        {!loadingSubs && subtitles.length === 0 && (
+                          <div style={{ padding: '14px', fontSize: 13, color: '#555' }}>No subtitles found.</div>
+                        )}
+                        {!loadingSubs && subtitles.length > 0 && (
+                          <div style={{ padding: '4px 0' }}>
+                            <div style={{ ...menuHead, padding: '8px 14px 4px' }}>MATCHING SUBTITLES</div>
+                            {activeSub && (
+                              <SubMenuItem label="Off" active={false} onClick={() => { setActiveSub(null); setSubCues([]); setCurrentCue(''); setShowSubMenu(false); }} />
+                            )}
+                            {subtitles.map((s) => (
+                              <SubMenuItem key={s.id} label={s.label} active={activeSub === s.id} onClick={() => loadSubtitle(s)} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })()}
@@ -795,10 +802,25 @@ const menuPanel: React.CSSProperties = { position: 'absolute', bottom: 40, right
 const menuHead: React.CSSProperties = { fontSize: 11, color: '#666', padding: '4px 10px 6px', fontWeight: 700, letterSpacing: '0.06em' };
 
 function SubMenuItem({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  const [hov, setHov] = React.useState(false);
+  // Split "EN [HI] ↓4k" into primary + secondary parts
+  const hiMatch = label.match(/\[HI\]/);
+  const dlMatch = label.match(/(↓[\d.]+k?)/);
+  const lang = label.replace(/\[HI\]/, '').replace(/↓[\d.]+k?/, '').trim();
   return (
-    <button onClick={onClick} style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8, padding: '9px 10px', border: 0, background: active ? 'rgba(255,255,255,0.07)' : 'transparent', color: '#fff', fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit', borderRadius: 5, textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-      <span style={{ width: 16, color: '#E50914', flexShrink: 0 }}>{active ? '✓' : ''}</span>
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '9px 14px', border: 0,
+        background: active ? 'rgba(229,9,20,0.12)' : hov ? 'rgba(255,255,255,0.06)' : 'transparent',
+        color: '#fff', fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit', borderRadius: 5, textAlign: 'left' }}>
+      <span style={{ width: 14, color: 'var(--accent,#E50914)', flexShrink: 0, fontSize: 16 }}>{active ? '✓' : ''}</span>
+      <span style={{ flex: 1 }}>{lang}</span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        {hiMatch && <span style={{ fontSize: 10, fontWeight: 700, color: '#555', background: '#222', borderRadius: 3, padding: '2px 5px' }}>HI</span>}
+        {dlMatch && <span style={{ fontSize: 11, color: '#555' }}>{dlMatch[1]}</span>}
+      </span>
     </button>
   );
 }
