@@ -55,6 +55,13 @@ async function stremSearch(imdbId: string, lang: string): Promise<SubResult[]> {
   }
 }
 
+/** Extract season + episode numbers from a provider title string, e.g. "S05 E06", "S5E6". */
+export function extractEpisode(t: string): { season?: number; episode?: number } {
+  const m = t.match(/\bS(\d{1,2})\s*E(\d{1,2})\b/i) || t.match(/\bSeason\s*(\d+)\s*Episode\s*(\d+)\b/i);
+  if (m) return { season: parseInt(m[1], 10), episode: parseInt(m[2], 10) };
+  return {};
+}
+
 /**
  * Find subtitles for a title.
  * @param resolveTmdbId optional async resolver (e.g. Xtream vod_info) → tmdb/imdb id
@@ -65,6 +72,8 @@ export async function findSubtitles(
   osToken?: string,
   resolveId?: () => Promise<string | undefined>
 ): Promise<SubResult[]> {
+  const { season, episode } = extractEpisode(title.title);
+
   // 1. Try an id we already have, or resolve one (Xtream vod_info).
   let id = title.imdbId || (title.tmdbId ? String(title.tmdbId) : undefined);
   if (!id && resolveId) {
@@ -79,13 +88,18 @@ export async function findSubtitles(
       if (st.length) return st;
     }
   }
-  // 2. OpenSubtitles query search (now works — we ship a real API key).
-  //    Clean provider junk from the title so the query matches: e.g.
-  //    "EN - Dexter (US) · S7 E6" → "Dexter".
-  const os = await osSearch(cleanSubtitleQuery(title.title), lang, title.imdbId, title.tmdbId, osToken);
+  // 2. OpenSubtitles query search — clean provider junk from title, pass episode params.
+  const query = cleanSubtitleQuery(title.title);
+  const os = await osSearch(query, lang, title.imdbId, title.tmdbId, osToken, season, episode);
   return os.map((s) => ({
-    id: s.id, label: `${s.languageCode.toUpperCase()} — ${s.fileName}${s.hearingImpaired ? ' [HI]' : ''}`,
-    language: s.language, fileId: s.fileId,
+    id: s.id,
+    label: [
+      s.languageCode.toUpperCase(),
+      s.hearingImpaired ? '[HI]' : '',
+      s.downloadCount > 1000 ? `↓${(s.downloadCount / 1000).toFixed(0)}k` : '',
+    ].filter(Boolean).join(' '),
+    language: s.language,
+    fileId: s.fileId,
   }));
 }
 
