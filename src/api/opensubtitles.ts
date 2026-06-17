@@ -63,12 +63,16 @@ export async function searchSubtitles(
   lang = 'en',
   imdbId?: string,
   tmdbId?: number,
-  token?: string         // optional — if user is signed in, uses their quota
+  token?: string,          // optional — if user is signed in, uses their quota
+  season?: number,
+  episode?: number,
 ): Promise<OSSubtitle[]> {
   const params = new URLSearchParams({ languages: lang });
   if (query) params.set('query', query);
   if (imdbId) params.set('imdb_id', imdbId.replace('tt', ''));
   if (tmdbId) params.set('tmdb_id', String(tmdbId));
+  if (season != null) params.set('season_number', String(season));
+  if (episode != null) params.set('episode_number', String(episode));
 
   try {
     const res = await fetch(`${BASE}/subtitles?${params}`, { headers: headers(token) });

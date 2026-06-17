@@ -3,7 +3,7 @@ import Hls from 'hls.js';
 import type { Channel, Title } from '../types';
 import { useStore } from '../store/useStore';
 import { type SubCue } from '../api/opensubtitles';
-import { findSubtitles, loadSubtitleCues, type SubResult } from '../api/subtitles';
+import { findSubtitles, loadSubtitleCues, cleanSubtitleQuery, extractEpisode, type SubResult } from '../api/subtitles';
 import { xtreamGetVodInfo } from '../api/xtream';
 import { deproxify, streamSrc, proxify } from '../api/proxy';
 import { traktScrobbleStart, traktScrobbleStop } from '../api/trakt';
@@ -692,24 +692,40 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
                   style={{ ...ctrlBtn, opacity: activeSub ? 1 : 0.7, borderBottom: activeSub ? '2px solid var(--accent,#E50914)' : '2px solid transparent' }}>
                   <Icons.Subtitles size={22} />
                 </button>
-                {showSubMenu && (
-                  <div onClick={(e) => e.stopPropagation()} style={menuPanel}>
-                    <div style={menuHead}>SUBTITLES · opensubtitles.com</div>
-                    {loadingSubs && (
-                      <div style={{ padding: '10px 12px', fontSize: 12.5, color: '#8a8a8a', display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #444', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />
-                        Searching…
+                {showSubMenu && (() => {
+                  const t = item as Title;
+                  const { season, episode } = extractEpisode(t.title);
+                  const showName = cleanSubtitleQuery(t.title);
+                  const epLabel = season != null && episode != null ? ` · S${String(season).padStart(2,'0')} E${String(episode).padStart(2,'0')}` : '';
+                  return (
+                    <div onClick={(e) => e.stopPropagation()} style={menuPanel}>
+                      {/* Header — source badge + detected show/episode */}
+                      <div style={{ padding: '10px 12px 6px', borderBottom: '1px solid #2a2a2a' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <Icons.Cc size={13} style={{ opacity: 0.5 }} />
+                          <span style={{ fontSize: 11, color: '#666', fontWeight: 700, letterSpacing: '0.06em' }}>OPENSUBTITLES.COM</span>
+                        </div>
+                        <div style={{ fontSize: 13, color: '#fff', fontWeight: 600, lineHeight: 1.3 }}>{showName}{epLabel}</div>
                       </div>
-                    )}
-                    {!loadingSubs && subtitles.length === 0 && (
-                      <div style={{ padding: '10px 12px', fontSize: 12.5, color: '#8a8a8a' }}>No subtitles found.</div>
-                    )}
-                    {activeSub && <SubMenuItem label="Off" active={false} onClick={() => { setActiveSub(null); setSubCues([]); setCurrentCue(''); setShowSubMenu(false); }} />}
-                    {subtitles.map((s) => (
-                      <SubMenuItem key={s.id} label={s.label} active={activeSub === s.id} onClick={() => loadSubtitle(s)} />
-                    ))}
-                  </div>
-                )}
+                      {loadingSubs && (
+                        <div style={{ padding: '10px 12px', fontSize: 12.5, color: '#8a8a8a', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #444', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />
+                          Searching…
+                        </div>
+                      )}
+                      {!loadingSubs && subtitles.length > 0 && (
+                        <div style={{ ...menuHead, marginTop: 2 }}>MATCHING SUBTITLES</div>
+                      )}
+                      {!loadingSubs && subtitles.length === 0 && (
+                        <div style={{ padding: '10px 12px', fontSize: 12.5, color: '#8a8a8a' }}>No subtitles found.</div>
+                      )}
+                      {activeSub && <SubMenuItem label="Off" active={false} onClick={() => { setActiveSub(null); setSubCues([]); setCurrentCue(''); setShowSubMenu(false); }} />}
+                      {subtitles.map((s) => (
+                        <SubMenuItem key={s.id} label={s.label} active={activeSub === s.id} onClick={() => loadSubtitle(s)} />
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
