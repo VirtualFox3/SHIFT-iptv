@@ -9,6 +9,9 @@ dist-ssr/
 desktop/bin/
 desktop/dist/
 
+# Mobile app (Expo) — lives on the claude/mobile-app branch, not main
+mobile/
+
 # Vercel
 .vercel/
 
