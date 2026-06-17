@@ -93,11 +93,7 @@ export async function findSubtitles(
   const os = await osSearch(query, lang, title.imdbId, title.tmdbId, osToken, season, episode);
   return os.map((s) => ({
     id: s.id,
-    label: [
-      s.languageCode.toUpperCase(),
-      s.hearingImpaired ? '[HI]' : '',
-      s.downloadCount > 1000 ? `↓${(s.downloadCount / 1000).toFixed(0)}k` : '',
-    ].filter(Boolean).join(' '),
+    label: s.fileName.replace(/\.[^.]+$/, ''),
     language: s.language,
     fileId: s.fileId,
   }));
