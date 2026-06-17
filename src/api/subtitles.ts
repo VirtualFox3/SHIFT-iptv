@@ -111,19 +111,30 @@ export function cleanSubtitleQuery(t: string): string {
     .trim() || t;
 }
 
+/** Route a subtitle file download through the Vercel proxy to bypass CDN CORS restrictions. */
+function proxySub(url: string): string {
+  return `/api/proxy?url=${encodeURIComponent(url)}`;
+}
+
 /** Load + parse a subtitle into cues. Handles both Wyzie URLs and OS file ids. */
 export async function loadSubtitleCues(sub: SubResult, osToken?: string): Promise<SubCue[]> {
   let text = '';
   if (sub.url) {
-    const res = await fetch(sub.url);
+    const res = await fetch(proxySub(sub.url));
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     text = await res.text();
   } else if (sub.fileId) {
     const url = await getSubtitleDownloadUrl(sub.fileId, osToken);
     if (!url) throw new Error('No download link');
-    const res = await fetch(url);
+    const res = await fetch(proxySub(url));
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     text = await res.text();
+  } else {
+    throw new Error('No URL or file ID');
   }
   // Wyzie may return WebVTT — strip the header so the SRT parser handles both.
   text = text.replace(/^WEBVTT.*?\n/, '').replace(/\r/g, '');
-  return parseSRT(text);
+  const cues = parseSRT(text);
+  if (!cues.length) throw new Error('Empty subtitle file');
+  return cues;
 }

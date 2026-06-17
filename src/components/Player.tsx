@@ -94,6 +94,8 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const [subCues, setSubCues] = useState<SubCue[]>([]);
   const [currentCue, setCurrentCue] = useState<string>('');
   const [loadingSubs, setLoadingSubs] = useState(false);
+  const [loadingSubId, setLoadingSubId] = useState<string | null>(null);
+  const [subLoadError, setSubLoadError] = useState<string | null>(null);
   const [nativeTracks, setNativeTracks] = useState<TextTrack[]>([]);
 
   const [streamError, setStreamError] = useState(false);
@@ -346,6 +348,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   useEffect(() => {
     if (!showSubMenu || live) return;
     setLoadingSubs(true);
+    setSubLoadError(null);
     const t = item as Title;
     const lang = settings.subLang?.slice(0, 2).toLowerCase() || 'en';
     // For Xtream movies, resolve a TMDB/IMDB id from vod_info so Wyzie can match.
@@ -364,13 +367,18 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   }, [showSubMenu]);
 
   async function loadSubtitle(sub: SubResult) {
+    setLoadingSubId(sub.id);
+    setSubLoadError(null);
     try {
       const cues = await loadSubtitleCues(sub, settings.openSubtitlesToken);
-      if (!cues.length) throw new Error('Empty subtitle');
       setSubCues(cues);
       setActiveSub(sub.id);
       setShowSubMenu(false);
-    } catch {}
+    } catch (e) {
+      setSubLoadError('Failed to load — try another');
+    } finally {
+      setLoadingSubId(null);
+    }
   }
 
   function togglePlay() {
@@ -743,18 +751,21 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
                         {!loadingSubs && !hasResults && (
                           <div style={{ padding: '14px', fontSize: 13, color: '#555' }}>No subtitles found.</div>
                         )}
+                        {subLoadError && (
+                          <div style={{ padding: '6px 14px 10px', fontSize: 12, color: '#e05252' }}>{subLoadError}</div>
+                        )}
                         {hasResults && (
                           <>
                             <div style={{ padding: '10px 14px 4px', fontSize: 12, color: '#777', fontWeight: 500 }}>Matching subtitles</div>
                             {activeSub && (
-                              <SubFileItem label="Off" active={false} onClick={() => { setActiveSub(null); setSubCues([]); setCurrentCue(''); if (nativeTracks.length) selectNativeTrack(null); setShowSubMenu(false); }} />
+                              <SubFileItem label="Off" active={false} loading={false} onClick={() => { setActiveSub(null); setSubCues([]); setCurrentCue(''); if (nativeTracks.length) selectNativeTrack(null); setShowSubMenu(false); }} />
                             )}
                             {nativeTracks.map((t) => {
                               const id = `native_${t.label}_${t.language}`;
-                              return <SubFileItem key={id} label={t.label || t.language || 'Embedded'} active={activeSub === id} onClick={() => selectNativeTrack(t)} />;
+                              return <SubFileItem key={id} label={t.label || t.language || 'Embedded'} active={activeSub === id} loading={false} onClick={() => selectNativeTrack(t)} />;
                             })}
                             {subtitles.map((s) => (
-                              <SubFileItem key={s.id} label={s.label} active={activeSub === s.id} onClick={() => loadSubtitle(s)} />
+                              <SubFileItem key={s.id} label={s.label} active={activeSub === s.id} loading={loadingSubId === s.id} onClick={() => loadSubtitle(s)} />
                             ))}
                           </>
                         )}
@@ -847,22 +858,26 @@ function SubMenuItem({ label, active, onClick }: { label: string; active: boolea
 }
 
 // Subtitle file row — icon + filename, matching UHF design
-function SubFileItem({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function SubFileItem({ label, active, loading, onClick }: { label: string; active: boolean; loading: boolean; onClick: () => void }) {
   const [hov, setHov] = React.useState(false);
   return (
     <button
       onClick={onClick}
+      disabled={loading}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{ display: 'flex', width: '100%', alignItems: 'flex-start', gap: 10, padding: '9px 14px', border: 0,
         background: active ? 'rgba(255,255,255,0.08)' : hov ? 'rgba(255,255,255,0.05)' : 'transparent',
-        color: active ? '#fff' : '#d4d4d4', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
+        color: active ? '#fff' : '#d4d4d4', fontSize: 13, cursor: loading ? 'default' : 'pointer', fontFamily: 'inherit',
         borderRadius: 0, textAlign: 'left', lineHeight: 1.35 }}>
-      {/* subtitle icon — two overlapping speech bubbles */}
-      <svg viewBox="0 0 20 20" width="15" height="15" fill="currentColor" style={{ opacity: 0.5, flexShrink: 0, marginTop: 1 }}>
-        <path d="M2 3a1 1 0 011-1h10a1 1 0 011 1v6a1 1 0 01-1 1H7l-3 3V10H3a1 1 0 01-1-1V3z"/>
-        <path d="M15 7h1a1 1 0 011 1v5a1 1 0 01-1 1h-1v2l-2.5-2H9a1 1 0 01-1-1v-1h7V7z" opacity="0.6"/>
-      </svg>
+      {loading ? (
+        <div style={{ width: 15, height: 15, borderRadius: '50%', border: '2px solid #333', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite', flexShrink: 0, marginTop: 1 }} />
+      ) : (
+        <svg viewBox="0 0 20 20" width="15" height="15" fill="currentColor" style={{ opacity: 0.5, flexShrink: 0, marginTop: 1 }}>
+          <path d="M2 3a1 1 0 011-1h10a1 1 0 011 1v6a1 1 0 01-1 1H7l-3 3V10H3a1 1 0 01-1-1V3z"/>
+          <path d="M15 7h1a1 1 0 011 1v5a1 1 0 01-1 1h-1v2l-2.5-2H9a1 1 0 01-1-1v-1h7V7z" opacity="0.6"/>
+        </svg>
+      )}
       <span style={{ flex: 1, wordBreak: 'break-word' }}>{label}</span>
     </button>
   );
