@@ -386,19 +386,27 @@ export default function App() {
           />
         )}
 
-        {/* HOME — VOD only (no Live TV); billboard features a movie/series */}
+        {/* HOME — VOD rails when available; falls back to live channel billboard + rail */}
         {!searchOpen && !activeCategory && tab === 'home' && (
           <>
-            {homeHero && (
-              <Billboard channel={null as any} bbStyle={settings.bbStyle} channels={channels} titles={titles}
-                vodHero={homeHero} heroKind={isMovie(homeHero) ? 'Film' : 'Series'}
+            {(homeHero || (!homeHero && channels.length > 0)) && (
+              <Billboard
+                channel={!homeHero ? channels[0] : null as any}
+                bbStyle={settings.bbStyle} channels={channels} titles={titles}
+                vodHero={homeHero || undefined} heroKind={homeHero && isMovie(homeHero) ? 'Film' : 'Series'}
                 onPlay={setPlaying} onOpen={setDetail} accentColor={accent} />
             )}
-            <div style={{ paddingTop: homeHero ? 130 : 24 }}>
+            <div style={{ paddingTop: (homeHero || channels.length > 0) ? 130 : 24 }}>
               {continueWatchingRail && (
                 <Rail rail={continueWatchingRail} titlesById={titlesById} channelsById={channelsById} onPlay={setPlaying} onOpen={setDetail} />
               )}
-              {rails.length === 0 && !continueWatchingRail && (
+              {rails.length === 0 && channels.length > 0 && (
+                <Rail
+                  rail={{ id: 'live-home', title: 'Live Channels', kind: 'channel', ids: channels.slice(0, 40).map((c) => c.id) }}
+                  titlesById={titlesById} channelsById={channelsById} onPlay={setPlaying} onOpen={setDetail}
+                />
+              )}
+              {rails.length === 0 && !continueWatchingRail && channels.length === 0 && (
                 <p style={{ color: '#8a8a8a', fontSize: 16, padding: '0 48px' }}>
                   No movies or series in this provider yet. Check the <strong>Live TV</strong> tab for channels.
                 </p>
