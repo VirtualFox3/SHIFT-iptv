@@ -99,6 +99,10 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const [subLoadError, setSubLoadError] = useState<string | null>(null);
   const [nativeTracks, setNativeTracks] = useState<TextTrack[]>([]);
 
+  // Audio tracks (HLS multi-audio)
+  const [audioTracks, setAudioTracks] = useState<{ id: number; name: string; lang: string }[]>([]);
+  const [activeAudio, setActiveAudio] = useState(0);
+
   const [streamError, setStreamError] = useState(false);
   const [errorKind, setErrorKind] = useState<'format' | 'busy'>('format');
   const [retryNonce, setRetryNonce] = useState(0);
@@ -128,6 +132,8 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
     if (!video || !streamUrl) return;
     setStreamError(false);
     setBuffering(true);
+    setAudioTracks([]);
+    setActiveAudio(0);
 
     const isHls = /\.m3u8(\?|$)/i.test(streamUrl);
     let usedProxy = false;
@@ -141,6 +147,11 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
       hls.loadSource(proxify(streamUrl));
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); });
+      hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
+        setAudioTracks(hls.audioTracks.map((t, i) => ({ id: i, name: t.name || t.lang || `Track ${i + 1}`, lang: t.lang || '' })));
+        setActiveAudio(hls.audioTrack);
+      });
+      hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_e, data) => { setActiveAudio(data.id); });
       hls.on(Hls.Events.ERROR, (_e, data) => {
         if (!data.fatal) return;
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) { try { hls.startLoad(); return; } catch {} }
@@ -408,6 +419,30 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
     setChIdx((i) => (i + dir + channels.length) % channels.length);
     setBuffering(true);
     poke();
+  }
+
+  function switchAudio(id: number) {
+    if (hlsRef.current) hlsRef.current.audioTrack = id;
+    setActiveAudio(id);
+  }
+
+  function downloadStream() {
+    const url = deproxify(streamUrl);
+    const isHls = /\.m3u8(\?|$)/i.test(url);
+    if (isHls) {
+      try { navigator.clipboard.writeText(url); } catch {}
+      setCopiedUrl(true);
+      setTimeout(() => setCopiedUrl(false), 2000);
+      return;
+    }
+    const title = (item as Title).title?.replace(/[/\\?%*:|"<>]/g, '-') || 'video';
+    const ext = url.match(/\.(mp4|mkv|ts|avi|mov)(\?|$)/i)?.[1] || 'mp4';
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
   async function togglePip() {
@@ -823,9 +858,24 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
                   ] as const).map(([val, label]) => (
                     <SubMenuItem key={val} label={label} active={aspect === val} onClick={() => { setAspect(val); }} />
                   ))}
+                  {audioTracks.length > 1 && (
+                    <>
+                      <div style={{ ...menuHead, marginTop: 6, borderTop: '1px solid #2a2a2a', paddingTop: 10 }}>AUDIO TRACK</div>
+                      {audioTracks.map((t) => (
+                        <SubMenuItem key={t.id} label={t.name || t.lang || `Track ${t.id + 1}`} active={activeAudio === t.id} onClick={() => { switchAudio(t.id); }} />
+                      ))}
+                    </>
+                  )}
                 </div>
               )}
             </div>
+
+            {/* Download (VOD only) */}
+            {!live && (
+              <button onClick={(e) => { e.stopPropagation(); downloadStream(); }} title={copiedUrl ? 'URL copied!' : 'Download'} style={{ ...ctrlBtn, opacity: copiedUrl ? 1 : 0.85, color: copiedUrl ? '#46D369' : 'inherit' }}>
+                <Icons.Download size={20} />
+              </button>
+            )}
 
             {/* Chromecast */}
             {castState !== 'unavailable' && (
