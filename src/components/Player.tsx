@@ -7,6 +7,7 @@ import { findSubtitles, loadSubtitleCues, cleanSubtitleQuery, extractEpisode, ty
 import { xtreamGetVodInfo } from '../api/xtream';
 import { deproxify, streamSrc, proxify } from '../api/proxy';
 import { traktScrobbleStart, traktScrobbleStop } from '../api/trakt';
+import { useCast } from '../hooks/useCast';
 import * as Icons from './Icons';
 
 interface PlayerProps {
@@ -103,6 +104,9 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const [retryNonce, setRetryNonce] = useState(0);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [nextDismissed, setNextDismissed] = useState(false);
+
+  const { castState, requestCast, castMedia } = useCast();
+  const wasCastingRef = useRef(false);
 
   // In the desktop app, mpv handles playback — pass the ORIGINAL provider URL
   // (deproxified) and return to the library. mpv connects directly and plays it.
@@ -432,6 +436,23 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
     return () => document.removeEventListener('fullscreenchange', onFs);
   }, []);
 
+  // Auto-load media on Chromecast when session connects (or stream changes while connected).
+  useEffect(() => {
+    if (castState === 'connected') {
+      wasCastingRef.current = true;
+      const url = deproxify(streamUrl);
+      const title = live ? (current as Channel).name : (item as Title).title;
+      const imageUrl = (current as any).logoUrl || (item as any).coverUrl || undefined;
+      castMedia(url, title, imageUrl);
+      // Pause local video — audio would double otherwise.
+      videoRef.current?.pause();
+      setPlaying(false);
+    } else if (wasCastingRef.current) {
+      wasCastingRef.current = false;
+      videoRef.current?.play().catch(() => {});
+      setPlaying(true);
+    }
+  }, [castState, streamUrl]);
 
   const pct = live ? ((current as Channel).prog || 0) : (duration ? (currentTime / duration) * 100 : 0);
   const bufferedPct = duration ? (buffered / duration) * 100 : 0;
@@ -616,6 +637,11 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
         </div>
         {/* PiP indicator */}
         {pip && <span style={{ fontSize: 12, color: '#46D369', fontWeight: 700, letterSpacing: '0.06em' }}>PiP ACTIVE</span>}
+        {castState === 'connected' && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: settings.accentColor || '#E50914', fontWeight: 700, letterSpacing: '0.06em' }}>
+            <Icons.Cast size={14} /> CASTING
+          </span>
+        )}
       </div>
 
       {/* CENTER TRANSPORT */}
@@ -800,6 +826,13 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
                 </div>
               )}
             </div>
+
+            {/* Chromecast */}
+            {castState !== 'unavailable' && (
+              <button onClick={(e) => { e.stopPropagation(); requestCast(); }} title={castState === 'connected' ? 'Stop casting' : 'Cast to TV'} style={{ ...ctrlBtn, color: castState === 'connected' ? settings.accentColor || '#E50914' : 'inherit' }}>
+                <Icons.Cast size={21} />
+              </button>
+            )}
 
             {/* Hide UI */}
             <button onClick={() => { setUiHidden(true); setShowQuality(false); setShowSubMenu(false); }} title="Hide controls (H)" style={ctrlBtn}>
