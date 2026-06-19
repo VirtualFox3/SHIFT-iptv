@@ -41,15 +41,11 @@ function VodBillboard({ title, kind, bbStyle, posterPool, onPlay, onOpen, accent
 
   const Meta = (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14, justifyContent: centered ? 'center' : 'flex-start' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 900, fontSize: 16, letterSpacing: '0.04em' }}>
-          <span style={{ color: accentColor }}>S</span>
-          <span style={{ letterSpacing: '0.18em', fontWeight: 700 }}>ORIGINAL {kind.toUpperCase()}</span>
-        </span>
-        {title.top && (
+      {title.top && (
+        <div style={{ marginBottom: 14, justifyContent: centered ? 'center' : 'flex-start', display: 'flex' }}>
           <span style={{ background: accentColor, color: '#fff', fontWeight: 800, fontSize: 12, padding: '4px 10px', borderRadius: 3, whiteSpace: 'nowrap' }}>TOP 10 · #{title.top} {kind}</span>
-        )}
-      </div>
+        </div>
+      )}
       <h1 style={{ fontWeight: 900, fontSize: centered ? 'clamp(40px,5vw,72px)' : 'clamp(44px,5vw,76px)', lineHeight: 0.98, letterSpacing: '-0.02em', margin: '0 0 16px', textShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>{title.title}</h1>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap', justifyContent: centered ? 'center' : 'flex-start' }}>
         {title.match != null && <span style={{ color: '#46D369', fontWeight: 700, fontSize: 15 }}>{title.match}% Match</span>}
@@ -266,7 +262,8 @@ function LiveTag({ accentColor }: { accentColor: string }) {
   );
 }
 
-/** Hero backdrop image with automatic retry (up to 2 retries) for flaky provider CDNs. */
+/** Hero backdrop image with automatic retry (up to 2 retries) for flaky provider CDNs.
+ *  Proxied through /api/proxy to fix HTTP→HTTPS mixed-content blocks. */
 function HeroImg({ src }: { src: string }) {
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -278,11 +275,13 @@ function HeroImg({ src }: { src: string }) {
     setFailed(false);
   }, [src]);
 
+  const proxied = `/api/proxy?url=${encodeURIComponent(src)}`;
+
   if (failed) return null;
   return (
     <img
-      key={`${src}_${attempt}`}
-      src={src}
+      key={`${proxied}_${attempt}`}
+      src={proxied}
       alt=""
       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
       {...{ fetchPriority: 'high' }}

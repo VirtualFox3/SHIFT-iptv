@@ -284,7 +284,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const poke = useCallback(() => {
     setUiVisible(true);
     if (hideTimer.current) clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => { setUiVisible(false); setShowQuality(false); setShowSubMenu(false); }, 3200);
+    hideTimer.current = setTimeout(() => { setUiVisible(false); setShowQuality(false); }, 3200);
   }, []);
   useEffect(() => { poke(); return () => { if (hideTimer.current) clearTimeout(hideTimer.current); }; }, [poke]);
 
@@ -356,12 +356,12 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
     if (track) track.mode = 'showing';
     setActiveSub(track ? `native_${track.label}_${track.language}` : null);
     setSubCues([]); setCurrentCue('');
-    setShowSubMenu(false);
+    setShowQuality(false);
   }
 
-  // Load subtitle search when panel opens — Wyzie (keyless) + OpenSubtitles fallback
+  // Load subtitle search when settings panel opens — Wyzie (keyless) + OpenSubtitles fallback
   useEffect(() => {
-    if (!showSubMenu || live) return;
+    if (!showQuality || live) return;
     setLoadingSubs(true);
     setSubLoadError(null);
     const t = item as Title;
@@ -379,7 +379,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
       .then((subs) => setSubtitles(subs.slice(0, 12)))
       .catch(() => setSubtitles([]))
       .finally(() => setLoadingSubs(false));
-  }, [showSubMenu]);
+  }, [showQuality]);
 
   async function loadSubtitle(sub: SubResult) {
     setLoadingSubId(sub.id);
@@ -388,7 +388,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
       const cues = await loadSubtitleCues(sub, settings.openSubtitlesToken);
       setSubCues(cues);
       setActiveSub(sub.id);
-      setShowSubMenu(false);
+      setShowQuality(false);
     } catch (e) {
       setSubLoadError('Failed to load — try another');
     } finally {
@@ -507,7 +507,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   })();
 
   // When UI is explicitly hidden, suppress all chrome
-  const chromeVisible = (uiVisible || showSubMenu || showQuality) && !uiHidden;
+  const chromeVisible = (uiVisible || showQuality) && !uiHidden;
 
   // Desktop: mpv plays in its own window — show a brief hand-off screen.
   if (isDesktop) {
@@ -526,7 +526,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
     <div
       ref={rootRef}
       onMouseMove={() => { if (!uiHidden) poke(); }}
-      onClick={() => { if (uiHidden) { setUiHidden(false); return; } setShowQuality(false); setShowSubMenu(false); poke(); }}
+      onClick={() => { if (uiHidden) { setUiHidden(false); return; } setShowQuality(false); setShowQuality(false); poke(); }}
       style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 200, cursor: chromeVisible ? 'default' : 'none', overflow: 'hidden' }}
     >
       {/* Video element */}
@@ -778,72 +778,13 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
           )}
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 18, position: 'relative' }}>
-            {/* Subtitles */}
-            {!live && (
-              <div style={{ position: 'relative' }}>
-                <button onClick={(e) => { e.stopPropagation(); setShowSubMenu((s) => !s); setShowQuality(false); }} title="Subtitles"
-                  style={{ ...ctrlBtn, opacity: activeSub ? 1 : 0.7, borderBottom: activeSub ? '2px solid var(--accent,#E50914)' : '2px solid transparent' }}>
-                  <Icons.Cc size={22} />
-                </button>
-                {showSubMenu && (() => {
-                  const t = item as Title;
-                  const rawTitle = t.title;
-                  const hasResults = !loadingSubs && (nativeTracks.length > 0 || subtitles.length > 0);
-                  return (
-                    <div onClick={(e) => e.stopPropagation()} style={{ ...menuPanel, width: 300, maxHeight: 460, display: 'flex', flexDirection: 'column' }}>
-                      {/* OpenSubtitles chip */}
-                      <div style={{ padding: '10px 14px 0', flexShrink: 0 }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,255,255,0.07)', borderRadius: 20, padding: '4px 10px 4px 8px', marginBottom: 10 }}>
-                          <Icons.Cc size={13} style={{ opacity: 0.6 }} />
-                          <span style={{ fontSize: 11, color: '#ccc', fontWeight: 600 }}>OpenSubtitles.com</span>
-                        </div>
-                        {/* Raw title as context */}
-                        <div style={{ fontSize: 15, color: '#fff', fontWeight: 700, lineHeight: 1.25, marginBottom: 10 }}>{rawTitle}</div>
-                        <div style={{ height: 1, background: '#2a2a2a', margin: '0 -14px' }} />
-                      </div>
-                      {/* Body */}
-                      <div style={{ overflowY: 'auto', flex: 1 }}>
-                        {loadingSubs && (
-                          <div style={{ padding: '14px', fontSize: 13, color: '#666', display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid #333', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
-                            Searching…
-                          </div>
-                        )}
-                        {!loadingSubs && !hasResults && (
-                          <div style={{ padding: '14px', fontSize: 13, color: '#555' }}>No subtitles found.</div>
-                        )}
-                        {subLoadError && (
-                          <div style={{ padding: '6px 14px 10px', fontSize: 12, color: '#e05252' }}>{subLoadError}</div>
-                        )}
-                        {hasResults && (
-                          <>
-                            <div style={{ padding: '10px 14px 4px', fontSize: 12, color: '#777', fontWeight: 500 }}>Matching subtitles</div>
-                            {activeSub && (
-                              <SubFileItem label="Off" active={false} loading={false} onClick={() => { setActiveSub(null); setSubCues([]); setCurrentCue(''); if (nativeTracks.length) selectNativeTrack(null); setShowSubMenu(false); }} />
-                            )}
-                            {nativeTracks.map((t) => {
-                              const id = `native_${t.label}_${t.language}`;
-                              return <SubFileItem key={id} label={t.label || t.language || 'Embedded'} active={activeSub === id} loading={false} onClick={() => selectNativeTrack(t)} />;
-                            })}
-                            {subtitles.map((s) => (
-                              <SubFileItem key={s.id} label={s.label} active={activeSub === s.id} loading={loadingSubId === s.id} onClick={() => loadSubtitle(s)} />
-                            ))}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-
-            {/* Quality */}
+            {/* Settings — quality, aspect, audio, subtitles */}
             <div style={{ position: 'relative' }}>
-              <button onClick={(e) => { e.stopPropagation(); setShowQuality((s) => !s); setShowSubMenu(false); }} style={ctrlBtn}>
+              <button onClick={(e) => { e.stopPropagation(); setShowQuality((s) => !s); }} style={{ ...ctrlBtn, color: activeSub ? settings.accentColor || '#E50914' : 'inherit' }} title="Settings">
                 <Icons.Settings size={21} />
               </button>
               {showQuality && (
-                <div onClick={(e) => e.stopPropagation()} style={{ ...menuPanel, width: 250 }}>
+                <div onClick={(e) => e.stopPropagation()} style={{ ...menuPanel, width: 270, maxHeight: 520, overflowY: 'auto' }}>
                   <div style={menuHead}>QUALITY</div>
                   {['Auto', '1080p', '720p', '480p'].map((q) => (
                     <SubMenuItem key={q} label={q} active={quality === q} onClick={() => { setQuality(q); }} />
@@ -866,6 +807,27 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
                       ))}
                     </>
                   )}
+                  {!live && (() => {
+                    const hasResults = !loadingSubs && (nativeTracks.length > 0 || subtitles.length > 0);
+                    return (
+                      <>
+                        <div style={{ ...menuHead, marginTop: 6, borderTop: '1px solid #2a2a2a', paddingTop: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          SUBTITLES
+                          {loadingSubs && <div style={{ width: 10, height: 10, borderRadius: '50%', border: '1.5px solid #333', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />}
+                        </div>
+                        {subLoadError && <div style={{ padding: '4px 14px 6px', fontSize: 12, color: '#e05252' }}>{subLoadError}</div>}
+                        {!loadingSubs && !hasResults && <div style={{ padding: '6px 14px', fontSize: 12, color: '#555' }}>No subtitles found.</div>}
+                        {activeSub && <SubMenuItem label="Off" active={false} onClick={() => { setActiveSub(null); setSubCues([]); setCurrentCue(''); if (nativeTracks.length) selectNativeTrack(null); }} />}
+                        {nativeTracks.map((t) => {
+                          const id = `native_${t.label}_${t.language}`;
+                          return <SubMenuItem key={id} label={t.label || t.language || 'Embedded'} active={activeSub === id} onClick={() => selectNativeTrack(t)} />;
+                        })}
+                        {subtitles.map((s) => (
+                          <SubMenuItem key={s.id} label={s.label} active={activeSub === s.id} onClick={() => loadSubtitle(s)} />
+                        ))}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -885,7 +847,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
             )}
 
             {/* Hide UI */}
-            <button onClick={() => { setUiHidden(true); setShowQuality(false); setShowSubMenu(false); }} title="Hide controls (H)" style={ctrlBtn}>
+            <button onClick={() => { setUiHidden(true); setShowQuality(false); setShowQuality(false); }} title="Hide controls (H)" style={ctrlBtn}>
               <Icons.EyeOff size={21} />
             </button>
 
