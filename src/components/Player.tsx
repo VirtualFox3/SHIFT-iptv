@@ -7,6 +7,7 @@ import { findSubtitles, loadSubtitleCues, type SubResult } from '../api/subtitle
 import { xtreamGetVodInfo } from '../api/xtream';
 import { deproxify, streamSrc, proxify } from '../api/proxy';
 import { traktScrobbleStart, traktScrobbleStop } from '../api/trakt';
+import { useCast } from '../hooks/useCast';
 import * as Icons from './Icons';
 
 interface PlayerProps {
@@ -45,6 +46,7 @@ function openInExternal(kind: 'vlc' | 'infuse', rawUrl: string) {
 
 export default function Player({ item, onClose, channels = [], nextEpisode, onNext }: PlayerProps) {
   const settings = useStore((s) => s.settings);
+  const updateSettings = useStore((s) => s.updateSettings);
   const setProgress = useStore((s) => s.setProgress);
   const continueWatching = useStore((s) => s.continueWatching);
   const provider = useStore((s) => s.provider);
@@ -63,6 +65,12 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const current = live ? (channels[chIdx] || item) : item;
   const streamUrl = (current as any).streamUrl || '';
 
+  // Desktop app (Electron + mpv): hand playback to the native engine, which plays
+  // EVERYTHING (HEVC/MKV/AV1) and connects DIRECTLY to the provider (home IP, one
+  // clean connection) — no browser codec limits, no proxy, no 1-connection clash.
+  const electronAPI = typeof window !== 'undefined' ? (window as any).electronAPI : undefined;
+  const isDesktop = !!electronAPI?.playStream;
+
   const [playing, setPlaying] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -75,9 +83,11 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const [showQuality, setShowQuality] = useState(false);
   const [showSubMenu, setShowSubMenu] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [scrubPct, setScrubPct] = useState(0);
+  const [hoverPct, setHoverPct] = useState<number | null>(null);
   const [pip, setPip] = useState(false);
   const [aspect, setAspect] = useState<'fit' | 'fill' | '16:9' | '4:3' | 'stretch'>('fit');
-  const [uiHidden, setUiHidden] = useState(false);  // explicit hide via 'h' / button
+  const [uiHidden, setUiHidden] = useState(false);
   const [isFs, setIsFs] = useState(false);
 
   // Subtitles
@@ -86,20 +96,48 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const [subCues, setSubCues] = useState<SubCue[]>([]);
   const [currentCue, setCurrentCue] = useState<string>('');
   const [loadingSubs, setLoadingSubs] = useState(false);
+  const [loadingSubId, setLoadingSubId] = useState<string | null>(null);
+  const [subLoadError, setSubLoadError] = useState<string | null>(null);
+  const [nativeTracks, setNativeTracks] = useState<TextTrack[]>([]);
+
+  // Audio tracks (HLS multi-audio)
+  const [audioTracks, setAudioTracks] = useState<{ id: number; name: string; lang: string }[]>([]);
+  const [activeAudio, setActiveAudio] = useState(0);
+
+  // Playback speed
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
 
   const [streamError, setStreamError] = useState(false);
+  const [errorKind, setErrorKind] = useState<'format' | 'busy'>('format');
+  const [retryNonce, setRetryNonce] = useState(0);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [nextDismissed, setNextDismissed] = useState(false);
+
+  const { castState, requestCast, castMedia } = useCast();
+  const wasCastingRef = useRef(false);
+
+  // In the desktop app, mpv handles playback — pass the ORIGINAL provider URL
+  // (deproxified) and return to the library. mpv connects directly and plays it.
+  useEffect(() => {
+    if (!isDesktop || !streamUrl) return;
+    const title = live ? (current as Channel).name : (item as Title).title;
+    electronAPI.playStream({ url: deproxify(streamUrl), title });
+    const t = setTimeout(onClose, 600);
+    return () => clearTimeout(t);
+  }, [isDesktop, streamUrl, chIdx]);
 
   // Stream setup. For direct VOD files we try the provider URL DIRECTLY first
   // (native byte-range seeking = fast); if that fails (UA block / mixed content)
   // we fall back to the proxy (slower seek, but plays). HLS always uses the proxy
   // (hls.js fetch needs CORS).
   useEffect(() => {
+    if (isDesktop) return;
     const video = videoRef.current;
     if (!video || !streamUrl) return;
     setStreamError(false);
     setBuffering(true);
+    setAudioTracks([]);
+    setActiveAudio(0);
 
     const isHls = /\.m3u8(\?|$)/i.test(streamUrl);
     let usedProxy = false;
@@ -113,6 +151,11 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
       hls.loadSource(proxify(streamUrl));
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); });
+      hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
+        setAudioTracks(hls.audioTracks.map((t, i) => ({ id: i, name: t.name || t.lang || `Track ${i + 1}`, lang: t.lang || '' })));
+        setActiveAudio(hls.audioTrack);
+      });
+      hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_e, data) => { setActiveAudio(data.id); });
       hls.on(Hls.Events.ERROR, (_e, data) => {
         if (!data.fatal) return;
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) { try { hls.startLoad(); return; } catch {} }
@@ -133,7 +176,19 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
         const proxied = proxify(streamUrl);
         if (proxied !== video.src) { playDirectFile(proxied); return; }
       }
-      setStreamError(true);
+      // Classify the failure: is the provider rejecting us (busy — only 1
+      // connection allowed, e.g. it's open on the phone) or is it a codec the
+      // browser genuinely can't decode (MKV/HEVC)? A quick range probe tells us.
+      (async () => {
+        let kind: 'format' | 'busy' = 'format';
+        try {
+          const r = await fetch(proxify(streamUrl), { headers: { Range: 'bytes=0-1' } });
+          if (r.status === 458 || r.status === 403 || r.status === 429 || r.status >= 500) kind = 'busy';
+          try { await r.body?.cancel(); } catch {}
+        } catch { kind = 'busy'; }
+        setErrorKind(kind);
+        setStreamError(true);
+      })();
     };
     video.addEventListener('error', onErr);
     return () => {
@@ -141,7 +196,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
       hlsRef.current?.destroy();
       hlsRef.current = null;
     };
-  }, [streamUrl, live, chIdx]);
+  }, [streamUrl, live, chIdx, retryNonce]);
 
   // Reset next-episode card whenever item changes
   useEffect(() => { setNextDismissed(false); }, [item.id]);
@@ -158,7 +213,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   useEffect(() => {
     if (live) return;
     const pct = continueWatching[item.id];
-    if (!pct || pct >= 95) return;  // nothing saved, or effectively finished
+    if (!pct || pct >= 95) return;
     const video = videoRef.current;
     if (!video) return;
     const seek = () => {
@@ -175,11 +230,14 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
     if (!video) return;
     const onTime = () => {
       setCurrentTime(video.currentTime);
-      if (video.currentTime > 0) setStreamError(false);  // real playback → clear any error
+      if (video.currentTime > 0) setStreamError(false);
       if (video.buffered.length > 0) setBuffered(video.buffered.end(video.buffered.length - 1));
     };
     const onDur = () => setDuration(video.duration);
     const onWait = () => setBuffering(true);
+    const onSeeking = () => setBuffering(true);
+    const onSeeked = () => { if (video.readyState >= 3) setBuffering(false); };
+    const onCanPlay = () => setBuffering(false);
     const onPlay2 = () => { setPlaying(true); setBuffering(false); setStreamError(false); };
     const onPause = () => setPlaying(false);
     const onPipEnter = () => setPip(true);
@@ -188,6 +246,9 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
     video.addEventListener('timeupdate', onTime);
     video.addEventListener('durationchange', onDur);
     video.addEventListener('waiting', onWait);
+    video.addEventListener('seeking', onSeeking);
+    video.addEventListener('seeked', onSeeked);
+    video.addEventListener('canplay', onCanPlay);
     video.addEventListener('playing', onPlay2);
     video.addEventListener('pause', onPause);
     video.addEventListener('enterpictureinpicture', onPipEnter);
@@ -196,6 +257,9 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
       video.removeEventListener('timeupdate', onTime);
       video.removeEventListener('durationchange', onDur);
       video.removeEventListener('waiting', onWait);
+      video.removeEventListener('seeking', onSeeking);
+      video.removeEventListener('seeked', onSeeked);
+      video.removeEventListener('canplay', onCanPlay);
       video.removeEventListener('playing', onPlay2);
       video.removeEventListener('pause', onPause);
       video.removeEventListener('enterpictureinpicture', onPipEnter);
@@ -203,11 +267,18 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
     };
   }, []);
 
-  // Progress bar drag
+  // Progress bar drag — YouTube-style: while dragging we only move the bar
+  // visually (no seeking, so no re-buffer on every pixel); the actual seek
+  // happens ONCE on release.
   useEffect(() => {
     if (!dragging) return;
-    const move = (e: PointerEvent) => seekFromEvent(e);
-    const up = () => setDragging(false);
+    const move = (e: PointerEvent) => setScrubPct(pctFromEvent(e));
+    const up = (e: PointerEvent) => {
+      const frac = pctFromEvent(e);
+      const v = videoRef.current;
+      if (v && v.duration) v.currentTime = frac * v.duration;
+      setDragging(false);
+    };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
@@ -231,7 +302,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
       else if (e.key === 'ArrowUp' && live) { zap(1); }
       else if (e.key === 'ArrowDown' && live) { zap(-1); }
       else if (e.key === 'm') { setMuted((m) => !m); }
-      else if (e.key === 'h') { setUiHidden((h) => !h); }   // hide/show all UI
+      else if (e.key === 'h') { setUiHidden((h) => !h); }
       else if (e.key === 'f') { toggleFullscreen(); }
     };
     window.addEventListener('keydown', onKey);
@@ -244,7 +315,6 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
     const pct = Math.round((currentTime / duration) * 100);
     setProgress(item.id, pct);
 
-    // Trakt periodic scrobble
     if (settings.traktAccessToken && playing) {
       clearTimeout(scrobbleTimer.current!);
       scrobbleTimer.current = setTimeout(() => {
@@ -252,7 +322,6 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
       }, 5000);
     }
 
-    // Subtitle cue matching
     if (subCues.length) {
       const cue = subCues.find((c) => currentTime >= c.start && currentTime <= c.end);
       setCurrentCue(cue ? cue.text : '');
@@ -269,13 +338,36 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
     };
   }, []);
 
-  // Load subtitle search when panel opens — Wyzie (keyless) + OpenSubtitles fallback
+  // Detect native subtitle tracks embedded in the video (HLS WebVTT, MP4 TTML, etc.)
   useEffect(() => {
-    if (!showSubMenu || live) return;
+    const video = videoRef.current;
+    if (!video) return;
+    const update = () => {
+      const tracks = Array.from(video.textTracks).filter((t) => t.kind === 'subtitles' || t.kind === 'captions');
+      setNativeTracks(tracks);
+    };
+    video.addEventListener('loadedmetadata', update);
+    update();
+    return () => video.removeEventListener('loadedmetadata', update);
+  }, [streamUrl]);
+
+  function selectNativeTrack(track: TextTrack | null) {
+    const video = videoRef.current;
+    if (!video) return;
+    Array.from(video.textTracks).forEach((t) => { t.mode = 'disabled'; });
+    if (track) track.mode = 'showing';
+    setActiveSub(track ? `native_${track.label}_${track.language}` : null);
+    setSubCues([]); setCurrentCue('');
+    setShowQuality(false);
+  }
+
+  // Load subtitle search when settings panel opens — Wyzie (keyless) + OpenSubtitles fallback
+  useEffect(() => {
+    if (!showQuality || live) return;
     setLoadingSubs(true);
+    setSubLoadError(null);
     const t = item as Title;
     const lang = settings.subLang?.slice(0, 2).toLowerCase() || 'en';
-    // For Xtream movies, resolve a TMDB/IMDB id from vod_info so Wyzie can match.
     const resolveId = async (): Promise<string | undefined> => {
       const m = t.id.match(/^xt_vod_(.+)$/);
       if (m && provider?.type === 'xtream' && provider.serverUrl && provider.username) {
@@ -288,16 +380,21 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
       .then((subs) => setSubtitles(subs.slice(0, 12)))
       .catch(() => setSubtitles([]))
       .finally(() => setLoadingSubs(false));
-  }, [showSubMenu]);
+  }, [showQuality]);
 
   async function loadSubtitle(sub: SubResult) {
+    setLoadingSubId(sub.id);
+    setSubLoadError(null);
     try {
       const cues = await loadSubtitleCues(sub, settings.openSubtitlesToken);
-      if (!cues.length) throw new Error('Empty subtitle');
       setSubCues(cues);
       setActiveSub(sub.id);
-      setShowSubMenu(false);
-    } catch {}
+      setShowQuality(false);
+    } catch (e) {
+      setSubLoadError('Failed to load — try another');
+    } finally {
+      setLoadingSubId(null);
+    }
   }
 
   function togglePlay() {
@@ -312,18 +409,46 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
     v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime + delta));
   }
 
-  function seekFromEvent(e: PointerEvent | React.PointerEvent) {
-    const v = videoRef.current;
-    if (!v || live || !barRef.current) return;
+  function pctFromEvent(e: PointerEvent | React.PointerEvent): number {
+    if (!barRef.current) return 0;
     const r = barRef.current.getBoundingClientRect();
-    const frac = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-    v.currentTime = frac * v.duration;
+    return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
   }
 
   function zap(dir: number) {
     setChIdx((i) => (i + dir + channels.length) % channels.length);
     setBuffering(true);
     poke();
+  }
+
+  function switchAudio(id: number) {
+    if (hlsRef.current) hlsRef.current.audioTrack = id;
+    setActiveAudio(id);
+  }
+
+  function changeSpeed(speed: number) {
+    const v = videoRef.current;
+    if (v) v.playbackRate = speed;
+    setPlaybackSpeed(speed);
+  }
+
+  function downloadStream() {
+    const url = deproxify(streamUrl);
+    const isHls = /\.m3u8(\?|$)/i.test(url);
+    if (isHls) {
+      try { navigator.clipboard.writeText(url); } catch {}
+      setCopiedUrl(true);
+      setTimeout(() => setCopiedUrl(false), 2000);
+      return;
+    }
+    const title = (item as Title).title?.replace(/[/\\?%*:|"<>]/g, '-') || 'video';
+    const ext = url.match(/\.(mp4|mkv|ts|avi|mov)(\?|$)/i)?.[1] || 'mp4';
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
   async function togglePip() {
@@ -338,7 +463,6 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
 
   async function toggleFullscreen() {
     const v = videoRef.current as any;
-    // iPhone Safari only supports fullscreen on the <video> element itself.
     if (IS_IOS && v?.webkitEnterFullscreen) { try { v.webkitEnterFullscreen(); } catch {} return; }
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
@@ -352,13 +476,28 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
     return () => document.removeEventListener('fullscreenchange', onFs);
   }, []);
 
+  // Auto-load media on Chromecast when session connects (or stream changes while connected).
+  useEffect(() => {
+    if (castState === 'connected') {
+      wasCastingRef.current = true;
+      const url = deproxify(streamUrl);
+      const title = live ? (current as Channel).name : (item as Title).title;
+      const imageUrl = (current as any).logoUrl || (item as any).coverUrl || undefined;
+      castMedia(url, title, imageUrl);
+      videoRef.current?.pause();
+      setPlaying(false);
+    } else if (wasCastingRef.current) {
+      wasCastingRef.current = false;
+      videoRef.current?.play().catch(() => {});
+      setPlaying(true);
+    }
+  }, [castState, streamUrl]);
 
   const pct = live ? ((current as Channel).prog || 0) : (duration ? (currentTime / duration) * 100 : 0);
   const bufferedPct = duration ? (buffered / duration) * 100 : 0;
 
   const subSize = { Small: 16, Medium: 20, Large: 26 }[settings.subSize] || 20;
 
-  // Aspect-ratio → CSS for the <video>
   const videoStyle: React.CSSProperties = (() => {
     const base: React.CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', margin: 'auto' };
     switch (aspect) {
@@ -366,18 +505,29 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
       case 'stretch': return { ...base, objectFit: 'fill' };
       case '16:9': return { ...base, objectFit: 'contain', aspectRatio: '16 / 9', height: 'auto', maxHeight: '100%' };
       case '4:3': return { ...base, objectFit: 'contain', aspectRatio: '4 / 3', height: 'auto', maxHeight: '100%' };
-      default: return { ...base, objectFit: 'contain' };  // 'fit'
+      default: return { ...base, objectFit: 'contain' };
     }
   })();
 
-  // When UI is explicitly hidden, suppress all chrome
-  const chromeVisible = uiVisible && !uiHidden;
+  const chromeVisible = (uiVisible || showQuality) && !uiHidden;
+
+  if (isDesktop) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 200, display: 'grid', placeItems: 'center' }}>
+        <div style={{ textAlign: 'center', color: '#fff' }}>
+          <div className="spin" style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid rgba(255,255,255,0.2)', borderTopColor: '#E50914', margin: '0 auto 18px' }} />
+          <div style={{ fontSize: 17, fontWeight: 700 }}>Opening in player…</div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6 }}>Playing in mpv — close it to return here.</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
       ref={rootRef}
       onMouseMove={() => { if (!uiHidden) poke(); }}
-      onClick={() => { if (uiHidden) { setUiHidden(false); return; } setShowQuality(false); setShowSubMenu(false); poke(); }}
+      onClick={() => { if (uiHidden) { setUiHidden(false); return; } setShowQuality(false); poke(); }}
       style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 200, cursor: chromeVisible ? 'default' : 'none', overflow: 'hidden' }}
     >
       {/* Video element */}
@@ -387,6 +537,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
         muted={muted}
         autoPlay
         playsInline
+        preload="auto"
         onVolumeChange={() => {
           const v = videoRef.current;
           if (v) { setVol(v.volume); setMuted(v.muted); }
@@ -412,11 +563,19 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
             <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(229,9,20,0.15)', display: 'grid', placeItems: 'center', margin: '0 auto 16px' }}>
               <Icons.Info size={26} color="var(--accent,#E50914)" />
             </div>
-            <div style={{ fontSize: 19, fontWeight: 700, color: '#fff', marginBottom: 10 }}>Can't play this format in the browser</div>
+            <div style={{ fontSize: 19, fontWeight: 700, color: '#fff', marginBottom: 10 }}>
+              {errorKind === 'busy' ? 'Stream is busy' : "Can't play this format in the browser"}
+            </div>
             <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 1.55, marginBottom: 22 }}>
-              This file is an <strong style={{ color: '#ddd' }}>MKV / HEVC</strong> video — no web browser (incl. {IS_IOS ? 'iPhone/iPad Safari' : 'Chrome/Safari'}) can play that container. Open it in a free player like <strong style={{ color: '#ddd' }}>{IS_IOS ? 'VLC or Infuse' : 'VLC'}</strong> to watch it.
+              {errorKind === 'busy'
+                ? <>Your provider allows only <strong style={{ color: '#ddd' }}>one connection at a time</strong>. Make sure it's <strong style={{ color: '#ddd' }}>closed on your phone and any other device/app</strong>, then hit Retry.</>
+                : <>This file is an <strong style={{ color: '#ddd' }}>MKV / HEVC</strong> video — no web browser (incl. {IS_IOS ? 'iPhone/iPad Safari' : 'Chrome/Safari'}) can play that container. Open it in a free player like <strong style={{ color: '#ddd' }}>{IS_IOS ? 'VLC or Infuse' : 'VLC'}</strong> to watch it.</>}
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button onClick={() => { setStreamError(false); setBuffering(true); setRetryNonce((n) => n + 1); }}
+                style={{ background: errorKind === 'busy' ? '#1DB954' : '#2a2a2a', color: '#fff', border: errorKind === 'busy' ? 0 : '1px solid #3a3a3a', borderRadius: 6, padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}>
+                ↻ Retry
+              </button>
               <button onClick={() => openInExternal('vlc', deproxify(streamUrl))}
                 style={{ background: '#E8821E', color: '#fff', border: 0, borderRadius: 6, padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}>
                 ▶ Open in VLC
@@ -436,7 +595,9 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
               </button>
             </div>
             <div style={{ fontSize: 12, color: '#666', marginTop: 16, lineHeight: 1.5 }}>
-              {IS_IOS
+              {errorKind === 'busy'
+                ? <>This is why it works sometimes and not others — only one device can watch at a time on your plan.</>
+                : IS_IOS
                 ? <>Don't have it? Get <strong style={{ color: '#888' }}>VLC</strong> or <strong style={{ color: '#888' }}>Infuse</strong> free from the App Store — the link is copied, just paste it in.</>
                 : <>Tip: in VLC use <strong style={{ color: '#888' }}>Media → Open Network Stream</strong> and paste the copied link.</>}
             </div>
@@ -447,39 +608,42 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
       {/* Subtitle display — slides up when controls are visible */}
       {(activeSub || settings.subEnabled) && currentCue && (
         <div style={{ position: 'absolute', left: 0, right: 0, bottom: chromeVisible ? 110 : 32, textAlign: 'center', pointerEvents: 'none', padding: '0 64px', transition: 'bottom 250ms ease', zIndex: 15 }}>
-          <span style={{ background: 'rgba(0,0,0,0.82)', color: '#fff', fontSize: subSize, padding: '6px 16px', borderRadius: 5, lineHeight: 1.55, display: 'inline-block', whiteSpace: 'pre-line', textShadow: '0 1px 4px rgba(0,0,0,0.9)', letterSpacing: '0.01em' }}>
+          <span style={{ background: 'rgba(0,0,0,0.45)', color: '#fff', fontSize: subSize, padding: '6px 16px', borderRadius: 5, lineHeight: 1.55, display: 'inline-block', whiteSpace: 'pre-line', textShadow: '0 1px 4px rgba(0,0,0,0.9)', letterSpacing: '0.01em' }}>
             {currentCue.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')}
           </span>
         </div>
       )}
 
-      {/* Up Next card (last 60s of VOD episode) — inspired by Netflix/UHF */}
-      {!live && nextEpisode && !nextDismissed && duration > 0 && (duration - currentTime) < 60 && (duration - currentTime) > 0 && (
+      {/* Up Next card — Netflix style, appears at last 30s */}
+      {!live && nextEpisode && !nextDismissed && duration > 0 && (duration - currentTime) <= 30 && (duration - currentTime) > 0 && (
         <div onClick={(e) => e.stopPropagation()} style={{
-          position: 'absolute', bottom: chromeVisible ? 110 : 32, right: 24,
-          background: 'rgba(16,16,16,0.96)', border: '1px solid rgba(255,255,255,0.12)',
-          borderRadius: 10, padding: 16, width: 300,
-          boxShadow: '0 12px 48px rgba(0,0,0,0.7)',
-          backdropFilter: 'blur(16px)',
-          transition: 'bottom 250ms ease',
-          zIndex: 20,
+          position: 'absolute', bottom: chromeVisible ? 120 : 28, right: 24,
+          width: 280, borderRadius: 6, overflow: 'hidden',
+          background: '#141414', boxShadow: '0 8px 40px rgba(0,0,0,0.85)',
+          transition: 'bottom 250ms ease', zIndex: 20,
           animation: 'slideInRight 300ms ease',
         }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
-            Up Next · {Math.ceil(duration - currentTime)}s
+          {/* countdown progress bar */}
+          <div style={{ height: 3, background: 'rgba(255,255,255,0.15)' }}>
+            <div style={{ height: '100%', background: '#fff', width: `${((30 - (duration - currentTime)) / 30) * 100}%`, transition: 'width 1s linear' }} />
           </div>
-          {nextEpisode.logoUrl && (
-            <img src={nextEpisode.logoUrl} alt="" style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 6, marginBottom: 10, display: 'block' }}
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-          )}
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 12, lineHeight: 1.35 }}>{nextEpisode.title}</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={(e) => { e.stopPropagation(); onNext?.(); }} style={{ flex: 1, background: '#fff', color: '#000', border: 0, borderRadius: 6, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <Icons.Play size={13} color="#000" /> Play Now
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); setNextDismissed(true); }} style={{ background: 'rgba(255,255,255,0.08)', color: '#aaa', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '9px 12px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-              ✕
-            </button>
+          <div style={{ padding: '12px 14px 14px' }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: '#aaa', letterSpacing: '0.1em', marginBottom: 8 }}>NEXT EPISODE</div>
+            {nextEpisode.logoUrl && (
+              <img src={nextEpisode.logoUrl} alt="" style={{ width: '100%', height: 76, objectFit: 'cover', borderRadius: 4, marginBottom: 10, display: 'block' }}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+            )}
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 12, lineHeight: 1.3 }}>{nextEpisode.title}</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={(e) => { e.stopPropagation(); onNext?.(); }}
+                style={{ flex: 1, background: '#fff', color: '#000', border: 0, borderRadius: 4, padding: '8px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                <Icons.Play size={11} color="#000" /> Play Now
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); setNextDismissed(true); }}
+                style={{ background: 'rgba(255,255,255,0.08)', color: '#aaa', border: '1px solid #333', borderRadius: 4, padding: '8px 11px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                ✕
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -510,8 +674,12 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
             {live ? `CH ${(current as Channel).num} · ${(current as Channel).now}` : `${(item as Title).year} · ${(item as Title).rating}`}
           </div>
         </div>
-        {/* PiP indicator */}
         {pip && <span style={{ fontSize: 12, color: '#46D369', fontWeight: 700, letterSpacing: '0.06em' }}>PiP ACTIVE</span>}
+        {castState === 'connected' && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: settings.accentColor || '#E50914', fontWeight: 700, letterSpacing: '0.06em' }}>
+            <Icons.Cast size={14} /> CASTING
+          </span>
+        )}
       </div>
 
       {/* CENTER TRANSPORT */}
@@ -552,22 +720,35 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
         {/* SCRUBBER */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0 8px' }}>
           <span style={{ fontSize: 13, color: '#fff', fontWeight: 600, minWidth: 48, textAlign: 'right' }}>
-            {live ? fmt(((current as Channel).prog / 100) * 7200) : fmt(currentTime)}
+            {live ? fmt(((current as Channel).prog / 100) * 7200) : fmt(dragging ? scrubPct * duration : currentTime)}
           </span>
+          {(() => { const barPct = live ? pct : (dragging ? scrubPct * 100 : pct); return (
           <div
             ref={barRef}
-            onPointerDown={(e) => { if (!live) { e.preventDefault(); setDragging(true); seekFromEvent(e as any); } }}
-            style={{ position: 'relative', flex: 1, height: 5, background: 'rgba(255,255,255,0.25)', borderRadius: 3, cursor: live ? 'default' : 'pointer', userSelect: 'none' }}
+            onPointerDown={(e) => { if (!live) { e.preventDefault(); setScrubPct(pctFromEvent(e)); setDragging(true); } }}
+            onPointerMove={(e) => { if (!live && !dragging) setHoverPct(pctFromEvent(e)); }}
+            onPointerLeave={() => setHoverPct(null)}
+            style={{ position: 'relative', flex: 1, height: dragging ? 7 : 5, background: 'rgba(255,255,255,0.25)', borderRadius: 4, cursor: live ? 'default' : 'pointer', userSelect: 'none', transition: 'height 120ms', touchAction: 'none' }}
           >
             {/* Buffered */}
-            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${bufferedPct}%`, background: 'rgba(255,255,255,0.2)', borderRadius: 3 }} />
+            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${bufferedPct}%`, background: 'rgba(255,255,255,0.2)', borderRadius: 4 }} />
+            {/* Hover preview fill */}
+            {!live && hoverPct != null && !dragging && (
+              <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${hoverPct * 100}%`, background: 'rgba(255,255,255,0.35)', borderRadius: 4, pointerEvents: 'none' }} />
+            )}
             {/* Progress */}
-            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, background: 'var(--accent,#E50914)', borderRadius: 3, transition: dragging ? 'none' : 'width 250ms linear' }} />
+            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${barPct}%`, background: 'var(--accent,#E50914)', borderRadius: 4, transition: dragging ? 'none' : 'width 250ms linear' }} />
             {/* Thumb */}
             {!live && (
-              <div style={{ position: 'absolute', left: `${pct}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 14, height: 14, borderRadius: '50%', background: 'var(--accent,#E50914)', boxShadow: '0 0 0 4px rgba(229,9,20,0.28)', transition: dragging ? 'none' : 'left 250ms linear' }} />
+              <div style={{ position: 'absolute', left: `${barPct}%`, top: '50%', transform: 'translate(-50%,-50%)', width: dragging ? 18 : 14, height: dragging ? 18 : 14, borderRadius: '50%', background: 'var(--accent,#E50914)', boxShadow: '0 0 0 4px rgba(229,9,20,0.28)', transition: dragging ? 'none' : 'left 250ms linear, width 120ms, height 120ms', pointerEvents: 'none' }} />
             )}
-          </div>
+            {/* Time bubble (drag or hover) */}
+            {!live && duration > 0 && (dragging || hoverPct != null) && (
+              <div style={{ position: 'absolute', bottom: 18, left: `${(dragging ? scrubPct : (hoverPct || 0)) * 100}%`, transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.85)', color: '#fff', fontSize: 12, fontWeight: 700, padding: '3px 8px', borderRadius: 5, pointerEvents: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+                {fmt((dragging ? scrubPct : (hoverPct || 0)) * duration)}
+              </div>
+            )}
+          </div> ); })()}
           <span style={{ fontSize: 13, color: '#fff', fontWeight: 600, minWidth: 52 }}>
             {live
               ? <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--accent,#E50914)' }}><LiveDot />LIVE</span>
@@ -600,41 +781,13 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
           )}
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 18, position: 'relative' }}>
-            {/* Subtitles */}
-            {!live && (
-              <div style={{ position: 'relative' }}>
-                <button onClick={(e) => { e.stopPropagation(); setShowSubMenu((s) => !s); setShowQuality(false); }} title="Subtitles"
-                  style={{ ...ctrlBtn, opacity: activeSub ? 1 : 0.7, borderBottom: activeSub ? '2px solid var(--accent,#E50914)' : '2px solid transparent' }}>
-                  <Icons.Subtitles size={22} />
-                </button>
-                {showSubMenu && (
-                  <div onClick={(e) => e.stopPropagation()} style={menuPanel}>
-                    <div style={menuHead}>SUBTITLES · opensubtitles.com</div>
-                    {loadingSubs && (
-                      <div style={{ padding: '10px 12px', fontSize: 12.5, color: '#8a8a8a', display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #444', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />
-                        Searching…
-                      </div>
-                    )}
-                    {!loadingSubs && subtitles.length === 0 && (
-                      <div style={{ padding: '10px 12px', fontSize: 12.5, color: '#8a8a8a' }}>No subtitles found.</div>
-                    )}
-                    {activeSub && <SubMenuItem label="Off" active={false} onClick={() => { setActiveSub(null); setSubCues([]); setCurrentCue(''); setShowSubMenu(false); }} />}
-                    {subtitles.map((s) => (
-                      <SubMenuItem key={s.id} label={s.label} active={activeSub === s.id} onClick={() => loadSubtitle(s)} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Quality */}
+            {/* Settings — quality, aspect, speed, audio, subtitles */}
             <div style={{ position: 'relative' }}>
-              <button onClick={(e) => { e.stopPropagation(); setShowQuality((s) => !s); setShowSubMenu(false); }} style={ctrlBtn}>
+              <button onClick={(e) => { e.stopPropagation(); setShowQuality((s) => !s); }} style={{ ...ctrlBtn, color: activeSub ? settings.accentColor || '#E50914' : 'inherit' }} title="Settings">
                 <Icons.Settings size={21} />
               </button>
               {showQuality && (
-                <div onClick={(e) => e.stopPropagation()} style={{ ...menuPanel, width: 250 }}>
+                <div onClick={(e) => e.stopPropagation()} style={{ ...menuPanel, width: 270, maxHeight: 520, overflowY: 'auto' }}>
                   <div style={menuHead}>QUALITY</div>
                   {['Auto', '1080p', '720p', '480p'].map((q) => (
                     <SubMenuItem key={q} label={q} active={quality === q} onClick={() => { setQuality(q); }} />
@@ -649,12 +802,80 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
                   ] as const).map(([val, label]) => (
                     <SubMenuItem key={val} label={label} active={aspect === val} onClick={() => { setAspect(val); }} />
                   ))}
+                  {!live && (
+                    <>
+                      <div style={{ ...menuHead, marginTop: 6, borderTop: '1px solid #2a2a2a', paddingTop: 10 }}>SPEED</div>
+                      {[0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => (
+                        <SubMenuItem key={s} label={s === 1 ? 'Normal' : `${s}×`} active={playbackSpeed === s} onClick={() => changeSpeed(s)} />
+                      ))}
+                    </>
+                  )}
+                  {audioTracks.length > 1 && (
+                    <>
+                      <div style={{ ...menuHead, marginTop: 6, borderTop: '1px solid #2a2a2a', paddingTop: 10 }}>AUDIO TRACK</div>
+                      {audioTracks.map((t) => (
+                        <SubMenuItem key={t.id} label={t.name || t.lang || `Track ${t.id + 1}`} active={activeAudio === t.id} onClick={() => { switchAudio(t.id); }} />
+                      ))}
+                    </>
+                  )}
+                  {!live && (() => {
+                    const hasResults = !loadingSubs && (nativeTracks.length > 0 || subtitles.length > 0);
+                    const accent = settings.accentColor || '#E50914';
+                    return (
+                      <>
+                        {/* SUBTITLES header */}
+                        <div style={{ marginTop: 6, borderTop: '1px solid #222', paddingTop: 10, paddingBottom: 2 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px 6px' }}>
+                            <span style={{ fontSize: 11, color: '#666', fontWeight: 700, letterSpacing: '0.06em' }}>SUBTITLES</span>
+                            {loadingSubs && <div style={{ width: 10, height: 10, borderRadius: '50%', border: '1.5px solid #333', borderTopColor: '#999', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
+                          </div>
+                          {/* Size pill row */}
+                          <div style={{ display: 'flex', gap: 4, padding: '0 10px 6px' }}>
+                            {(['Small', 'Medium', 'Large'] as const).map((s) => (
+                              <button key={s} onClick={() => updateSettings({ subSize: s })}
+                                style={{ flex: 1, fontFamily: 'inherit', fontSize: 11, fontWeight: 700, padding: '5px 0', border: settings.subSize === s ? `1px solid ${accent}` : '1px solid #333', borderRadius: 20, cursor: 'pointer', background: settings.subSize === s ? `${accent}22` : 'transparent', color: settings.subSize === s ? accent : '#666', transition: 'all 140ms' }}>
+                                {s}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {subLoadError && (
+                          <div style={{ margin: '0 10px 6px', padding: '6px 10px', background: 'rgba(224,82,82,0.1)', border: '1px solid rgba(224,82,82,0.3)', borderRadius: 6, fontSize: 11, color: '#e05252' }}>
+                            Failed to load — try another
+                          </div>
+                        )}
+                        {!loadingSubs && !hasResults && <div style={{ padding: '4px 10px 8px', fontSize: 12, color: '#444' }}>No subtitles found.</div>}
+                        {activeSub && <SubMenuItem label="Off" active={false} onClick={() => { setActiveSub(null); setSubCues([]); setCurrentCue(''); if (nativeTracks.length) selectNativeTrack(null); }} />}
+                        {nativeTracks.map((t) => {
+                          const id = `native_${t.label}_${t.language}`;
+                          return <SubMenuItem key={id} label={`⬩ ${t.label || t.language || 'Embedded'}`} active={activeSub === id} onClick={() => selectNativeTrack(t)} />;
+                        })}
+                        {subtitles.map((s) => (
+                          <SubMenuItem key={s.id} label={s.label} active={activeSub === s.id} loading={loadingSubId === s.id} onClick={() => loadSubtitle(s)} />
+                        ))}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>
 
+            {/* Download (VOD only) */}
+            {!live && (
+              <button onClick={(e) => { e.stopPropagation(); downloadStream(); }} title={copiedUrl ? 'URL copied!' : 'Download'} style={{ ...ctrlBtn, opacity: copiedUrl ? 1 : 0.85, color: copiedUrl ? '#46D369' : 'inherit' }}>
+                <Icons.Download size={20} />
+              </button>
+            )}
+
+            {/* Chromecast */}
+            {castState !== 'unavailable' && (
+              <button onClick={(e) => { e.stopPropagation(); requestCast(); }} title={castState === 'connected' ? 'Stop casting' : 'Cast to TV'} style={{ ...ctrlBtn, color: castState === 'connected' ? settings.accentColor || '#E50914' : 'inherit' }}>
+                <Icons.Cast size={21} />
+              </button>
+            )}
+
             {/* Hide UI */}
-            <button onClick={() => { setUiHidden(true); setShowQuality(false); setShowSubMenu(false); }} title="Hide controls (H)" style={ctrlBtn}>
+            <button onClick={() => { setUiHidden(true); setShowQuality(false); }} title="Hide controls (H)" style={ctrlBtn}>
               <Icons.EyeOff size={21} />
             </button>
 
@@ -693,11 +914,23 @@ const ctrlBtn: React.CSSProperties = { background: 'transparent', border: 0, col
 const menuPanel: React.CSSProperties = { position: 'absolute', bottom: 40, right: 0, width: 230, background: 'rgba(18,18,18,0.97)', border: '1px solid #2a2a2a', borderRadius: 8, padding: 8, boxShadow: '0 12px 36px rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', zIndex: 10 };
 const menuHead: React.CSSProperties = { fontSize: 11, color: '#666', padding: '4px 10px 6px', fontWeight: 700, letterSpacing: '0.06em' };
 
-function SubMenuItem({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function SubMenuItem({ label, active, loading, onClick }: { label: string; active: boolean; loading?: boolean; onClick: () => void }) {
+  const [hov, setHov] = React.useState(false);
   return (
-    <button onClick={onClick} style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8, padding: '9px 10px', border: 0, background: active ? 'rgba(255,255,255,0.07)' : 'transparent', color: '#fff', fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit', borderRadius: 5, textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-      <span style={{ width: 16, color: '#E50914', flexShrink: 0 }}>{active ? '✓' : ''}</span>
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+    <button
+      onClick={onClick}
+      disabled={loading}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8, padding: '8px 10px', border: 0,
+        background: active ? 'rgba(229,9,20,0.12)' : hov ? 'rgba(255,255,255,0.06)' : 'transparent',
+        color: active ? '#fff' : '#ccc', fontSize: 13, cursor: loading ? 'default' : 'pointer', fontFamily: 'inherit', borderRadius: 5, textAlign: 'left' }}>
+      <span style={{ width: 14, flexShrink: 0 }}>
+        {loading
+          ? <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', border: '1.5px solid #444', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />
+          : active ? <span style={{ color: 'var(--accent,#E50914)' }}>✓</span> : null}
+      </span>
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
     </button>
   );
 }
@@ -709,4 +942,3 @@ function fmt(s: number): string {
   const ss = s % 60;
   return (h > 0 ? `${h}:${String(m).padStart(2, '0')}` : String(m)) + ':' + String(ss).padStart(2, '0');
 }
-

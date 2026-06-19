@@ -105,15 +105,23 @@ export function cleanSubtitleQuery(t: string): string {
 export async function loadSubtitleCues(sub: SubResult, osToken?: string): Promise<SubCue[]> {
   let text = '';
   if (sub.url) {
-    const res = await fetch(sub.url);
+    // Proxy through /api/proxy to bypass CDN CORS and fix HTTP mixed-content
+    const res = await fetch(`/api/proxy?url=${encodeURIComponent(sub.url)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     text = await res.text();
   } else if (sub.fileId) {
-    const url = await getSubtitleDownloadUrl(sub.fileId, osToken);
-    if (!url) throw new Error('No download link');
-    const res = await fetch(url);
+    // Server-side endpoint: POSTs to OS API + fetches file — no CORS issues
+    const params = new URLSearchParams({ fileId: String(sub.fileId) });
+    if (osToken) params.set('token', osToken);
+    const res = await fetch(`/api/subtitle?${params}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     text = await res.text();
+  } else {
+    throw new Error('No URL or file ID');
   }
-  // Wyzie may return WebVTT — strip the header so the SRT parser handles both.
-  text = text.replace(/^WEBVTT.*?\n/, '').replace(/\r/g, '');
-  return parseSRT(text);
+  // WebVTT header strip so the SRT parser handles both formats
+  text = text.replace(/^WEBVTT[^\n]*\n/, '').replace(/\r/g, '');
+  const cues = parseSRT(text);
+  if (!cues.length) throw new Error('Empty subtitle file');
+  return cues;
 }

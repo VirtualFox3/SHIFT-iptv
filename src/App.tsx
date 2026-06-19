@@ -235,6 +235,12 @@ export default function App() {
 
   const accent = settings.accentColor;
 
+  const theme = settings.theme || 'dark';
+  // Apply theme + accent to document root so CSS vars cascade globally.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
   return (
     <>
       {/* Keep accent synced to CSS var — global.css handles everything else */}

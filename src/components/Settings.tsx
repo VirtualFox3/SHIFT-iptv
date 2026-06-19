@@ -21,6 +21,7 @@ export default function Settings({ onBack }: SettingsProps) {
   const [pane, setPane] = useState<string>('account');
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
+  const clearHistory = useStore((s) => s.clearHistory);
   const provider = useStore((s) => s.provider);
 
   const set = (k: keyof SettingsType, v: any) => updateSettings({ [k]: v });
@@ -58,7 +59,7 @@ export default function Settings({ onBack }: SettingsProps) {
           {pane === 'quality' && <QualityPane settings={settings} set={set} />}
           {pane === 'subtitles' && <SubtitlesPane settings={settings} set={set} />}
           {pane === 'integrations' && <IntegrationsPane settings={settings} updateSettings={updateSettings} />}
-          {pane === 'tweaks' && <TweaksPane settings={settings} set={set} />}
+          {pane === 'tweaks' && <TweaksPane settings={settings} set={set} clearHistory={clearHistory} />}
           {pane === 'parental' && <ParentalPane settings={settings} set={set} />}
         </div>
       </div>
@@ -418,14 +419,25 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
   );
 }
 
-function TweaksPane({ settings, set }: { settings: SettingsType; set: any }) {
+function TweaksPane({ settings, set, clearHistory }: { settings: SettingsType; set: any; clearHistory: () => void }) {
   const accentOptions = ['#E50914', '#6E3FF3', '#14B8A6', '#F5C518', '#46D369', '#2E51A2'];
+  const [cleared, setCleared] = React.useState(false);
+
+  function handleClear() {
+    clearHistory();
+    setCleared(true);
+    setTimeout(() => setCleared(false), 2200);
+  }
+
   return (
     <>
       <Card title="Billboard Style">
         <Row title="Layout" control={<Picker value={settings.bbStyle} options={['Spotlight', 'Centered', 'Cinema Wall']} onChange={(v) => set('bbStyle', v)} />} last />
       </Card>
       <Card title="Appearance">
+        <Row title="Theme" desc="Switch between dark and light mode." control={
+          <Seg value={settings.theme || 'dark'} options={['dark', 'light']} onChange={(v) => set('theme', v)} />
+        } />
         <Row title="Accent color" control={
           <div style={{ display: 'flex', gap: 8 }}>
             {accentOptions.map((c) => (
@@ -434,6 +446,13 @@ function TweaksPane({ settings, set }: { settings: SettingsType; set: any }) {
           </div>
         } />
         <Row title="Card radius" control={<Seg value={String(settings.cardRadius)} options={['0', '4', '8', '12']} onChange={(v) => set('cardRadius', Number(v))} />} last />
+      </Card>
+      <Card title="Watch History">
+        <Row title="Clear watch history" desc="Remove all progress from Continue Watching." control={
+          <button onClick={handleClear} style={{ ...outlineBtn, color: cleared ? '#46D369' : '#fff', borderColor: cleared ? '#46D369' : '#444' }}>
+            {cleared ? '✓ Cleared' : 'Clear history'}
+          </button>
+        } last />
       </Card>
     </>
   );

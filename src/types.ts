@@ -119,6 +119,8 @@ export interface Settings {
   traktRefreshToken?: string;
   traktUsername?: string;
   omdbApiKey?: string;
+  // Appearance
+  theme: 'dark' | 'light';
   // Profile
   profilePic?: string;     // data URL of uploaded profile image
   profileName?: string;
