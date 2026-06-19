@@ -9,6 +9,9 @@ dist-ssr/
 desktop/bin/
 desktop/dist/
 
+# Expo mobile app — managed separately
+mobile/
+
 # Vercel
 .vercel/
 
