@@ -46,6 +46,7 @@ function openInExternal(kind: 'vlc' | 'infuse', rawUrl: string) {
 
 export default function Player({ item, onClose, channels = [], nextEpisode, onNext }: PlayerProps) {
   const settings = useStore((s) => s.settings);
+  const updateSettings = useStore((s) => s.updateSettings);
   const setProgress = useStore((s) => s.setProgress);
   const continueWatching = useStore((s) => s.continueWatching);
   const provider = useStore((s) => s.provider);
@@ -607,7 +608,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
       {/* Subtitle display — slides up when controls are visible */}
       {(activeSub || settings.subEnabled) && currentCue && (
         <div style={{ position: 'absolute', left: 0, right: 0, bottom: chromeVisible ? 110 : 32, textAlign: 'center', pointerEvents: 'none', padding: '0 64px', transition: 'bottom 250ms ease', zIndex: 15 }}>
-          <span style={{ background: 'rgba(0,0,0,0.82)', color: '#fff', fontSize: subSize, padding: '6px 16px', borderRadius: 5, lineHeight: 1.55, display: 'inline-block', whiteSpace: 'pre-line', textShadow: '0 1px 4px rgba(0,0,0,0.9)', letterSpacing: '0.01em' }}>
+          <span style={{ background: 'rgba(0,0,0,0.45)', color: '#fff', fontSize: subSize, padding: '6px 16px', borderRadius: 5, lineHeight: 1.55, display: 'inline-block', whiteSpace: 'pre-line', textShadow: '0 1px 4px rgba(0,0,0,0.9)', letterSpacing: '0.01em' }}>
             {currentCue.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')}
           </span>
         </div>
@@ -814,6 +815,12 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
                         <div style={{ ...menuHead, marginTop: 6, borderTop: '1px solid #2a2a2a', paddingTop: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                           SUBTITLES
                           {loadingSubs && <div style={{ width: 10, height: 10, borderRadius: '50%', border: '1.5px solid #333', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />}
+                        </div>
+                        {/* Size picker */}
+                        <div style={{ display: 'flex', gap: 4, padding: '4px 14px 8px' }}>
+                          {(['Small', 'Medium', 'Large'] as const).map((s) => (
+                            <button key={s} onClick={() => updateSettings({ subSize: s })} style={{ flex: 1, fontFamily: 'inherit', fontSize: 11, fontWeight: 600, padding: '5px 0', border: 0, borderRadius: 4, cursor: 'pointer', background: settings.subSize === s ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)', color: settings.subSize === s ? '#fff' : '#777' }}>{s}</button>
+                          ))}
                         </div>
                         {subLoadError && <div style={{ padding: '4px 14px 6px', fontSize: 12, color: '#e05252' }}>{subLoadError}</div>}
                         {!loadingSubs && !hasResults && <div style={{ padding: '6px 14px', fontSize: 12, color: '#555' }}>No subtitles found.</div>}
