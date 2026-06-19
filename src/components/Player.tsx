@@ -614,33 +614,36 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
         </div>
       )}
 
-      {/* Up Next card (last 60s of VOD episode) — inspired by Netflix/UHF */}
-      {!live && nextEpisode && !nextDismissed && duration > 0 && (duration - currentTime) < 60 && (duration - currentTime) > 0 && (
+      {/* Up Next card — Netflix style, appears at last 30s */}
+      {!live && nextEpisode && !nextDismissed && duration > 0 && (duration - currentTime) <= 30 && (duration - currentTime) > 0 && (
         <div onClick={(e) => e.stopPropagation()} style={{
-          position: 'absolute', bottom: chromeVisible ? 110 : 32, right: 24,
-          background: 'rgba(16,16,16,0.96)', border: '1px solid rgba(255,255,255,0.12)',
-          borderRadius: 10, padding: 16, width: 300,
-          boxShadow: '0 12px 48px rgba(0,0,0,0.7)',
-          backdropFilter: 'blur(16px)',
-          transition: 'bottom 250ms ease',
-          zIndex: 20,
+          position: 'absolute', bottom: chromeVisible ? 120 : 28, right: 24,
+          width: 280, borderRadius: 6, overflow: 'hidden',
+          background: '#141414', boxShadow: '0 8px 40px rgba(0,0,0,0.85)',
+          transition: 'bottom 250ms ease', zIndex: 20,
           animation: 'slideInRight 300ms ease',
         }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
-            Up Next · {Math.ceil(duration - currentTime)}s
+          {/* countdown progress bar */}
+          <div style={{ height: 3, background: 'rgba(255,255,255,0.15)' }}>
+            <div style={{ height: '100%', background: '#fff', width: `${((30 - (duration - currentTime)) / 30) * 100}%`, transition: 'width 1s linear' }} />
           </div>
-          {nextEpisode.logoUrl && (
-            <img src={nextEpisode.logoUrl} alt="" style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 6, marginBottom: 10, display: 'block' }}
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-          )}
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 12, lineHeight: 1.35 }}>{nextEpisode.title}</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={(e) => { e.stopPropagation(); onNext?.(); }} style={{ flex: 1, background: '#fff', color: '#000', border: 0, borderRadius: 6, padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <Icons.Play size={13} color="#000" /> Play Now
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); setNextDismissed(true); }} style={{ background: 'rgba(255,255,255,0.08)', color: '#aaa', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '9px 12px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-              ✕
-            </button>
+          <div style={{ padding: '12px 14px 14px' }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: '#aaa', letterSpacing: '0.1em', marginBottom: 8 }}>NEXT EPISODE</div>
+            {nextEpisode.logoUrl && (
+              <img src={nextEpisode.logoUrl} alt="" style={{ width: '100%', height: 76, objectFit: 'cover', borderRadius: 4, marginBottom: 10, display: 'block' }}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+            )}
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 12, lineHeight: 1.3 }}>{nextEpisode.title}</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={(e) => { e.stopPropagation(); onNext?.(); }}
+                style={{ flex: 1, background: '#fff', color: '#000', border: 0, borderRadius: 4, padding: '8px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                <Icons.Play size={11} color="#000" /> Play Now
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); setNextDismissed(true); }}
+                style={{ background: 'rgba(255,255,255,0.08)', color: '#aaa', border: '1px solid #333', borderRadius: 4, padding: '8px 11px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                ✕
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -810,27 +813,38 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
                   )}
                   {!live && (() => {
                     const hasResults = !loadingSubs && (nativeTracks.length > 0 || subtitles.length > 0);
+                    const accent = settings.accentColor || '#E50914';
                     return (
                       <>
-                        <div style={{ ...menuHead, marginTop: 6, borderTop: '1px solid #2a2a2a', paddingTop: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                          SUBTITLES
-                          {loadingSubs && <div style={{ width: 10, height: 10, borderRadius: '50%', border: '1.5px solid #333', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />}
+                        {/* SUBTITLES header */}
+                        <div style={{ marginTop: 6, borderTop: '1px solid #222', paddingTop: 10, paddingBottom: 2 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px 6px' }}>
+                            <span style={{ fontSize: 11, color: '#666', fontWeight: 700, letterSpacing: '0.06em' }}>SUBTITLES</span>
+                            {loadingSubs && <div style={{ width: 10, height: 10, borderRadius: '50%', border: '1.5px solid #333', borderTopColor: '#999', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
+                          </div>
+                          {/* Size pill row */}
+                          <div style={{ display: 'flex', gap: 4, padding: '0 10px 6px' }}>
+                            {(['Small', 'Medium', 'Large'] as const).map((s) => (
+                              <button key={s} onClick={() => updateSettings({ subSize: s })}
+                                style={{ flex: 1, fontFamily: 'inherit', fontSize: 11, fontWeight: 700, padding: '5px 0', border: settings.subSize === s ? `1px solid ${accent}` : '1px solid #333', borderRadius: 20, cursor: 'pointer', background: settings.subSize === s ? `${accent}22` : 'transparent', color: settings.subSize === s ? accent : '#666', transition: 'all 140ms' }}>
+                                {s}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                        {/* Size picker */}
-                        <div style={{ display: 'flex', gap: 4, padding: '4px 14px 8px' }}>
-                          {(['Small', 'Medium', 'Large'] as const).map((s) => (
-                            <button key={s} onClick={() => updateSettings({ subSize: s })} style={{ flex: 1, fontFamily: 'inherit', fontSize: 11, fontWeight: 600, padding: '5px 0', border: 0, borderRadius: 4, cursor: 'pointer', background: settings.subSize === s ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)', color: settings.subSize === s ? '#fff' : '#777' }}>{s}</button>
-                          ))}
-                        </div>
-                        {subLoadError && <div style={{ padding: '4px 14px 6px', fontSize: 12, color: '#e05252' }}>{subLoadError}</div>}
-                        {!loadingSubs && !hasResults && <div style={{ padding: '6px 14px', fontSize: 12, color: '#555' }}>No subtitles found.</div>}
+                        {subLoadError && (
+                          <div style={{ margin: '0 10px 6px', padding: '6px 10px', background: 'rgba(224,82,82,0.1)', border: '1px solid rgba(224,82,82,0.3)', borderRadius: 6, fontSize: 11, color: '#e05252' }}>
+                            Failed to load — try another
+                          </div>
+                        )}
+                        {!loadingSubs && !hasResults && <div style={{ padding: '4px 10px 8px', fontSize: 12, color: '#444' }}>No subtitles found.</div>}
                         {activeSub && <SubMenuItem label="Off" active={false} onClick={() => { setActiveSub(null); setSubCues([]); setCurrentCue(''); if (nativeTracks.length) selectNativeTrack(null); }} />}
                         {nativeTracks.map((t) => {
                           const id = `native_${t.label}_${t.language}`;
-                          return <SubMenuItem key={id} label={t.label || t.language || 'Embedded'} active={activeSub === id} onClick={() => selectNativeTrack(t)} />;
+                          return <SubMenuItem key={id} label={`⬩ ${t.label || t.language || 'Embedded'}`} active={activeSub === id} onClick={() => selectNativeTrack(t)} />;
                         })}
                         {subtitles.map((s) => (
-                          <SubMenuItem key={s.id} label={s.label} active={activeSub === s.id} onClick={() => loadSubtitle(s)} />
+                          <SubMenuItem key={s.id} label={s.label} active={activeSub === s.id} loading={loadingSubId === s.id} onClick={() => loadSubtitle(s)} />
                         ))}
                       </>
                     );
@@ -893,17 +907,22 @@ const ctrlBtn: React.CSSProperties = { background: 'transparent', border: 0, col
 const menuPanel: React.CSSProperties = { position: 'absolute', bottom: 40, right: 0, width: 230, background: 'rgba(18,18,18,0.97)', border: '1px solid #2a2a2a', borderRadius: 8, padding: 8, boxShadow: '0 12px 36px rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', zIndex: 10 };
 const menuHead: React.CSSProperties = { fontSize: 11, color: '#666', padding: '4px 10px 6px', fontWeight: 700, letterSpacing: '0.06em' };
 
-function SubMenuItem({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function SubMenuItem({ label, active, loading, onClick }: { label: string; active: boolean; loading?: boolean; onClick: () => void }) {
   const [hov, setHov] = React.useState(false);
   return (
     <button
       onClick={onClick}
+      disabled={loading}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
-      style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8, padding: '9px 10px', border: 0,
+      style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8, padding: '8px 10px', border: 0,
         background: active ? 'rgba(229,9,20,0.12)' : hov ? 'rgba(255,255,255,0.06)' : 'transparent',
-        color: '#fff', fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit', borderRadius: 5, textAlign: 'left' }}>
-      <span style={{ width: 14, color: 'var(--accent,#E50914)', flexShrink: 0 }}>{active ? '✓' : ''}</span>
+        color: active ? '#fff' : '#ccc', fontSize: 13, cursor: loading ? 'default' : 'pointer', fontFamily: 'inherit', borderRadius: 5, textAlign: 'left' }}>
+      <span style={{ width: 14, flexShrink: 0 }}>
+        {loading
+          ? <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', border: '1.5px solid #444', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />
+          : active ? <span style={{ color: 'var(--accent,#E50914)' }}>✓</span> : null}
+      </span>
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
     </button>
   );
