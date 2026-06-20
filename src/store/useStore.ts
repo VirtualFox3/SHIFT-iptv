@@ -71,6 +71,7 @@ const DEFAULT_SETTINGS: Settings = {
   accentColor: '#E50914',
   cardRadius: 4,
   theme: 'dark',
+  rokuIp: '',
 };
 
 export const useStore = create<AppStore>()(

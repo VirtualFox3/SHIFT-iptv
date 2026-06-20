@@ -121,6 +121,8 @@ export interface Settings {
   omdbApiKey?: string;
   // Appearance
   theme: 'dark' | 'light';
+  // Roku ECP
+  rokuIp?: string;
   // Profile
   profilePic?: string;     // data URL of uploaded profile image
   profileName?: string;
