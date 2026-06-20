@@ -219,6 +219,12 @@ export default function App() {
     };
   }, [activeCategory, titles, channels]);
 
+  // Apply theme to document root — must be before any conditional returns (Rules of Hooks).
+  const theme = settings.theme || 'dark';
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
   if (!provider) return <Auth />;
   if (showSettings) return <Settings onBack={() => setShowSettings(false)} />;
 
@@ -260,12 +266,6 @@ export default function App() {
   }
 
   const accent = settings.accentColor;
-
-  const theme = settings.theme || 'dark';
-  // Apply theme + accent to document root so CSS vars cascade globally.
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
 
   return (
     <>
