@@ -484,9 +484,18 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
 
   // Aspect-ratio → CSS for the <video>
   const videoStyle: React.CSSProperties = (() => {
-    const base: React.CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', margin: 'auto' };
-    if (aspect === 'auto') return { ...base, objectFit: 'contain' };
-    return { ...base, objectFit: 'contain', aspectRatio: aspect.replace(':', ' / '), height: 'auto', maxHeight: '100%', width: 'auto', maxWidth: '100%' };
+    if (aspect === 'auto') {
+      return { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' };
+    }
+    return {
+      position: 'absolute',
+      top: '50%', left: '50%',
+      transform: 'translate(-50%, -50%)',
+      objectFit: 'fill' as const,
+      aspectRatio: aspect.replace(':', ' / '),
+      maxWidth: '100%',
+      maxHeight: '100%',
+    };
   })();
 
   // When UI is explicitly hidden, suppress all chrome

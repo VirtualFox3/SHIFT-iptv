@@ -129,7 +129,7 @@ export default function App() {
   // Home billboard — rotates through top ENGLISH movies AND series with artwork.
   // Popular flagship titles (Dexter, Supernatural, etc.) are pinned to the front.
   const heroPool = useMemo<Title[]>(() => {
-    const FEATURED = /\b(dexter|supernatural|breaking bad|the boys|game of thrones|stranger things|the last of us)\b/i;
+    const FEATURED = /\b(dexter|supernatural|breaking bad|the boys|game of thrones|stranger things|the last of us|five nights at freddy|fnaf)\b/i;
     const withArt = enTitles.filter((t) => t.logoUrl);
     const pool = withArt.length >= 5 ? withArt : enTitles;
     const score = (t: Title) => (FEATURED.test(t.title) ? 100 : 0) + (t.logoUrl ? 10 : 0) + (t.match || 0) / 100;

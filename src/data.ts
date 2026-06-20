@@ -35,6 +35,9 @@ export const DEMO_TITLES: Title[] = [
   { id: 'lastlight', title: 'Last Light', year: 2024, rating: 'TV-MA', seasons: 'Limited Series', match: 85, rt: 80, trakt: 78, watchers: '430K', genres: ['Survival', 'Sci-Fi'], grad: ['#0d1a0a', '#2a3508'], isShift: true, synopsis: 'When the power grids fail for good, a botanist and her daughter walk a thousand miles toward a rumour of a working city.', streamUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8' },
   { id: 'saltroad', title: 'Salt Road', year: 2023, rating: 'TV-MA', seasons: '3 Parts', match: 90, rt: 89, trakt: 86, watchers: '680K', genres: ['Heist', 'Drama'], grad: ['#1a2c5a', '#0a0a18'], isShift: true, synopsis: 'A gentleman thief stages an elaborate revenge against the family that framed his father, one impossible robbery at a time.', streamUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8' },
   { id: 'harbour', title: 'Harbour', year: 2022, rating: 'TV-MA', seasons: '4 Seasons', match: 86, rt: 83, trakt: 81, watchers: '510K', genres: ['Crime', 'Drama'], grad: ['#0a1424', '#1f3a6e'], isShift: true, synopsis: 'Two detectives on opposite sides of a dock-side feud discover the only way out is straight through each other.', streamUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8' },
+  { id: 'supernatural', title: 'Supernatural', year: 2005, rating: 'TV-14', seasons: '15 Seasons', match: 97, rt: 93, trakt: 90, watchers: '4.2M', genres: ['Supernatural', 'Horror', 'Drama'], grad: ['#2a0808', '#7a1a0a'], isShift: true, top: undefined, synopsis: "Two brothers follow their father's footsteps as hunters, fighting evil supernatural beings of many kinds — monsters, demons, and gods that roam the earth.", streamUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8', logoUrl: 'https://image.tmdb.org/t/p/w1280/bzoZjhbpriBT2N0Jm7S7ORmCDPE.jpg' },
+  { id: 'dexter', title: 'Dexter', year: 2006, rating: 'TV-MA', seasons: '9 Seasons', match: 96, rt: 84, trakt: 88, watchers: '3.8M', genres: ['Crime', 'Thriller', 'Drama'], grad: ['#1a0505', '#6b0000'], isShift: true, top: undefined, synopsis: 'A forensic blood-spatter analyst for the Miami police leads a double life as a vigilante serial killer — hunting murderers who escaped justice.', streamUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8', logoUrl: 'https://image.tmdb.org/t/p/w1280/lvANme6Iqm00E7d0JZ5IPPZ4M3l.jpg' },
+  { id: 'fnaf', title: "Five Nights at Freddy's", year: 2023, rating: 'PG-13', seasons: 'Film', match: 82, rt: 40, trakt: 74, watchers: '1.6M', genres: ['Horror', 'Mystery', 'Thriller'], grad: ['#0d0d1a', '#1a0d2e'], synopsis: "A troubled security guard begins working at Freddy Fazbear's Pizza, where he soon discovers the animatronic animals roam free at night — with deadly intent.", streamUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8', logoUrl: 'https://image.tmdb.org/t/p/w1280/oNl79Bqe27VhBrMlJoKKIGIJOPm.jpg' },
 ];
 
 export const DEMO_RAILS: Rail[] = [
@@ -44,6 +47,8 @@ export const DEMO_RAILS: Rail[] = [
   { id: 'sport', title: 'Sport Happening Now', kind: 'channel', ids: ['sps1', 'aps', 'fro', 'blt'] },
   { id: 'orig', title: 'Only on SHIFT', kind: 'title', ids: ['cinder', 'goldcoast', 'veil', 'crowne', 'saltroad', 'nightfall'] },
   { id: 'drama', title: 'Critically Acclaimed Dramas', kind: 'title', ids: ['crowne', 'queens', 'harbour', 'longgame', 'paperkings', 'veil'] },
+  { id: 'popular', title: 'Popular Series', kind: 'title', ids: ['supernatural', 'dexter', 'paperkings', 'crowne', 'undertow', 'longgame'] },
+  { id: 'horror', title: 'Horror & Thriller', kind: 'title', ids: ['fnaf', 'supernatural', 'undertow', 'veil', 'lastlight'] },
 ];
 
 export const EPG_START = 18;

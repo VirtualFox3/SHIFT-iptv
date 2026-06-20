@@ -278,26 +278,30 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {seasonObj?.episodes.map((ep, idx) => (
-                <button key={ep.id} onClick={() => playEpisode(ep, idx)} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 8px', background: 'transparent', border: 0, borderTop: '1px solid #1e1e1e', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%', transition: 'background 120ms', borderRadius: 4 }}
+                <button key={ep.id} onClick={() => playEpisode(ep, idx)} style={{ display: 'flex', alignItems: 'flex-start', gap: 16, padding: '14px 8px', background: 'transparent', border: 0, borderTop: '1px solid #1e1e1e', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%', transition: 'background 120ms', borderRadius: 4 }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = '#1f1f1f')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
-                  <span style={{ fontSize: 18, fontWeight: 800, color: '#666', width: 32, flexShrink: 0, textAlign: 'center' }}>{ep.episode}</span>
-                  <div style={{ position: 'relative', width: 140, height: 78, borderRadius: 7, background: '#0f0f0f', flexShrink: 0, overflow: 'hidden', display: 'grid', placeItems: 'center' }}>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: '#555', width: 28, flexShrink: 0, textAlign: 'center', paddingTop: 6 }}>{ep.episode}</span>
+                  <div style={{ position: 'relative', width: 200, height: 112, borderRadius: 8, background: provider?.bg || '#0f0f0f', flexShrink: 0, overflow: 'hidden', display: 'grid', placeItems: 'center' }}>
                     {ep.still
                       ? <img src={ep.still} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                      : <Icons.Play size={20} color="#444" />}
+                      : null}
                     <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0)', transition: 'background 150ms' }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.45)')}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.5)')}
                       onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0)')}>
-                      <Icons.Play size={24} />
+                      <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', display: 'grid', placeItems: 'center', border: '1.5px solid rgba(255,255,255,0.7)' }}>
+                        <Icons.Play size={16} />
+                      </div>
                     </div>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 5 }}>
-                      <span style={{ fontSize: 15, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ep.title}</span>
-                      {ep.duration && <span style={{ fontSize: 12, color: '#666', flexShrink: 0 }}>{ep.duration}</span>}
+                  <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ep.title}</span>
+                      {ep.duration && <span style={{ fontSize: 12, color: '#555', flexShrink: 0 }}>{ep.duration}</span>}
                     </div>
-                    {ep.plot && <div style={{ fontSize: 13, color: '#777', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{ep.plot}</div>}
+                    {ep.plot
+                      ? <div style={{ fontSize: 13, color: '#888', lineHeight: 1.55, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{ep.plot}</div>
+                      : <div style={{ fontSize: 12, color: '#444' }}>Episode {ep.episode}</div>}
                   </div>
                 </button>
               ))}
