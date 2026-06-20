@@ -146,6 +146,17 @@ function Picker({ value, options, onChange }: { value: string; options: string[]
   );
 }
 
+const PROFILE_GRADS = [
+  'linear-gradient(135deg,#6e1015,#E50914)',
+  'linear-gradient(135deg,#11324f,#14B8A6)',
+  'linear-gradient(135deg,#2a1659,#6E3FF3)',
+  'linear-gradient(135deg,#0a3b2a,#46D369)',
+  'linear-gradient(135deg,#3a1206,#F5A623)',
+  'linear-gradient(135deg,#1a1a4e,#2E51A2)',
+  'linear-gradient(135deg,#3d0d3a,#c2369d)',
+  'linear-gradient(135deg,#0b1f3a,#1f4e88)',
+];
+
 /* ─── Panes ─── */
 function AccountPane({ provider }: { provider: any }) {
   const setProviderStore = useStore((s) => s.setProvider);
@@ -166,10 +177,16 @@ function AccountPane({ provider }: { provider: any }) {
     reader.readAsDataURL(file);
   }
 
+  function changeGradient(grad: string) {
+    const updated = { ...provider, bg: grad };
+    saveProvider(updated);
+    setProviderStore(updated);
+  }
+
   return (
     <>
     <Card title="Profile">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '20px 20px 12px' }}>
         {/* Avatar — click to upload a custom picture */}
         <div onClick={() => fileRef.current?.click()} title="Change profile picture"
           style={{ position: 'relative', width: 64, height: 64, borderRadius: 12, background: provider.bg, display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 26, flexShrink: 0, cursor: 'pointer', overflow: 'hidden' }}>
@@ -190,7 +207,7 @@ function AccountPane({ provider }: { provider: any }) {
             Connected · {provider.tag}
           </div>
           <button onClick={() => fileRef.current?.click()} style={{ marginTop: 8, background: 'transparent', border: 0, color: 'var(--accent,#E50914)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
-            Change profile picture
+            Change photo
           </button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
@@ -202,6 +219,18 @@ function AccountPane({ provider }: { provider: any }) {
           </button>
         </div>
       </div>
+      {/* Profile color picker */}
+      {!provider.profileImage && (
+        <div style={{ padding: '0 20px 18px' }}>
+          <div style={{ fontSize: 11, color: 'var(--fg-4)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>Profile Color</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {PROFILE_GRADS.map((g) => (
+              <button key={g} onClick={() => changeGradient(g)}
+                style={{ width: 32, height: 32, borderRadius: 8, background: g, border: provider.bg === g ? '2.5px solid #fff' : '2px solid transparent', cursor: 'pointer', outline: 'none', transition: 'transform 120ms, border 100ms', transform: provider.bg === g ? 'scale(1.18)' : 'scale(1)' }} />
+            ))}
+          </div>
+        </div>
+      )}
     </Card>
     <ConnectionDetails provider={provider} />
     </>

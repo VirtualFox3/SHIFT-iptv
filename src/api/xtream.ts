@@ -182,7 +182,6 @@ export async function xtreamGetSeriesInfo(auth: XtreamAuth, seriesId: string | n
     // `episodes` can be an object keyed by season, or (rarely) an array.
     const epsBySeason = data.episodes || {};
     const seasons: SeriesInfo['seasons'] = [];
-    const seriesPlot = info.plot || info.overview || info.description || info.synopsis || '';
     const seasonKeys = Array.isArray(epsBySeason)
       ? epsBySeason.map((_: any, i: number) => String(i)).filter((k) => epsBySeason[Number(k)])
       : Object.keys(epsBySeason);
@@ -202,7 +201,7 @@ export async function xtreamGetSeriesInfo(auth: XtreamAuth, seriesId: string | n
           season: Number(e.season ?? sNum) || Number(sNum),
           episode: epNum,
           ext,
-          plot: epPlot || seriesPlot,
+          plot: epPlot,
           duration: inf.duration || (inf.duration_secs ? `${Math.round(inf.duration_secs / 60)} min` : undefined),
           still: inf.movie_image || inf.cover_big || inf.still_path || inf.still,
           playUrl: `${base}/series/${auth.username}/${auth.password}/${e.id ?? e.stream_id}.${ext}`,
@@ -210,6 +209,8 @@ export async function xtreamGetSeriesInfo(auth: XtreamAuth, seriesId: string | n
       }).filter((e: Episode) => e.id);
       if (eps.length) seasons.push({ season: Number(sNum), episodes: eps });
     });
+    const imdbId = info.imdb_id || info.imdb || '';
+    const enrichedSeasons = imdbId ? await enrichEpisodesFromCinemeta(imdbId, seasons) : seasons;
     return {
       cast: info.cast || info.actors,
       director: info.director,
@@ -217,10 +218,43 @@ export async function xtreamGetSeriesInfo(auth: XtreamAuth, seriesId: string | n
       genre: info.genre,
       cover: info.cover,
       backdrop: Array.isArray(info.backdrop_path) ? info.backdrop_path[0] : info.backdrop_path,
-      seasons,
+      seasons: enrichedSeasons,
     };
   } catch {
     return null;
+  }
+}
+
+/** Fetch episode overviews + thumbnails from Cinemeta (free, no key needed). */
+async function enrichEpisodesFromCinemeta(imdbId: string, seasons: SeriesInfo['seasons']): Promise<SeriesInfo['seasons']> {
+  try {
+    const res = await fetch(`https://v3-cinemeta.strem.io/meta/series/${imdbId}.json`);
+    if (!res.ok) return seasons;
+    const data = await res.json();
+    const videos: any[] = data.meta?.videos || [];
+    const lookup = new Map<string, { overview: string; thumbnail: string }>();
+    for (const v of videos) {
+      if (v.season && v.episode) {
+        lookup.set(`${v.season}_${v.episode}`, {
+          overview: v.overview || '',
+          thumbnail: v.thumbnail || '',
+        });
+      }
+    }
+    if (!lookup.size) return seasons;
+    return seasons.map((s) => ({
+      ...s,
+      episodes: s.episodes.map((ep) => {
+        const meta = lookup.get(`${ep.season}_${ep.episode}`);
+        return {
+          ...ep,
+          plot: ep.plot || meta?.overview || '',
+          still: ep.still || meta?.thumbnail || '',
+        };
+      }),
+    }));
+  } catch {
+    return seasons;
   }
 }
 
