@@ -130,7 +130,7 @@ export interface Settings {
   profileName?: string;
 }
 
-export type AspectRatio = 'auto' | '21:9' | '19.5:9' | '16:10' | '16:9' | '5:4' | '4:3' | '1:1';
+export type AspectRatio = 'auto' | 'fill' | '21:9' | '19.5:9' | '16:10' | '16:9' | '5:4' | '4:3' | '1:1';
 
 export interface TweakValues {
   bbStyle: string;

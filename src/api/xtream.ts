@@ -197,7 +197,7 @@ export async function xtreamGetSeriesInfo(auth: XtreamAuth, seriesId: string | n
           season: Number(e.season ?? sNum) || Number(sNum),
           episode: epNum,
           ext,
-          plot: inf.plot || inf.overview,
+          plot: inf.plot || inf.overview || inf.description || inf.episode_description || e.overview || e.description || e.plot || '',
           duration: inf.duration || (inf.duration_secs ? `${Math.round(inf.duration_secs / 60)} min` : undefined),
           still: inf.movie_image || inf.cover_big || inf.still_path,
           playUrl: `${base}/series/${auth.username}/${auth.password}/${e.id ?? e.stream_id}.${ext}`,
