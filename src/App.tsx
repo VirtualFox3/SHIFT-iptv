@@ -231,10 +231,10 @@ export default function App() {
   // Real provider still fetching its catalogue
   if (reconnecting && channels.length === 0 && titles.length === 0) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#141414' }}>
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg-page)' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid #2a2a2a', borderTopColor: settings.accentColor, animation: 'spin 0.7s linear infinite', margin: '0 auto 20px' }} />
-          <div style={{ fontSize: 16, color: '#b3b3b3' }}>Loading your channels & titles…</div>
+          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid var(--border)', borderTopColor: settings.accentColor, animation: 'spin 0.7s linear infinite', margin: '0 auto 20px' }} />
+          <div style={{ fontSize: 16, color: 'var(--fg-3)' }}>Loading your channels & titles…</div>
         </div>
       </div>
     );
@@ -244,10 +244,10 @@ export default function App() {
   // user retry in-app instead of refreshing the whole page.
   if (loadFailed && channels.length === 0 && titles.length === 0) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#141414', padding: 24 }}>
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg-page)', padding: 24 }}>
         <div style={{ textAlign: 'center', maxWidth: 420 }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 10 }}>Couldn't load your channels</div>
-          <div style={{ fontSize: 14, color: '#8a8a8a', lineHeight: 1.55, marginBottom: 22 }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--fg-1)', marginBottom: 10 }}>Couldn't load your channels</div>
+          <div style={{ fontSize: 14, color: 'var(--fg-3)', lineHeight: 1.55, marginBottom: 22 }}>
             Your provider may be busy — it allows one connection at a time, so make sure it's closed on your phone and other devices, then try again.
           </div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
@@ -256,7 +256,7 @@ export default function App() {
               ↻ Try again
             </button>
             <button onClick={() => setShowSettings(true)}
-              style={{ background: '#2a2a2a', color: '#fff', border: '1px solid #3a3a3a', borderRadius: 6, padding: '12px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ background: 'var(--bg-input)', color: 'var(--fg-1)', border: '1px solid var(--border)', borderRadius: 6, padding: '12px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
               Settings
             </button>
           </div>
@@ -289,7 +289,7 @@ export default function App() {
       )}
 
       {/* Main app */}
-      <div id="app-scroll" style={{ height: '100vh', overflowY: 'auto', background: '#141414', color: '#fff', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <div id="app-scroll" style={{ height: '100vh', overflowY: 'auto', background: 'var(--bg-page)', color: 'var(--fg-1)', fontFamily: 'Inter, system-ui, sans-serif' }}>
         <Header
           provider={provider}
           tab={tab}
@@ -308,21 +308,21 @@ export default function App() {
 
         {/* SEARCH */}
         {searchOpen && (
-          <div style={{ minHeight: '100vh', padding: '24px 48px 80px', background: '#141414' }}>
+          <div style={{ minHeight: '100vh', padding: '24px 48px 80px', background: 'var(--bg-page)' }}>
             {searchQuery.trim() && searchResults.length === 0 ? (
               <div style={{ paddingTop: 24, maxWidth: 640 }}>
-                <p style={{ fontSize: 18, color: '#fff', margin: '0 0 8px' }}>
+                <p style={{ fontSize: 18, color: 'var(--fg-1)', margin: '0 0 8px' }}>
                   Your search for "{searchQuery}" did not have any matches.
                 </p>
-                <p style={{ color: '#b3b3b3', fontSize: 15, margin: 0 }}>
+                <p style={{ color: 'var(--fg-3)', fontSize: 15, margin: 0 }}>
                   Try a different title, channel name or genre — like "drama", "sports" or "news".
                 </p>
               </div>
             ) : (
               <>
-                <h2 style={{ fontSize: 17, fontWeight: 500, color: '#e5e5e5', margin: '0 0 18px' }}>
+                <h2 style={{ fontSize: 17, fontWeight: 500, color: 'var(--fg-2)', margin: '0 0 18px' }}>
                   {searchQuery.trim()
-                    ? <React.Fragment>Results for "<span style={{ color: '#fff', fontWeight: 700 }}>{searchQuery}</span>"</React.Fragment>
+                    ? <React.Fragment>Results for "<span style={{ color: 'var(--fg-1)', fontWeight: 700 }}>{searchQuery}</span>"</React.Fragment>
                     : 'Top Searches'}
                 </h2>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>

@@ -44,12 +44,12 @@ export default function Settings({ onBack }: SettingsProps) {
   const set = (k: keyof SettingsType, v: any) => updateSettings({ [k]: v });
 
   return (
-    <div style={{ minHeight: '100vh', padding: '80px 48px', background: '#141414' }}>
+    <div style={{ minHeight: '100vh', padding: '80px 48px', background: 'var(--bg-page)', color: 'var(--fg-1)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, color: '#b3b3b3', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, padding: 0 }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, color: 'var(--fg-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, padding: 0 }}>
           <Icons.ChevronLeft size={18} /> Back
         </button>
-        <h1 style={{ fontSize: 32, fontWeight: 800, margin: 0 }}>Settings</h1>
+        <h1 style={{ fontSize: 32, fontWeight: 800, margin: 0, color: 'var(--fg-1)' }}>Settings</h1>
       </div>
 
       <div style={{ display: 'flex', gap: 48, alignItems: 'flex-start', maxWidth: 1060 }}>
@@ -59,10 +59,10 @@ export default function Settings({ onBack }: SettingsProps) {
             <button key={k} onClick={() => setPane(k)} style={{
               textAlign: 'left', padding: '11px 14px', borderRadius: 6, border: 0, cursor: 'pointer', fontFamily: 'inherit',
               fontSize: 14, fontWeight: pane === k ? 700 : 500,
-              background: pane === k ? '#262626' : 'transparent',
-              color: pane === k ? '#fff' : '#b3b3b3', transition: 'background 140ms',
+              background: pane === k ? 'var(--bg-input)' : 'transparent',
+              color: pane === k ? 'var(--fg-1)' : 'var(--fg-3)', transition: 'background 140ms',
             }}
-              onMouseEnter={(e) => { if (pane !== k) e.currentTarget.style.background = '#1d1d1d'; }}
+              onMouseEnter={(e) => { if (pane !== k) e.currentTarget.style.background = 'var(--bg-hover)'; }}
               onMouseLeave={(e) => { if (pane !== k) e.currentTarget.style.background = 'transparent'; }}>
               {label}
             </button>
@@ -88,19 +88,19 @@ export default function Settings({ onBack }: SettingsProps) {
 function Card({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 28 }}>
-      <h2 style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#737373', margin: '0 0 12px' }}>{title}</h2>
-      <div style={{ background: '#1a1a1a', border: '1px solid #242424', borderRadius: 10, overflow: 'hidden' }}>{children}</div>
+      <h2 style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--fg-4)', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 8 }}>{title}</h2>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>{children}</div>
     </div>
   );
 }
 
 function Row({ icon, title, desc, control, last }: { icon?: React.ReactNode; title: string; desc?: string; control: React.ReactNode; last?: boolean }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', borderTop: last ? 0 : '1px solid #242424' }}>
-      {icon && <span style={{ color: '#8a8a8a', flexShrink: 0, width: 20, display: 'grid', placeItems: 'center' }}>{icon}</span>}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', borderTop: last ? 0 : '1px solid var(--border)' }}>
+      {icon && <span style={{ color: 'var(--fg-3)', flexShrink: 0, width: 20, display: 'grid', placeItems: 'center' }}>{icon}</span>}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14.5, fontWeight: 600, color: '#fff' }}>{title}</div>
-        {desc && <div style={{ fontSize: 12.5, color: '#8a8a8a', marginTop: 3, lineHeight: 1.4 }}>{desc}</div>}
+        <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--fg-1)' }}>{title}</div>
+        {desc && <div style={{ fontSize: 12.5, color: 'var(--fg-3)', marginTop: 3, lineHeight: 1.4 }}>{desc}</div>}
       </div>
       <div style={{ flexShrink: 0 }}>{control}</div>
     </div>
@@ -109,7 +109,7 @@ function Row({ icon, title, desc, control, last }: { icon?: React.ReactNode; tit
 
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
-    <button onClick={() => onChange(!on)} role="switch" aria-checked={on} style={{ width: 46, height: 26, borderRadius: 999, border: 0, cursor: 'pointer', padding: 0, flexShrink: 0, background: on ? '#E50914' : '#3a3a3a', position: 'relative', transition: 'background 180ms' }}>
+    <button onClick={() => onChange(!on)} role="switch" aria-checked={on} style={{ width: 46, height: 26, borderRadius: 999, border: 0, cursor: 'pointer', padding: 0, flexShrink: 0, background: on ? 'var(--accent,#E50914)' : 'var(--bg-input)', position: 'relative', transition: 'background 180ms' }}>
       <span style={{ position: 'absolute', top: 3, left: on ? 23 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 180ms', boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }} />
     </button>
   );
@@ -117,9 +117,9 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 
 function Seg({ value, options, onChange }: { value: string; options: string[]; onChange: (v: string) => void }) {
   return (
-    <div style={{ display: 'inline-flex', background: '#2a2a2a', borderRadius: 6, padding: 3, gap: 2 }}>
+    <div style={{ display: 'inline-flex', background: 'var(--bg-input)', borderRadius: 6, padding: 3, gap: 2 }}>
       {options.map((o) => (
-        <button key={o} onClick={() => onChange(o)} style={{ padding: '6px 12px', borderRadius: 4, border: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, background: value === o ? '#fff' : 'transparent', color: value === o ? '#0a0a0a' : '#b3b3b3', transition: 'all 140ms' }}>{o}</button>
+        <button key={o} onClick={() => onChange(o)} style={{ padding: '6px 12px', borderRadius: 4, border: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, background: value === o ? 'var(--fg-1)' : 'transparent', color: value === o ? 'var(--bg-page)' : 'var(--fg-3)', transition: 'all 140ms' }}>{o}</button>
       ))}
     </div>
   );
@@ -134,12 +134,12 @@ function Picker({ value, options, onChange }: { value: string; options: string[]
         style={{
           appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
           padding: '8px 34px 8px 12px', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit',
-          background: '#2a2a2a', border: '1px solid #383838', color: '#fff', fontSize: 13.5, fontWeight: 600,
+          background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--fg-1)', fontSize: 13.5, fontWeight: 600,
           minWidth: 150, outline: 'none',
         }}>
-        {options.map((o) => <option key={o} value={o} style={{ background: '#202020', color: '#fff' }}>{o}</option>)}
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
-      <span style={{ position: 'absolute', right: 12, pointerEvents: 'none', display: 'inline-flex', color: '#999' }}>
+      <span style={{ position: 'absolute', right: 12, pointerEvents: 'none', display: 'inline-flex', color: 'var(--fg-3)' }}>
         <Icons.ChevronDown size={14} />
       </span>
     </div>
@@ -483,6 +483,6 @@ function ParentalPane({ settings, set }: { settings: SettingsType; set: any }) {
   );
 }
 
-const inp: React.CSSProperties = { background: '#2a2a2a', border: '1px solid #383838', borderRadius: 6, padding: '11px 14px', color: '#fff', fontSize: 14, fontFamily: 'inherit', outline: 'none', width: '100%' };
-const primaryBtn: React.CSSProperties = { background: '#E50914', border: 0, borderRadius: 6, padding: '12px 20px', color: '#fff', fontWeight: 700, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer' };
-const outlineBtn: React.CSSProperties = { border: '1px solid #444', borderRadius: 4, padding: '9px 16px', background: 'transparent', color: '#fff', fontWeight: 600, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' };
+const inp: React.CSSProperties = { background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, padding: '11px 14px', color: 'var(--fg-1)', fontSize: 14, fontFamily: 'inherit', outline: 'none', width: '100%' };
+const primaryBtn: React.CSSProperties = { background: 'var(--accent,#E50914)', border: 0, borderRadius: 6, padding: '12px 20px', color: '#fff', fontWeight: 700, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer' };
+const outlineBtn: React.CSSProperties = { border: '1px solid var(--border)', borderRadius: 4, padding: '9px 16px', background: 'transparent', color: 'var(--fg-1)', fontWeight: 600, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' };

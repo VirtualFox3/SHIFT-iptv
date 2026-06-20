@@ -166,13 +166,13 @@ function LoginScreen({ addMode, onBack, onBrowseDemo, setProvider, setChannels, 
   };
 
   return (
-    <div style={{ minHeight: '100vh', position: 'relative', background: '#141414', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100vh', position: 'relative', background: 'var(--bg-page)', overflow: 'hidden' }}>
       {/* Brand bar */}
       <div style={{ position: 'relative', padding: '22px 48px', display: 'flex', alignItems: 'center', gap: 18 }}>
         {addMode && onBack && (
-          <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.16)', color: '#fff', borderRadius: 4, padding: '8px 14px 8px 10px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.13)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}>
+          <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--bg-hover)', border: '1px solid var(--border)', color: 'var(--fg-1)', borderRadius: 4, padding: '8px 14px 8px 10px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-hover)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-hover)')}>
             <Icons.Back size={18} />Providers
           </button>
         )}
@@ -180,29 +180,29 @@ function LoginScreen({ addMode, onBack, onBrowseDemo, setProvider, setChannels, 
       </div>
 
       <div style={{ position: 'relative', display: 'grid', placeItems: 'center', padding: '12px 16px 80px' }}>
-        <div style={{ width: 460, maxWidth: '100%', background: '#181818', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '40px 48px 36px', color: '#fff' }}>
-          <h1 style={{ fontWeight: 700, fontSize: 28, margin: '0 0 4px' }}>{addMode ? 'Add a provider' : 'Sign In'}</h1>
-          <p style={{ margin: '0 0 22px', color: 'var(--fg-3,#b3b3b3)', fontSize: 14 }}>
+        <div style={{ width: 460, maxWidth: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, padding: '40px 48px 36px', color: 'var(--fg-1)' }}>
+          <h1 style={{ fontWeight: 700, fontSize: 28, margin: '0 0 4px', color: 'var(--fg-1)' }}>{addMode ? 'Add a provider' : 'Sign In'}</h1>
+          <p style={{ margin: '0 0 22px', color: 'var(--fg-3)', fontSize: 14 }}>
             {addMode ? 'Connect another IPTV service to this device.' : 'Connect your IPTV service to start streaming.'}
           </p>
 
           {/* Type selector — radio list */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.09)', marginBottom: 22 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', marginBottom: 22 }}>
             {(Object.keys(MODE_LABELS) as Mode[]).map((k, i, arr) => (
               <button key={k} onClick={() => { setMode(k); setError(''); }} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 width: '100%', padding: '13px 16px',
-                border: 0, borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.07)' : '0',
-                background: mode === k ? 'rgba(255,255,255,0.06)' : 'transparent',
+                border: 0, borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : '0',
+                background: mode === k ? 'var(--bg-hover)' : 'transparent',
                 cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'background 120ms',
               }}>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{MODE_LABELS[k].label}</div>
-                  <div style={{ fontSize: 12, color: '#666', marginTop: 1 }}>{MODE_LABELS[k].desc}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg-1)' }}>{MODE_LABELS[k].label}</div>
+                  <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 1 }}>{MODE_LABELS[k].desc}</div>
                 </div>
                 <span style={{
                   width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
-                  border: `2px solid ${mode === k ? 'var(--accent,#E50914)' : '#555'}`,
+                  border: `2px solid ${mode === k ? 'var(--accent,#E50914)' : 'var(--fg-4,#808080)'}`,
                   background: mode === k ? 'var(--accent,#E50914)' : 'transparent',
                   display: 'grid', placeItems: 'center', transition: 'all 120ms',
                 }}>
@@ -240,12 +240,12 @@ function LoginScreen({ addMode, onBack, onBrowseDemo, setProvider, setChannels, 
 
             {/* Gradient color picker */}
             <div>
-              <div style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>Provider color</div>
+              <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 8 }}>Provider color</div>
               <div style={{ display: 'flex', gap: 10 }}>
                 {GRADS.map((g, i) => (
                   <button key={i} onClick={() => setSelectedGrad(i)} style={{
                     width: 30, height: 30, borderRadius: '50%', background: g, cursor: 'pointer',
-                    border: selectedGrad === i ? '3px solid #fff' : '2px solid rgba(255,255,255,0.15)',
+                    border: selectedGrad === i ? '3px solid var(--fg-1)' : '2px solid var(--border)',
                     padding: 0, transition: 'border 120ms',
                   }} />
                 ))}
@@ -255,9 +255,9 @@ function LoginScreen({ addMode, onBack, onBrowseDemo, setProvider, setChannels, 
             {error && <p style={{ margin: 0, fontSize: 13, color: 'var(--accent,#E50914)', fontWeight: 600 }}>{error}</p>}
 
             {loading ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: '#1f1f1f', borderRadius: 4, marginTop: 4 }}>
-                <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2.5px solid #333', borderTopColor: 'var(--accent,#E50914)', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
-                <span style={{ fontSize: 14, color: '#b3b3b3' }}>{loadStep}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'var(--bg-input)', borderRadius: 4, marginTop: 4 }}>
+                <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2.5px solid var(--border)', borderTopColor: 'var(--accent,#E50914)', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+                <span style={{ fontSize: 14, color: 'var(--fg-3)' }}>{loadStep}</span>
               </div>
             ) : (
               <button onClick={handleSubmit} style={{ marginTop: 4, padding: '14px 16px', background: 'var(--accent,#E50914)', color: '#fff', border: 0, borderRadius: 4, fontWeight: 700, fontSize: 16, cursor: 'pointer', fontFamily: 'inherit', transition: 'background 150ms' }}
@@ -268,7 +268,7 @@ function LoginScreen({ addMode, onBack, onBrowseDemo, setProvider, setChannels, 
             )}
 
             {!loading && addMode && (
-              <button onClick={onBrowseDemo} style={{ padding: '14px 16px', background: 'rgba(128,128,128,0.35)', color: '#fff', border: 0, borderRadius: 4, fontWeight: 500, fontSize: 16, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button onClick={onBrowseDemo} style={{ padding: '14px 16px', background: 'var(--bg-input)', color: 'var(--fg-1)', border: '1px solid var(--border)', borderRadius: 4, fontWeight: 500, fontSize: 16, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Cancel
               </button>
             )}
@@ -294,21 +294,21 @@ function ProviderGate({ saved, reconnecting, onPickSaved, onPickDemo, onRemove, 
 
   if (reconnecting) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#141414' }}>
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg-page)' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid #2a2a2a', borderTopColor: 'var(--accent,#E50914)', animation: 'spin 0.7s linear infinite', margin: '0 auto 20px' }} />
-          <div style={{ fontSize: 16, color: '#b3b3b3' }}>Reconnecting to your provider…</div>
+          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid var(--border)', borderTopColor: 'var(--accent,#E50914)', animation: 'spin 0.7s linear infinite', margin: '0 auto 20px' }} />
+          <div style={{ fontSize: 16, color: 'var(--fg-3)' }}>Reconnecting to your provider…</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#141414', paddingTop: 24, paddingBottom: 48 }}>
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg-page)', paddingTop: 24, paddingBottom: 48 }}>
       <div style={{ textAlign: 'center', maxWidth: 1100, padding: '0 32px' }}>
         <div style={{ marginBottom: 36, display: 'flex', justifyContent: 'center' }}><ShiftLogo size={26} /></div>
-        <h1 style={{ fontWeight: 400, fontSize: 52, color: '#fff', margin: '0 0 12px', letterSpacing: '-0.01em' }}>Who's streaming?</h1>
-        <p style={{ margin: '0 0 44px', color: 'var(--fg-3,#b3b3b3)', fontSize: 17 }}>Choose a provider connection.</p>
+        <h1 style={{ fontWeight: 400, fontSize: 52, color: 'var(--fg-1)', margin: '0 0 12px', letterSpacing: '-0.01em' }}>Who's streaming?</h1>
+        <p style={{ margin: '0 0 44px', color: 'var(--fg-3)', fontSize: 17 }}>Choose a provider connection.</p>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: 32, flexWrap: 'wrap' }}>
           {tiles.map((p) => (
@@ -318,14 +318,14 @@ function ProviderGate({ saved, reconnecting, onPickSaved, onPickDemo, onRemove, 
               onRename={() => { const n = window.prompt('Rename provider', p.name); if (n && n.trim()) onRename(p, n.trim()); }} />
           ))}
           <div onClick={onAdd} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, width: 180 }}>
-            <div style={{ width: 170, height: 170, borderRadius: 8, border: '2px dashed #404040', display: 'grid', placeItems: 'center', color: '#737373', fontSize: 72, fontWeight: 200, transition: 'border-color 200ms, color 200ms' }}
-              onMouseEnter={(e) => { (e.currentTarget as any).style.borderColor = '#737373'; (e.currentTarget as any).style.color = '#999'; }}
-              onMouseLeave={(e) => { (e.currentTarget as any).style.borderColor = '#404040'; (e.currentTarget as any).style.color = '#737373'; }}>+</div>
-            <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--fg-4,#808080)' }}>Add Provider</div>
+            <div style={{ width: 170, height: 170, borderRadius: 8, border: '2px dashed var(--border)', display: 'grid', placeItems: 'center', color: 'var(--fg-4)', fontSize: 72, fontWeight: 200, transition: 'border-color 200ms, color 200ms' }}
+              onMouseEnter={(e) => { (e.currentTarget as any).style.borderColor = 'var(--fg-3)'; (e.currentTarget as any).style.color = 'var(--fg-3)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as any).style.borderColor = 'var(--border)'; (e.currentTarget as any).style.color = 'var(--fg-4)'; }}>+</div>
+            <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--fg-4)' }}>Add Provider</div>
           </div>
         </div>
 
-        <button onClick={() => setManage((m) => !m)} style={{ marginTop: 52, padding: '11px 30px', background: manage ? 'var(--accent,#E50914)' : 'transparent', color: manage ? '#fff' : 'var(--fg-4,#808080)', border: `1px solid ${manage ? 'var(--accent,#E50914)' : '#737373'}`, fontSize: 15, fontWeight: 500, letterSpacing: '0.04em', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 2 }}>
+        <button onClick={() => setManage((m) => !m)} style={{ marginTop: 52, padding: '11px 30px', background: manage ? 'var(--accent,#E50914)' : 'transparent', color: manage ? '#fff' : 'var(--fg-4)', border: `1px solid ${manage ? 'var(--accent,#E50914)' : 'var(--border)'}`, fontSize: 15, fontWeight: 500, letterSpacing: '0.04em', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 2 }}>
           {manage ? 'Done' : 'Manage Providers'}
         </button>
       </div>
@@ -360,8 +360,8 @@ function ProviderTile({ provider, manage, onPick, onRemove, onRename }: { provid
         )}
       </div>
       <div>
-        <div style={{ fontSize: 20, fontWeight: 600, color: hover && !manage ? '#fff' : 'var(--fg-3,#b3b3b3)', transition: 'color 200ms' }}>{provider.name}</div>
-        <div style={{ fontSize: 13, color: 'var(--fg-4,#808080)', marginTop: 2 }}>{provider.tag}</div>
+        <div style={{ fontSize: 20, fontWeight: 600, color: hover && !manage ? 'var(--fg-1)' : 'var(--fg-3)', transition: 'color 200ms' }}>{provider.name}</div>
+        <div style={{ fontSize: 13, color: 'var(--fg-4)', marginTop: 2 }}>{provider.tag}</div>
       </div>
     </div>
   );
@@ -377,11 +377,11 @@ function Field({ label, value, onChange, type = 'text' }: { label: string; value
     <div style={{ position: 'relative' }}>
       <input value={value} type={inputType} onChange={(e) => onChange(e.target.value)}
         onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
-        style={{ width: '100%', height: 54, padding: `20px ${isPassword ? 44 : 14}px 8px 14px`, fontFamily: 'inherit', fontSize: 15, background: '#1f1f1f', color: '#fff', border: `1px solid ${focus ? 'var(--accent,#E50914)' : '#333'}`, borderRadius: 4, outline: 0, transition: 'border-color 140ms', boxSizing: 'border-box' }} />
-      <span style={{ position: 'absolute', left: 14, pointerEvents: 'none', top: raised ? 8 : 16, fontSize: raised ? 11 : 15, color: 'var(--fg-4,#808080)', transition: 'top 140ms, font-size 140ms' }}>{label}</span>
+        style={{ width: '100%', height: 54, padding: `20px ${isPassword ? 44 : 14}px 8px 14px`, fontFamily: 'inherit', fontSize: 15, background: 'var(--bg-input)', color: 'var(--fg-1)', border: `1px solid ${focus ? 'var(--accent,#E50914)' : 'var(--border)'}`, borderRadius: 4, outline: 0, transition: 'border-color 140ms', boxSizing: 'border-box' }} />
+      <span style={{ position: 'absolute', left: 14, pointerEvents: 'none', top: raised ? 8 : 16, fontSize: raised ? 11 : 15, color: 'var(--fg-4)', transition: 'top 140ms, font-size 140ms' }}>{label}</span>
       {isPassword && (
         <button type="button" onClick={() => setReveal((r) => !r)}
-          style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 0, color: '#999', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 4 }}>
+          style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 0, color: 'var(--fg-3)', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 4 }}>
           {reveal ? <Icons.EyeOff size={18} /> : <Icons.Eye size={18} />}
         </button>
       )}

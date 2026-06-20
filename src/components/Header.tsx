@@ -60,11 +60,11 @@ export default function Header({
   }, [catOpen, menuOpen]);
 
   return (
-    <div style={{
+    <div className="nfx-header" style={{
       position: 'sticky', top: 0, height: 68, display: 'flex', alignItems: 'center',
       padding: '0 48px', gap: 24, zIndex: 50,
       transition: 'background-color 300ms',
-      background: scrolled ? '#141414' : 'transparent',
+      background: scrolled ? 'var(--bg-page)' : 'transparent',
       backgroundImage: scrolled ? 'none' : 'linear-gradient(180deg, rgba(0,0,0,0.82) 10%, rgba(0,0,0,0) 100%)',
     }}>
       {/* Logo */}
@@ -100,7 +100,7 @@ export default function Header({
               </span>
             </button>
             {catOpen && (
-              <div className="nfx-scroll" style={{ position: 'absolute', top: 32, left: -16, background: 'rgba(15,15,15,0.97)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, padding: '10px 0', minWidth: 420, maxHeight: 380, overflowY: 'auto', boxShadow: '0 12px 30px rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)', zIndex: 60 }}>
+              <div className="nfx-scroll nfx-dropdown" style={{ position: 'absolute', top: 32, left: -16, background: 'rgba(15,15,15,0.97)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, padding: '10px 0', minWidth: 420, maxHeight: 380, overflowY: 'auto', boxShadow: '0 12px 30px rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)', zIndex: 60 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '2px 0' }}>
                   {categories.map((c) => (
                     <button key={c} onClick={() => { setCatOpen(false); onCategory(c); }} style={{
@@ -165,7 +165,7 @@ export default function Header({
             <span style={{ display: 'inline-flex', transform: menuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }}><Icons.CaretDown size={13} /></span>
           </div>
           {menuOpen && (
-            <div style={{ position: 'absolute', top: 42, right: 0, background: 'rgba(15,15,15,0.97)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, padding: '8px 0', minWidth: 220, boxShadow: '0 12px 30px rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)', zIndex: 60 }}>
+            <div className="nfx-dropdown" style={{ position: 'absolute', top: 42, right: 0, background: 'rgba(15,15,15,0.97)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, padding: '8px 0', minWidth: 220, boxShadow: '0 12px 30px rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)', zIndex: 60 }}>
               <div style={{ padding: '6px 16px 10px', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: 6 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700 }}>{provider.name}</div>
                 <div style={{ fontSize: 12, color: '#8a8a8a', marginTop: 2 }}>{provider.tag}</div>

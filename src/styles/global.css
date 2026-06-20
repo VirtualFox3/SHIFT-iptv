@@ -61,9 +61,34 @@ video::-webkit-media-controls { display: none !important; }
 
 [data-theme="light"] body,
 [data-theme="light"] #app-scroll {
-  background: var(--bg-page);
-  color: var(--fg-1);
+  background: var(--bg-page) !important;
+  color: var(--fg-1) !important;
 }
+
+/* Header — always opaque solid in light mode so white text doesn't vanish */
+[data-theme="light"] .nfx-header {
+  background: var(--bg-page) !important;
+  background-image: none !important;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-1) !important;
+}
+[data-theme="light"] .nfx-header button,
+[data-theme="light"] .nfx-header a {
+  color: var(--fg-1) !important;
+}
+[data-theme="light"] .nfx-header input {
+  color: var(--fg-1) !important;
+}
+[data-theme="light"] .nfx-header input::placeholder { color: var(--fg-4); }
+
+/* Nav dropdowns in light mode */
+[data-theme="light"] .nfx-dropdown {
+  background: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
+}
+[data-theme="light"] .nfx-dropdown button { color: var(--fg-2) !important; }
+[data-theme="light"] .nfx-dropdown button:hover { color: var(--fg-1) !important; background: var(--bg-hover) !important; }
 
 /* SHIFT wordmark — heavy, brand accent, tight tracking. Upright + clean. */
 .shift-wordmark {
