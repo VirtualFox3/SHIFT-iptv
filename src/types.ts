@@ -5,11 +5,14 @@ export interface Provider {
   letter: string;
   bg: string;
   channels: number;
-  type: 'xtream' | 'm3u' | 'demo';
+  type: 'xtream' | 'm3u' | 'manifest' | 'jellyfin' | 'demo';
   serverUrl?: string;
   username?: string;
   password?: string;
   m3uUrl?: string;
+  manifestUrl?: string;
+  jellyfinUrl?: string;
+  jellyfinApiKey?: string;
   profileImage?: string;   // data URL for a custom profile picture
 }
 
@@ -52,6 +55,7 @@ export interface Title {
   imdbId?: string;
   tmdbId?: number;
   logoUrl?: string;    // poster / cover image
+  backdropUrl?: string;    // wide/landscape backdrop image
 }
 
 export interface Rail {
@@ -101,7 +105,7 @@ export interface Settings {
   subEnabled: boolean;
   // Parental
   maturity: string;
-  pinLock: boolean;
+  pinLock?: boolean;
   // Notifications
   notifNew: boolean;
   notifReminders: boolean;
@@ -121,14 +125,12 @@ export interface Settings {
   omdbApiKey?: string;
   // Appearance
   theme: 'dark' | 'light';
-  // Roku ECP
-  rokuIp?: string;
   // Profile
   profilePic?: string;     // data URL of uploaded profile image
   profileName?: string;
 }
 
-export type AspectRatio = 'fit' | 'fill' | '16:9' | '4:3' | 'stretch';
+export type AspectRatio = 'auto' | '21:9' | '19.5:9' | '16:10' | '16:9' | '5:4' | '4:3' | '1:1';
 
 export interface TweakValues {
   bbStyle: string;

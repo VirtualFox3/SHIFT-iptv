@@ -78,6 +78,7 @@ export async function xtreamGetVOD(auth: XtreamAuth): Promise<Title[]> {
       synopsis: m.plot || m.description || '',
       streamUrl: `${base}/movie/${auth.username}/${auth.password}/${m.stream_id}.${m.container_extension || 'mkv'}`,
       logoUrl: m.stream_icon || m.cover || '',
+      backdropUrl: m.backdrop_path || m.cover_big || m.backdrop || '',
     }));
   } catch {
     return [];
@@ -103,6 +104,7 @@ export async function xtreamGetSeries(auth: XtreamAuth): Promise<Title[]> {
       isShift: false,
       synopsis: s.plot || '',
       logoUrl: s.cover || s.stream_icon || '',
+      backdropUrl: s.backdrop_path || s.cover_big || s.backdrop || '',
     }));
   } catch {
     return [];

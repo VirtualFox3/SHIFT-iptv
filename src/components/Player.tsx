@@ -1,13 +1,12 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import Hls from 'hls.js';
-import type { Channel, Title } from '../types';
+import type { Channel, Title, AspectRatio } from '../types';
 import { useStore } from '../store/useStore';
 import { type SubCue } from '../api/opensubtitles';
 import { findSubtitles, loadSubtitleCues, cleanSubtitleQuery, extractEpisode, type SubResult } from '../api/subtitles';
 import { xtreamGetVodInfo } from '../api/xtream';
 import { deproxify, streamSrc, proxify } from '../api/proxy';
 import { traktScrobbleStart, traktScrobbleStop } from '../api/trakt';
-import { useRoku } from '../hooks/useRoku';
 import * as Icons from './Icons';
 
 interface PlayerProps {
@@ -86,7 +85,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const [scrubPct, setScrubPct] = useState(0);          // 0–1 visual drag position
   const [hoverPct, setHoverPct] = useState<number | null>(null);  // hover preview
   const [pip, setPip] = useState(false);
-  const [aspect, setAspect] = useState<'fit' | 'fill' | '16:9' | '4:3' | 'stretch'>('fit');
+  const [aspect, setAspect] = useState<AspectRatio>('auto');
   const [uiHidden, setUiHidden] = useState(false);  // explicit hide via 'h' / button
   const [isFs, setIsFs] = useState(false);
 
@@ -112,8 +111,6 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const [retryNonce, setRetryNonce] = useState(0);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [nextDismissed, setNextDismissed] = useState(false);
-
-  const { rokuState, sendToRoku, configured: rokuConfigured } = useRoku();
 
   // In the desktop app, mpv handles playback — pass the ORIGINAL provider URL
   // (deproxified) and return to the library. mpv connects directly and plays it.
@@ -488,13 +485,8 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   // Aspect-ratio → CSS for the <video>
   const videoStyle: React.CSSProperties = (() => {
     const base: React.CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', margin: 'auto' };
-    switch (aspect) {
-      case 'fill': return { ...base, objectFit: 'cover' };
-      case 'stretch': return { ...base, objectFit: 'fill' };
-      case '16:9': return { ...base, objectFit: 'contain', aspectRatio: '16 / 9', height: 'auto', maxHeight: '100%' };
-      case '4:3': return { ...base, objectFit: 'contain', aspectRatio: '4 / 3', height: 'auto', maxHeight: '100%' };
-      default: return { ...base, objectFit: 'contain' };  // 'fit'
-    }
+    if (aspect === 'auto') return { ...base, objectFit: 'contain' };
+    return { ...base, objectFit: 'contain', aspectRatio: aspect.replace(':', ' / '), height: 'auto', maxHeight: '100%', width: 'auto', maxWidth: '100%' };
   })();
 
   // When UI is explicitly hidden, suppress all chrome
@@ -666,11 +658,6 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
         </div>
         {/* PiP indicator */}
         {pip && <span style={{ fontSize: 12, color: '#46D369', fontWeight: 700, letterSpacing: '0.06em' }}>PiP ACTIVE</span>}
-        {rokuState === 'sent' && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#46D369', fontWeight: 700, letterSpacing: '0.06em' }}>
-            <Icons.Tv size={14} /> SENT TO ROKU
-          </span>
-        )}
       </div>
 
       {/* CENTER TRANSPORT */}
@@ -785,11 +772,14 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
                   ))}
                   <div style={{ ...menuHead, marginTop: 6, borderTop: '1px solid #2a2a2a', paddingTop: 10 }}>ASPECT RATIO</div>
                   {([
-                    ['fit', 'Fit (default)'],
-                    ['fill', 'Fill screen'],
-                    ['16:9', '16:9 Widescreen'],
-                    ['4:3', '4:3'],
-                    ['stretch', 'Stretch'],
+                    ['auto', 'Auto (default)'],
+                    ['21:9', '21:9 — Ultrawide cinema'],
+                    ['19.5:9', '19.5:9 — Modern phone'],
+                    ['16:10', '16:10'],
+                    ['16:9', '16:9 — Widescreen'],
+                    ['5:4', '5:4'],
+                    ['4:3', '4:3 — Classic TV'],
+                    ['1:1', '1:1 — Square'],
                   ] as const).map(([val, label]) => (
                     <SubMenuItem key={val} label={label} active={aspect === val} onClick={() => { setAspect(val); }} />
                   ))}
@@ -855,13 +845,6 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
             {!live && (
               <button onClick={(e) => { e.stopPropagation(); downloadStream(); }} title={copiedUrl ? 'URL copied!' : 'Download'} style={{ ...ctrlBtn, opacity: copiedUrl ? 1 : 0.85, color: copiedUrl ? '#46D369' : 'inherit' }}>
                 <Icons.Download size={20} />
-              </button>
-            )}
-
-            {/* Roku ECP */}
-            {rokuConfigured && (
-              <button onClick={(e) => { e.stopPropagation(); const url = deproxify(streamUrl); const title = live ? (current as Channel).name : (item as Title).title; sendToRoku(url, title); }} title="Send to Roku" style={{ ...ctrlBtn, color: rokuState === 'sent' ? '#46D369' : rokuState === 'sending' ? 'rgba(255,255,255,0.5)' : 'inherit' }}>
-                <Icons.Tv size={21} />
               </button>
             )}
 

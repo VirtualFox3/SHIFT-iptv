@@ -276,40 +276,7 @@ function IntegrationsPane({ settings, updateSettings }: { settings: SettingsType
     <>
       <OpenSubtitlesSection settings={settings} updateSettings={updateSettings} />
       <TraktSection settings={settings} updateSettings={updateSettings} />
-      <RokuSection settings={settings} updateSettings={updateSettings} />
     </>
-  );
-}
-
-function RokuSection({ settings, updateSettings }: { settings: SettingsType; updateSettings: any }) {
-  const [ip, setIp] = useState(settings.rokuIp || '');
-  function save() { updateSettings({ rokuIp: ip.trim() }); }
-  return (
-    <Card title="Roku">
-      <div style={{ padding: 20 }}>
-        <p style={{ fontSize: 13, color: '#8a8a8a', margin: '0 0 14px', lineHeight: 1.5 }}>
-          Enter your Roku's local IP address to enable the <strong style={{ color: '#b3b3b3' }}>Send to Roku</strong> button in the player.
-          Your Roku and this device must be on the same Wi-Fi network. Find the IP under{' '}
-          <strong style={{ color: '#b3b3b3' }}>Settings → Network → About</strong> on your Roku.
-        </p>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', maxWidth: 340 }}>
-          <input
-            style={{ ...inp, flex: 1 }}
-            placeholder="192.168.1.x"
-            value={ip}
-            onChange={(e) => setIp(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && save()}
-          />
-          <button onClick={save} style={primaryBtn}>Save</button>
-          {settings.rokuIp && <button onClick={() => { setIp(''); updateSettings({ rokuIp: '' }); }} style={outlineBtn}>Clear</button>}
-        </div>
-        {settings.rokuIp && (
-          <p style={{ fontSize: 12, color: '#46D369', marginTop: 10, marginBottom: 0 }}>
-            Roku at {settings.rokuIp} — look for the TV icon in the player controls.
-          </p>
-        )}
-      </div>
-    </Card>
   );
 }
 
@@ -494,8 +461,7 @@ function TweaksPane({ settings, set, clearHistory }: { settings: SettingsType; s
 function ParentalPane({ settings, set }: { settings: SettingsType; set: any }) {
   return (
     <Card title="Parental Controls">
-      <Row icon={<Icons.Info size={17} />} title="Maturity rating" desc="Only show titles at or below this rating." control={<Seg value={settings.maturity} options={['Kids', 'TV-PG', 'TV-14', 'All']} onChange={(v) => set('maturity', v)} />} />
-      <Row icon={<Icons.Check size={17} />} title="Require PIN to play" desc="Ask for a PIN on mature titles." control={<Toggle on={settings.pinLock} onChange={(v) => set('pinLock', v)} />} last />
+      <Row icon={<Icons.Info size={17} />} title="Maturity rating" desc="Only show titles at or below this rating." control={<Seg value={settings.maturity} options={['Kids', 'TV-PG', 'TV-14', 'All']} onChange={(v) => set('maturity', v)} />} last />
     </Card>
   );
 }

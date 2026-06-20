@@ -6,7 +6,14 @@ import type { Provider } from '../types';
 import { ShiftLogo } from './Icons';
 import * as Icons from './Icons';
 
-type Mode = 'xtream' | 'playlist';
+type Mode = 'xtream' | 'm3u' | 'manifest' | 'jellyfin';
+
+const MODE_LABELS: Record<Mode, { label: string; desc: string }> = {
+  xtream:   { label: 'Xtream Codes', desc: 'Server URL + username & password' },
+  m3u:      { label: 'M3U8',          desc: 'Playlist URL (.m3u or .m3u8)' },
+  manifest: { label: 'Manifest',       desc: 'Direct HLS/DASH stream URL' },
+  jellyfin: { label: 'Jellyfin',       desc: 'Self-hosted Jellyfin server' },
+};
 
 export default function Auth() {
   const setProvider = useStore((s) => s.setProvider);
@@ -57,14 +64,19 @@ function LoginScreen({ addMode, onBack, onBrowseDemo, setProvider, setChannels, 
   setTitles: (t: any[]) => void;
 }) {
   const [mode, setMode] = useState<Mode>('xtream');
+  // Shared
+  const [name, setName] = useState('');
+  const [selectedGrad, setSelectedGrad] = useState(0);
   // Xtream
   const [host, setHost] = useState('');
   const [xuser, setXuser] = useState('');
   const [xpass, setXpass] = useState('');
-  const [xtName, setXtName] = useState('');
-  // Playlist
+  // M3U / Manifest
   const [url, setUrl] = useState('');
-  const [plName, setPlName] = useState('');
+  // Jellyfin
+  const [jfServer, setJfServer] = useState('');
+  const [jfUser, setJfUser] = useState('');
+  const [jfPass, setJfPass] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [loadStep, setLoadStep] = useState('');
@@ -73,23 +85,46 @@ function LoginScreen({ addMode, onBack, onBrowseDemo, setProvider, setChannels, 
   async function handleSubmit() {
     setError('');
 
-    if (mode === 'playlist') {
+    if (mode === 'm3u') {
       if (!url.trim()) { setError('Enter a playlist URL.'); return; }
       setLoading(true); setLoadStep('Loading channels…');
       try {
         const channels = await fetchM3U(url.trim());
         if (!channels.length) throw new Error('No channels found in that playlist.');
-        const name = plName.trim() || hostname(url) || 'M3U Playlist';
+        const n = name.trim() || hostname(url) || 'M3U Playlist';
         const p: Provider = {
-          id: 'm3u_' + Date.now(), name,
-          tag: `${channels.length} channels`, letter: name[0].toUpperCase(),
-          bg: pickGradient(2), channels: channels.length, type: 'm3u', m3uUrl: url.trim(),
+          id: 'm3u_' + Date.now(), name: n,
+          tag: `${channels.length} channels`, letter: n[0].toUpperCase(),
+          bg: pickGradient(selectedGrad), channels: channels.length, type: 'm3u', m3uUrl: url.trim(),
         };
         setProvider(p); setChannels(channels); setTitles([]);
       } catch (e: any) {
         setError(e.message || 'Failed to load playlist.');
         setLoading(false); setLoadStep('');
       }
+      return;
+    }
+
+    if (mode === 'manifest') {
+      if (!url.trim()) { setError('Enter a stream URL.'); return; }
+      const n = name.trim() || 'Live Stream';
+      const p: Provider = {
+        id: 'manifest_' + Date.now(), name: n,
+        tag: 'Direct stream', letter: n[0].toUpperCase(),
+        bg: pickGradient(selectedGrad), channels: 1, type: 'manifest', manifestUrl: url.trim(),
+      };
+      const channel = {
+        id: 'manifest_ch_1', num: 1, name: n, logo: n[0].toUpperCase(),
+        cat: 'Live', grad: ['#1a1a2e', '#16213e'] as [string, string],
+        now: 'Live', next: '', prog: 0, rating: 'HD', viewers: '—', desc: '',
+        streamUrl: url.trim(), logoUrl: '',
+      };
+      setProvider(p); setChannels([channel]); setTitles([]);
+      return;
+    }
+
+    if (mode === 'jellyfin') {
+      setError('Jellyfin support is coming soon. Use Xtream or M3U8 for now.');
       return;
     }
 
@@ -108,12 +143,12 @@ function LoginScreen({ addMode, onBack, onBrowseDemo, setProvider, setChannels, 
       setLoadStep('Loading series…');
       const series = await xtreamGetSeries(auth);
       const titles = [...vod, ...series];
-      const name = xtName.trim() || info.server_info?.server_name || hostname(server) || 'Xtream';
+      const n = name.trim() || info.server_info?.server_name || hostname(server) || 'Xtream';
       const p: Provider = {
-        id: 'xt_' + xuser.trim(), name,
+        id: 'xt_' + xuser.trim(), name: n,
         tag: `${channels.length} ch · ${titles.length} titles`,
-        letter: name[0].toUpperCase(),
-        bg: pickGradient(3), channels: channels.length, type: 'xtream',
+        letter: n[0].toUpperCase(),
+        bg: pickGradient(selectedGrad), channels: channels.length, type: 'xtream',
         serverUrl: server, username: xuser.trim(), password: xpass,
       };
       setProvider(p); setChannels(channels); setTitles(titles);
@@ -123,8 +158,12 @@ function LoginScreen({ addMode, onBack, onBrowseDemo, setProvider, setChannels, 
     }
   }
 
-  const cta = mode === 'xtream' ? (addMode ? 'Connect Provider' : 'Connect')
-    : (addMode ? 'Add Playlist' : 'Load Playlist');
+  const ctaLabels: Record<Mode, string> = {
+    xtream: addMode ? 'Connect Provider' : 'Connect',
+    m3u: addMode ? 'Add Playlist' : 'Load Playlist',
+    manifest: addMode ? 'Add Stream' : 'Play Stream',
+    jellyfin: 'Connect Jellyfin',
+  };
 
   return (
     <div style={{ minHeight: '100vh', position: 'relative', background: '#141414', overflow: 'hidden' }}>
@@ -141,58 +180,90 @@ function LoginScreen({ addMode, onBack, onBrowseDemo, setProvider, setChannels, 
       </div>
 
       <div style={{ position: 'relative', display: 'grid', placeItems: 'center', padding: '12px 16px 80px' }}>
-        <div style={{ width: 460, maxWidth: '100%', background: '#181818', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '48px 64px 40px', color: '#fff' }}>
-          <h1 style={{ fontWeight: 700, fontSize: 30, margin: '0 0 6px' }}>{addMode ? 'Add a provider' : 'Sign In'}</h1>
-          <p style={{ margin: '0 0 24px', color: 'var(--fg-3,#b3b3b3)', fontSize: 14 }}>
+        <div style={{ width: 460, maxWidth: '100%', background: '#181818', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '40px 48px 36px', color: '#fff' }}>
+          <h1 style={{ fontWeight: 700, fontSize: 28, margin: '0 0 4px' }}>{addMode ? 'Add a provider' : 'Sign In'}</h1>
+          <p style={{ margin: '0 0 22px', color: 'var(--fg-3,#b3b3b3)', fontSize: 14 }}>
             {addMode ? 'Connect another IPTV service to this device.' : 'Connect your IPTV service to start streaming.'}
           </p>
 
-          {/* Mode toggle */}
-          <div style={{ display: 'flex', gap: 4, background: '#1a1a1a', padding: 4, borderRadius: 6, marginBottom: 20 }}>
-            {(['xtream', 'playlist'] as const).map((k) => (
+          {/* Type selector — radio list */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.09)', marginBottom: 22 }}>
+            {(Object.keys(MODE_LABELS) as Mode[]).map((k, i, arr) => (
               <button key={k} onClick={() => { setMode(k); setError(''); }} style={{
-                flex: 1, padding: '9px 0', border: 0, borderRadius: 4, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                background: mode === k ? 'var(--accent,#E50914)' : 'transparent',
-                color: mode === k ? '#fff' : 'var(--fg-3,#b3b3b3)', transition: 'all 160ms',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                width: '100%', padding: '13px 16px',
+                border: 0, borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.07)' : '0',
+                background: mode === k ? 'rgba(255,255,255,0.06)' : 'transparent',
+                cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'background 120ms',
               }}>
-                {k === 'xtream' ? 'Xtream Codes' : 'Playlist URL'}
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{MODE_LABELS[k].label}</div>
+                  <div style={{ fontSize: 12, color: '#666', marginTop: 1 }}>{MODE_LABELS[k].desc}</div>
+                </div>
+                <span style={{
+                  width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                  border: `2px solid ${mode === k ? 'var(--accent,#E50914)' : '#555'}`,
+                  background: mode === k ? 'var(--accent,#E50914)' : 'transparent',
+                  display: 'grid', placeItems: 'center', transition: 'all 120ms',
+                }}>
+                  {mode === k && <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#fff' }} />}
+                </span>
               </button>
             ))}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {mode === 'xtream' ? (
+          {/* Provider name */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Field label="Name (optional)" value={name} onChange={setName} />
+
+            {/* Mode-specific fields */}
+            {mode === 'xtream' && (
               <>
-                <Field label="Provider name (optional)" value={xtName} onChange={setXtName} />
                 <Field label="Server URL (host:port)" value={host} onChange={setHost} />
                 <Field label="Username" value={xuser} onChange={setXuser} />
                 <Field label="Password" value={xpass} onChange={setXpass} type="password" />
-                <div style={{ fontSize: 12.5, color: 'var(--fg-4,#808080)', lineHeight: 1.5, marginTop: -4 }}>
-                  Xtream Codes login. SHIFT pulls live channels, EPG and VOD from your line.
-                </div>
-              </>
-            ) : (
-              <>
-                <Field label="Playlist name (optional)" value={plName} onChange={setPlName} />
-                <Field label="M3U / Xtream playlist URL" value={url} onChange={setUrl} />
-                <div style={{ fontSize: 12.5, color: 'var(--fg-4,#808080)', lineHeight: 1.5, marginTop: -4 }}>
-                  Paste the link from your provider. SHIFT loads channels, EPG and VOD automatically.
-                </div>
               </>
             )}
+            {mode === 'm3u' && (
+              <Field label="Playlist URL (.m3u / .m3u8)" value={url} onChange={setUrl} />
+            )}
+            {mode === 'manifest' && (
+              <Field label="Stream URL (HLS / DASH)" value={url} onChange={setUrl} />
+            )}
+            {mode === 'jellyfin' && (
+              <>
+                <Field label="Server URL (e.g. http://192.168.1.10:8096)" value={jfServer} onChange={setJfServer} />
+                <Field label="Username" value={jfUser} onChange={setJfUser} />
+                <Field label="Password" value={jfPass} onChange={setJfPass} type="password" />
+              </>
+            )}
+
+            {/* Gradient color picker */}
+            <div>
+              <div style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>Provider color</div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                {GRADS.map((g, i) => (
+                  <button key={i} onClick={() => setSelectedGrad(i)} style={{
+                    width: 30, height: 30, borderRadius: '50%', background: g, cursor: 'pointer',
+                    border: selectedGrad === i ? '3px solid #fff' : '2px solid rgba(255,255,255,0.15)',
+                    padding: 0, transition: 'border 120ms',
+                  }} />
+                ))}
+              </div>
+            </div>
 
             {error && <p style={{ margin: 0, fontSize: 13, color: 'var(--accent,#E50914)', fontWeight: 600 }}>{error}</p>}
 
             {loading ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: '#1f1f1f', borderRadius: 4, marginTop: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: '#1f1f1f', borderRadius: 4, marginTop: 4 }}>
                 <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2.5px solid #333', borderTopColor: 'var(--accent,#E50914)', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
                 <span style={{ fontSize: 14, color: '#b3b3b3' }}>{loadStep}</span>
               </div>
             ) : (
-              <button onClick={handleSubmit} style={{ marginTop: 6, padding: '14px 16px', background: 'var(--accent,#E50914)', color: '#fff', border: 0, borderRadius: 4, fontWeight: 700, fontSize: 16, cursor: 'pointer', fontFamily: 'inherit', transition: 'background 150ms' }}
+              <button onClick={handleSubmit} style={{ marginTop: 4, padding: '14px 16px', background: 'var(--accent,#E50914)', color: '#fff', border: 0, borderRadius: 4, fontWeight: 700, fontSize: 16, cursor: 'pointer', fontFamily: 'inherit', transition: 'background 150ms' }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--shift-accent-hover,#f40612)')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--accent,#E50914)')}>
-                {cta}
+                {ctaLabels[mode]}
               </button>
             )}
 
@@ -219,7 +290,6 @@ function ProviderGate({ saved, reconnecting, onPickSaved, onPickDemo, onRemove, 
   onAdd: () => void;
 }) {
   const [manage, setManage] = useState(false);
-  // Only saved real providers — no demo tiles.
   const tiles = saved;
 
   if (reconnecting) {
@@ -245,7 +315,7 @@ function ProviderGate({ saved, reconnecting, onPickSaved, onPickDemo, onRemove, 
             <ProviderTile key={p.id} provider={p} manage={manage}
               onPick={() => (p.type === 'demo' ? onPickDemo(p) : onPickSaved(p))}
               onRemove={() => onRemove(p.id)}
-              onRename={() => { const name = window.prompt('Rename provider', p.name); if (name && name.trim()) onRename(p, name.trim()); }} />
+              onRename={() => { const n = window.prompt('Rename provider', p.name); if (n && n.trim()) onRename(p, n.trim()); }} />
           ))}
           <div onClick={onAdd} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, width: 180 }}>
             <div style={{ width: 170, height: 170, borderRadius: 8, border: '2px dashed #404040', display: 'grid', placeItems: 'center', color: '#737373', fontSize: 72, fontWeight: 200, transition: 'border-color 200ms, color 200ms' }}
@@ -272,7 +342,7 @@ function ProviderTile({ provider, manage, onPick, onRemove, onRename }: { provid
       <div style={{ position: 'relative', width: 170, height: 170, borderRadius: 8, background: provider.bg, display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 800, fontSize: 64, overflow: 'hidden', boxShadow: hover && !manage ? '0 0 0 4px rgba(255,255,255,0.85), 0 12px 32px rgba(0,0,0,0.5)' : 'none', transform: hover && !manage ? 'scale(1.03)' : 'scale(1)', transition: 'box-shadow 200ms, transform 200ms' }}>
         {provider.profileImage
           ? <img src={provider.profileImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          : provider.letter}
+          : <span style={{ textShadow: '0 2px 12px rgba(0,0,0,0.4)', userSelect: 'none' }}>{provider.letter}</span>}
         {provider.type !== 'demo' && !manage && (
           <span style={{ position: 'absolute', top: 12, right: 12, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', color: '#fff', background: 'rgba(0,0,0,0.4)', padding: '3px 8px', borderRadius: 999 }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#46D369', boxShadow: '0 0 6px #46D369' }} />SAVED
@@ -307,11 +377,11 @@ function Field({ label, value, onChange, type = 'text' }: { label: string; value
     <div style={{ position: 'relative' }}>
       <input value={value} type={inputType} onChange={(e) => onChange(e.target.value)}
         onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
-        style={{ width: '100%', height: 58, padding: `22px ${isPassword ? 48 : 16}px 8px 16px`, fontFamily: 'inherit', fontSize: 16, background: '#1f1f1f', color: '#fff', border: `1px solid ${focus ? 'var(--accent,#E50914)' : '#333'}`, borderRadius: 4, outline: 0, transition: 'border-color 140ms' }} />
-      <span style={{ position: 'absolute', left: 16, pointerEvents: 'none', top: raised ? 9 : 18, fontSize: raised ? 11 : 16, color: 'var(--fg-4,#808080)', transition: 'top 140ms, font-size 140ms' }}>{label}</span>
+        style={{ width: '100%', height: 54, padding: `20px ${isPassword ? 44 : 14}px 8px 14px`, fontFamily: 'inherit', fontSize: 15, background: '#1f1f1f', color: '#fff', border: `1px solid ${focus ? 'var(--accent,#E50914)' : '#333'}`, borderRadius: 4, outline: 0, transition: 'border-color 140ms', boxSizing: 'border-box' }} />
+      <span style={{ position: 'absolute', left: 14, pointerEvents: 'none', top: raised ? 8 : 16, fontSize: raised ? 11 : 15, color: 'var(--fg-4,#808080)', transition: 'top 140ms, font-size 140ms' }}>{label}</span>
       {isPassword && (
-        <button type="button" onClick={() => setReveal((r) => !r)} title={reveal ? 'Hide password' : 'Show password'}
-          style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 0, color: '#999', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 4 }}>
+        <button type="button" onClick={() => setReveal((r) => !r)}
+          style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 0, color: '#999', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 4 }}>
           {reveal ? <Icons.EyeOff size={18} /> : <Icons.Eye size={18} />}
         </button>
       )}
