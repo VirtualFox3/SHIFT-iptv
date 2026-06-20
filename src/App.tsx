@@ -427,7 +427,7 @@ export default function App() {
         <div style={{ height: 60 }} />
       </div>
 
-      <TweaksPanel />
+      {!playing && <TweaksPanel />}
     </>
   );
 }

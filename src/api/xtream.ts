@@ -182,6 +182,7 @@ export async function xtreamGetSeriesInfo(auth: XtreamAuth, seriesId: string | n
     // `episodes` can be an object keyed by season, or (rarely) an array.
     const epsBySeason = data.episodes || {};
     const seasons: SeriesInfo['seasons'] = [];
+    const seriesPlot = info.plot || info.overview || info.description || info.synopsis || '';
     const seasonKeys = Array.isArray(epsBySeason)
       ? epsBySeason.map((_: any, i: number) => String(i)).filter((k) => epsBySeason[Number(k)])
       : Object.keys(epsBySeason);
@@ -191,15 +192,19 @@ export async function xtreamGetSeriesInfo(auth: XtreamAuth, seriesId: string | n
         const ext = e.container_extension || e.containerExtension || 'mp4';
         const epNum = Number(e.episode_num ?? e.episodeNum ?? e.num) || 0;
         const inf = e.info || {};
+        const epPlot =
+          inf.plot || inf.overview || inf.description || inf.episode_description ||
+          inf.synopsis || inf.storyline || inf.plot_overview || inf.summary ||
+          e.plot || e.overview || e.description || e.synopsis || '';
         return {
           id: String(e.id ?? e.stream_id ?? ''),
           title: e.title || inf.name || `Episode ${epNum}`,
           season: Number(e.season ?? sNum) || Number(sNum),
           episode: epNum,
           ext,
-          plot: inf.plot || inf.overview || inf.description || inf.episode_description || e.overview || e.description || e.plot || '',
+          plot: epPlot || seriesPlot,
           duration: inf.duration || (inf.duration_secs ? `${Math.round(inf.duration_secs / 60)} min` : undefined),
-          still: inf.movie_image || inf.cover_big || inf.still_path,
+          still: inf.movie_image || inf.cover_big || inf.still_path || inf.still,
           playUrl: `${base}/series/${auth.username}/${auth.password}/${e.id ?? e.stream_id}.${ext}`,
         };
       }).filter((e: Episode) => e.id);

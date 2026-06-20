@@ -504,7 +504,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   })();
 
   // When UI is explicitly hidden, suppress all chrome
-  const chromeVisible = uiVisible && !uiHidden;
+  const chromeVisible = (uiVisible || showQuality) && !uiHidden;
 
   // Desktop: mpv plays in its own window — show a brief hand-off screen.
   if (isDesktop) {
@@ -773,6 +773,87 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
           )}
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 18, position: 'relative' }}>
+            {/* Settings — quality, aspect, speed, audio, subtitles */}
+            <div style={{ position: 'relative' }}>
+              <button onClick={(e) => { e.stopPropagation(); setShowQuality((s) => !s); }} style={{ ...ctrlBtn, color: activeSub ? settings.accentColor || '#E50914' : 'inherit' }} title="Settings">
+                <Icons.Settings size={21} />
+              </button>
+              {showQuality && (
+                <div onClick={(e) => e.stopPropagation()} style={{ ...menuPanel, width: 270, maxHeight: 520, overflowY: 'auto' }}>
+                  <div style={menuHead}>QUALITY</div>
+                  {['Auto', '1080p', '720p', '480p'].map((q) => (
+                    <SubMenuItem key={q} label={q} active={quality === q} onClick={() => { setQuality(q); }} />
+                  ))}
+                  <div style={{ ...menuHead, marginTop: 6, borderTop: '1px solid #2a2a2a', paddingTop: 10 }}>ASPECT RATIO</div>
+                  {([
+                    ['auto', 'Auto (default)'],
+                    ['fill', 'Fill Screen (zoom)'],
+                    ['21:9', '21:9 — Ultrawide cinema'],
+                    ['19.5:9', '19.5:9 — Modern phone'],
+                    ['16:10', '16:10'],
+                    ['16:9', '16:9 — Widescreen'],
+                    ['5:4', '5:4'],
+                    ['4:3', '4:3 — Classic TV'],
+                    ['1:1', '1:1 — Square'],
+                  ] as const).map(([val, label]) => (
+                    <SubMenuItem key={val} label={label} active={aspect === val} onClick={() => { setAspect(val); }} />
+                  ))}
+                  {!live && (
+                    <>
+                      <div style={{ ...menuHead, marginTop: 6, borderTop: '1px solid #2a2a2a', paddingTop: 10 }}>SPEED</div>
+                      {[0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => (
+                        <SubMenuItem key={s} label={s === 1 ? 'Normal' : `${s}×`} active={playbackSpeed === s} onClick={() => changeSpeed(s)} />
+                      ))}
+                    </>
+                  )}
+                  {audioTracks.length > 1 && (
+                    <>
+                      <div style={{ ...menuHead, marginTop: 6, borderTop: '1px solid #2a2a2a', paddingTop: 10 }}>AUDIO TRACK</div>
+                      {audioTracks.map((t) => (
+                        <SubMenuItem key={t.id} label={t.name || t.lang || `Track ${t.id + 1}`} active={activeAudio === t.id} onClick={() => { switchAudio(t.id); }} />
+                      ))}
+                    </>
+                  )}
+                  {!live && (() => {
+                    const hasResults = !loadingSubs && (nativeTracks.length > 0 || subtitles.length > 0);
+                    const accent = settings.accentColor || '#E50914';
+                    return (
+                      <>
+                        <div style={{ marginTop: 6, borderTop: '1px solid #222', paddingTop: 10, paddingBottom: 2 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px 6px' }}>
+                            <span style={{ fontSize: 11, color: '#666', fontWeight: 700, letterSpacing: '0.06em' }}>SUBTITLES</span>
+                            {loadingSubs && <div style={{ width: 10, height: 10, borderRadius: '50%', border: '1.5px solid #333', borderTopColor: '#999', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
+                          </div>
+                          <div style={{ display: 'flex', gap: 4, padding: '0 10px 6px' }}>
+                            {(['Small', 'Medium', 'Large'] as const).map((s) => (
+                              <button key={s} onClick={() => updateSettings({ subSize: s })}
+                                style={{ flex: 1, fontFamily: 'inherit', fontSize: 11, fontWeight: 700, padding: '5px 0', border: settings.subSize === s ? `1px solid ${accent}` : '1px solid #333', borderRadius: 20, cursor: 'pointer', background: settings.subSize === s ? `${accent}22` : 'transparent', color: settings.subSize === s ? accent : '#666', transition: 'all 140ms' }}>
+                                {s}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {subLoadError && (
+                          <div style={{ margin: '0 10px 6px', padding: '6px 10px', background: 'rgba(224,82,82,0.1)', border: '1px solid rgba(224,82,82,0.3)', borderRadius: 6, fontSize: 11, color: '#e05252' }}>
+                            Failed to load — try another
+                          </div>
+                        )}
+                        {!loadingSubs && !hasResults && <div style={{ padding: '4px 10px 8px', fontSize: 12, color: '#444' }}>No subtitles found.</div>}
+                        {activeSub && <SubMenuItem label="Off" active={false} onClick={() => { setActiveSub(null); setSubCues([]); setCurrentCue(''); if (nativeTracks.length) selectNativeTrack(null); }} />}
+                        {nativeTracks.map((t) => {
+                          const id = `native_${t.label}_${t.language}`;
+                          return <SubMenuItem key={id} label={`⬩ ${t.label || t.language || 'Embedded'}`} active={activeSub === id} onClick={() => selectNativeTrack(t)} />;
+                        })}
+                        {subtitles.map((s) => (
+                          <SubMenuItem key={s.id} label={s.label} active={activeSub === s.id} loading={loadingSubId === s.id} onClick={() => loadSubtitle(s)} />
+                        ))}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+
             {/* Download (VOD only) */}
             {!live && (
               <button onClick={(e) => { e.stopPropagation(); downloadStream(); }} title={copiedUrl ? 'URL copied!' : 'Download'} style={{ ...ctrlBtn, opacity: copiedUrl ? 1 : 0.85, color: copiedUrl ? '#46D369' : 'inherit' }}>
@@ -795,7 +876,6 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
             <button onClick={toggleFullscreen} title="Fullscreen (F)" style={ctrlBtn}>
               {isFs ? <Icons.FullscreenExit size={21} /> : <Icons.Fullscreen size={21} />}
             </button>
-            <button onClick={onClose} title="Close" style={ctrlBtn}><Icons.Close size={20} /></button>
           </div>
         </div>
       </div>
