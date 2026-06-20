@@ -5,6 +5,23 @@ import { osLogin, osLogout, setOsApiKey } from '../api/opensubtitles';
 import { traktGetDeviceCode, traktPollToken, traktGetProfile } from '../api/trakt';
 import * as Icons from './Icons';
 
+function OpenSubtitlesIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="5" fill="#1B73C4"/>
+      <text x="16" y="21" textAnchor="middle" fill="white" fontSize="13" fontWeight="800" fontFamily="Inter,sans-serif">OS</text>
+    </svg>
+  );
+}
+function TraktIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="5" fill="#E54B2E"/>
+      <text x="16" y="21" textAnchor="middle" fill="white" fontSize="14" fontWeight="900" fontFamily="Inter,sans-serif">T</text>
+    </svg>
+  );
+}
+
 const NAV = [
   ['account', 'Account'],
   ['playback', 'Playback'],
@@ -68,7 +85,7 @@ export default function Settings({ onBack }: SettingsProps) {
 }
 
 /* ─── Layout helpers ─── */
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 28 }}>
       <h2 style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#737373', margin: '0 0 12px' }}>{title}</h2>
@@ -311,7 +328,7 @@ function OpenSubtitlesSection({ settings, updateSettings }: { settings: Settings
   }
 
   return (
-    <Card title="OpenSubtitles">
+    <Card title={<span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><OpenSubtitlesIcon />OpenSubtitles</span>}>
       <div style={{ padding: 20 }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: '#46D369', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#46D369', boxShadow: '0 0 6px #46D369' }} />
@@ -384,7 +401,7 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
   React.useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   return (
-    <Card title="Trakt">
+    <Card title={<span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><TraktIcon />Trakt</span>}>
       {settings.traktAccessToken ? (
         <div style={{ padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>

@@ -890,19 +890,28 @@ const menuHead: React.CSSProperties = { fontSize: 11, color: '#666', padding: '4
 
 function SubMenuItem({ label, active, loading, onClick }: { label: string; active: boolean; loading?: boolean; onClick: () => void }) {
   const [hov, setHov] = React.useState(false);
+  const accent = 'var(--accent,#E50914)';
   return (
     <button
       onClick={onClick}
       disabled={loading}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
-      style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8, padding: '8px 10px', border: 0,
-        background: active ? 'rgba(229,9,20,0.12)' : hov ? 'rgba(255,255,255,0.06)' : 'transparent',
-        color: active ? '#fff' : '#ccc', fontSize: 13, cursor: loading ? 'default' : 'pointer', fontFamily: 'inherit', borderRadius: 5, textAlign: 'left' }}>
-      <span style={{ width: 14, flexShrink: 0 }}>
+      style={{
+        display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '9px 12px', border: 0,
+        background: hov ? 'rgba(255,255,255,0.06)' : 'transparent',
+        color: active ? '#fff' : '#ccc', fontSize: 13, cursor: loading ? 'default' : 'pointer',
+        fontFamily: 'inherit', borderRadius: 5, textAlign: 'left',
+      }}>
+      <span style={{
+        width: 17, height: 17, borderRadius: 4, flexShrink: 0,
+        border: `1.5px solid ${active ? accent : '#444'}`,
+        background: active ? accent : 'transparent',
+        display: 'grid', placeItems: 'center', transition: 'all 140ms',
+      }}>
         {loading
-          ? <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', border: '1.5px solid #444', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />
-          : active ? <span style={{ color: 'var(--accent,#E50914)' }}>✓</span> : null}
+          ? <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', border: '1.5px solid #444', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />
+          : active ? <span style={{ color: '#fff', fontSize: 10, fontWeight: 900, lineHeight: 1 }}>✓</span> : null}
       </span>
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
     </button>

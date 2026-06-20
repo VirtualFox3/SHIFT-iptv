@@ -104,11 +104,18 @@ export default function Poster({ title, idx = 0, isTopRow, progress, onPlay, onO
         >
           {/* Hero thumbnail — trailer animation kicks in after 1s on hover */}
           <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: `linear-gradient(135deg, ${title.grad[0]} 0%, ${title.grad[1]} 100%)`, overflow: 'hidden' }}>
-            {title.logoUrl && (
-              <img src={title.logoUrl} alt=""
+            {(title.backdropUrl || title.logoUrl) && (
+              <img src={title.backdropUrl || title.logoUrl} alt=""
                 className={previewActive ? 'poster-trailer-img' : undefined}
                 style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 600ms ease' }}
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                onError={(e) => {
+                  const img = e.currentTarget as HTMLImageElement;
+                  if (title.backdropUrl && img.src !== title.logoUrl && title.logoUrl) {
+                    img.src = title.logoUrl;
+                  } else {
+                    img.style.display = 'none';
+                  }
+                }} />
             )}
             {title.isShift && (
               <span style={{ position: 'absolute', top: 10, left: 12, color: accentColor, fontWeight: 900, fontSize: 13, letterSpacing: '0.12em' }}>SHIFT</span>
