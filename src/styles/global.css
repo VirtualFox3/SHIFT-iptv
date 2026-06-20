@@ -34,6 +34,35 @@ video::-webkit-media-controls { display: none !important; }
   --fg-4: #808080;
   --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  /* Theme tokens */
+  --bg-page: #141414;
+  --bg-card: #1a1a1a;
+  --bg-card2: #1F1F1F;
+  --bg-input: #2a2a2a;
+  --bg-hover: rgba(255,255,255,0.06);
+  --border: #242424;
+  --fg-1: #ffffff;
+  --fg-2: #e5e5e5;
+}
+
+[data-theme="light"] {
+  --bg-page: #f2f2f2;
+  --bg-card: #ffffff;
+  --bg-card2: #f7f7f7;
+  --bg-input: #e8e8e8;
+  --bg-hover: rgba(0,0,0,0.05);
+  --border: #e0e0e0;
+  --fg-1: #0a0a0a;
+  --fg-2: #1a1a1a;
+  --fg-3: #555555;
+  --fg-4: #888888;
+  --bb-scrim-grad: linear-gradient(90deg, rgba(242,242,242,0.92) 0%, rgba(242,242,242,0.5) 45%, rgba(242,242,242,0) 72%);
+}
+
+[data-theme="light"] body,
+[data-theme="light"] #app-scroll {
+  background: var(--bg-page);
+  color: var(--fg-1);
 }
 
 /* SHIFT wordmark — heavy, brand accent, tight tracking. Upright + clean. */
@@ -103,3 +132,30 @@ a:hover { color: #b3b3b3; }
 
 /* Volume range */
 input[type="range"] { cursor: pointer; }
+
+/* Trailer-on-hover: Ken Burns zoom+pan on poster thumbnail */
+@keyframes trailerZoom {
+  0%   { transform: scale(1)    translate(0, 0); }
+  35%  { transform: scale(1.08) translate(-1.5%, -1%); }
+  70%  { transform: scale(1.12) translate(1.5%, 0.5%); }
+  100% { transform: scale(1.06) translate(-0.5%, -0.5%); }
+}
+.poster-trailer-img {
+  animation: trailerZoom 7s ease-in-out infinite;
+  transform-origin: center;
+}
+
+/* Mobile landscape: tighter header, narrower rails, no billboard */
+@media (max-width: 900px) and (orientation: landscape) {
+  #app-scroll { padding-top: 0 !important; }
+  .nfx-header { padding: 0 16px !important; height: 52px !important; }
+  .nfx-billboard { display: none !important; }
+  .nfx-rail-wrap { padding: 0 12px !important; }
+}
+
+/* Mobile portrait: compact everything for small screens */
+@media (max-width: 600px) {
+  .nfx-header { padding: 0 12px !important; }
+  .nfx-billboard { min-height: 260px !important; }
+  .nfx-rail-title { font-size: 14px !important; }
+}

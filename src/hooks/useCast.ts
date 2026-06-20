@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export type CastState = 'unavailable' | 'idle' | 'connecting' | 'connected';
 
@@ -8,6 +8,7 @@ function getCtx(): any {
 
 export function useCast() {
   const [castState, setCastState] = useState<CastState>('unavailable');
+  const sessionRef = useRef<any>(null);
 
   useEffect(() => {
     const win = window as any;
@@ -16,7 +17,7 @@ export function useCast() {
       const ctx = getCtx();
       if (!ctx) return;
       ctx.setOptions({
-        receiverApplicationId: 'CC1AD845', // default media receiver
+        receiverApplicationId: 'CC1AD845',
         autoJoinPolicy: win.chrome?.cast?.AutoJoinPolicy?.ORIGIN_SCOPED,
       });
 
@@ -28,6 +29,7 @@ export function useCast() {
         else if (cs === S.NOT_CONNECTED) setCastState('idle');
         else if (cs === S.CONNECTING) setCastState('connecting');
         else setCastState('connected');
+        sessionRef.current = ctx.getCurrentSession?.() ?? null;
       };
 
       const evtType = win.cast?.framework?.CastContextEventType?.CAST_STATE_CHANGED;
@@ -56,8 +58,8 @@ export function useCast() {
 
   const castMedia = useCallback((url: string, title: string, imageUrl?: string) => {
     const win = window as any;
-    const session = getCtx()?.getCurrentSession?.();
-    if (!session) return;
+    const session = sessionRef.current;
+    if (!session || !win.chrome?.cast) return;
 
     const contentType = /\.m3u8(\?|$)/i.test(url) ? 'application/x-mpegURL' : 'video/mp4';
     const mediaInfo = new win.chrome.cast.media.MediaInfo(url, contentType);

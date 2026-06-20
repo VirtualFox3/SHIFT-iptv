@@ -34,6 +34,7 @@ interface AppStore {
   continueWatching: Record<string, number>;
   watchedAt: Record<string, number>;  // title id → last-watched timestamp (ms)
   setProgress: (id: string, pct: number) => void;
+  clearHistory: () => void;
 
   // Settings
   settings: Settings;
@@ -69,6 +70,7 @@ const DEFAULT_SETTINGS: Settings = {
   bbStyle: 'Spotlight',
   accentColor: '#E50914',
   cardRadius: 4,
+  theme: 'dark',
 };
 
 export const useStore = create<AppStore>()(
@@ -145,6 +147,7 @@ export const useStore = create<AppStore>()(
         continueWatching: { ...s.continueWatching, [id]: pct },
         watchedAt: { ...s.watchedAt, [id]: Date.now() },
       })),
+      clearHistory: () => set({ continueWatching: {}, watchedAt: {} }),
 
       settings: DEFAULT_SETTINGS,
       updateSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),

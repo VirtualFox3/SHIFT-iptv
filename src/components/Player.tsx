@@ -104,6 +104,9 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const [audioTracks, setAudioTracks] = useState<{ id: number; name: string; lang: string }[]>([]);
   const [activeAudio, setActiveAudio] = useState(0);
 
+  // Playback speed
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+
   const [streamError, setStreamError] = useState(false);
   const [errorKind, setErrorKind] = useState<'format' | 'busy'>('format');
   const [retryNonce, setRetryNonce] = useState(0);
@@ -425,6 +428,12 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   function switchAudio(id: number) {
     if (hlsRef.current) hlsRef.current.audioTrack = id;
     setActiveAudio(id);
+  }
+
+  function changeSpeed(speed: number) {
+    const v = videoRef.current;
+    if (v) v.playbackRate = speed;
+    setPlaybackSpeed(speed);
   }
 
   function downloadStream() {
@@ -803,6 +812,14 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
                   ] as const).map(([val, label]) => (
                     <SubMenuItem key={val} label={label} active={aspect === val} onClick={() => { setAspect(val); }} />
                   ))}
+                  {!live && (
+                    <>
+                      <div style={{ ...menuHead, marginTop: 6, borderTop: '1px solid #2a2a2a', paddingTop: 10 }}>SPEED</div>
+                      {[0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => (
+                        <SubMenuItem key={s} label={s === 1 ? 'Normal' : `${s}×`} active={playbackSpeed === s} onClick={() => changeSpeed(s)} />
+                      ))}
+                    </>
+                  )}
                   {audioTracks.length > 1 && (
                     <>
                       <div style={{ ...menuHead, marginTop: 6, borderTop: '1px solid #2a2a2a', paddingTop: 10 }}>AUDIO TRACK</div>
