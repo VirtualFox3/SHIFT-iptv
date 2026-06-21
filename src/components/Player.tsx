@@ -86,6 +86,11 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const [hoverPct, setHoverPct] = useState<number | null>(null);  // hover preview
   const [pip, setPip] = useState(false);
   const [aspect, setAspect] = useState<AspectRatio>('auto');
+  const [filled, setFilled] = useState(false);          // fill-screen toggle
+  const [showChList, setShowChList] = useState(false);  // live channel drawer
+  const [chFilter, setChFilter] = useState('');
+  const [zapBanner, setZapBanner] = useState<string | null>(null); // brief "CH N · Name" on zap
+  const zapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [uiHidden, setUiHidden] = useState(false);  // explicit hide via 'h' / button
   const [isFs, setIsFs] = useState(false);
 
@@ -416,9 +421,16 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   }
 
   function zap(dir: number) {
-    setChIdx((i) => (i + dir + channels.length) % channels.length);
+    const next = (chIdx + dir + channels.length) % channels.length;
+    const ch = channels[next];
+    setChIdx(next);
     setBuffering(true);
     poke();
+    if (ch) {
+      setZapBanner(`CH ${ch.num} · ${ch.name}`);
+      if (zapTimer.current) clearTimeout(zapTimer.current);
+      zapTimer.current = setTimeout(() => setZapBanner(null), 2000);
+    }
   }
 
   function switchAudio(id: number) {
@@ -483,21 +495,19 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const subSize = { Small: 16, Medium: 20, Large: 26 }[settings.subSize] || 20;
 
   // Aspect-ratio → CSS for the <video>
+  // `filled` is an independent overlay toggle (contain ↔ cover) like UHF's fill button.
   const videoStyle: React.CSSProperties = (() => {
-    if (aspect === 'auto') {
-      return { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain' };
-    }
-    if (aspect === 'fill') {
-      return { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' };
+    const base: React.CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%' };
+    if (aspect === 'auto' || aspect === 'fill') {
+      return { ...base, objectFit: filled ? 'cover' : 'contain' };
     }
     const [ws, hs] = aspect.split(':').map(Number);
     return {
       position: 'absolute',
       top: '50%', left: '50%',
       transform: 'translate(-50%, -50%)',
-      objectFit: 'fill' as const,
+      objectFit: filled ? ('cover' as const) : ('fill' as const),
       aspectRatio: `${ws} / ${hs}`,
-      // expand to fill the constraining dimension — either full width or full height
       width: `min(100vw, calc(100vh * (${ws} / ${hs})))`,
       height: 'auto',
     };
@@ -596,6 +606,62 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
                 : IS_IOS
                 ? <>Don't have it? Get <strong style={{ color: '#888' }}>VLC</strong> or <strong style={{ color: '#888' }}>Infuse</strong> free from the App Store — the link is copied, just paste it in.</>
                 : <>Tip: in VLC use <strong style={{ color: '#888' }}>Media → Open Network Stream</strong> and paste the copied link.</>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Zap banner — brief channel info on channel switch */}
+      {live && zapBanner && (
+        <div style={{ position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 25, pointerEvents: 'none', animation: 'slideInRight 200ms ease' }}>
+          <div style={{ background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 22px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--accent,#E50914)', color: '#fff', fontWeight: 800, fontSize: 10, padding: '2px 7px', borderRadius: 3, letterSpacing: '0.08em' }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />LIVE
+            </span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>{zapBanner}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Live channel list drawer */}
+      {live && showChList && (
+        <div onClick={() => setShowChList(false)} style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(0,0,0,0.4)' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            position: 'absolute', right: 0, top: 0, bottom: 0, width: 320,
+            background: 'rgba(14,14,14,0.97)', backdropFilter: 'blur(20px)',
+            borderLeft: '1px solid rgba(255,255,255,0.08)',
+            display: 'flex', flexDirection: 'column', overflowY: 'hidden',
+          }}>
+            <div style={{ padding: '18px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#fff', marginBottom: 10 }}>Channels</div>
+              <input
+                autoFocus
+                placeholder="Search channels…"
+                onChange={(e) => { const q = e.target.value.toLowerCase(); setChFilter(q); }}
+                style={{ width: '100%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '8px 12px', fontSize: 13, color: '#fff', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {channels
+                .filter((c) => !chFilter || c.name.toLowerCase().includes(chFilter) || c.cat.toLowerCase().includes(chFilter))
+                .map((ch, i) => {
+                  const isActive = ch.id === (channels[chIdx] || item).id;
+                  return (
+                    <button key={ch.id} onClick={() => { setChIdx(channels.indexOf(ch)); setBuffering(true); setShowChList(false); poke(); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 16px', background: isActive ? 'rgba(255,255,255,0.07)' : 'transparent', border: 0, borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 6, background: ch.logoUrl ? '#111' : `linear-gradient(135deg,${ch.grad[0]},${ch.grad[1]})`, display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 11, color: '#fff', flexShrink: 0, overflow: 'hidden' }}>
+                        {ch.logoUrl
+                          ? <img src={ch.logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                          : ch.logo}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: isActive ? 700 : 500, color: isActive ? '#fff' : '#ccc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ch.name}</div>
+                        <div style={{ fontSize: 11, color: '#555', marginTop: 1 }}>CH {ch.num} · {ch.cat}</div>
+                      </div>
+                      {isActive && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent,#E50914)', flexShrink: 0 }} />}
+                    </button>
+                  );
+                })}
             </div>
           </div>
         </div>
@@ -787,7 +853,6 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
                   <div style={{ ...menuHead, marginTop: 6, borderTop: '1px solid #2a2a2a', paddingTop: 10 }}>ASPECT RATIO</div>
                   {([
                     ['auto', 'Auto (default)'],
-                    ['fill', 'Fill Screen (zoom)'],
                     ['21:9', '21:9 — Ultrawide cinema'],
                     ['19.5:9', '19.5:9 — Modern phone'],
                     ['16:10', '16:10'],
@@ -853,6 +918,18 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
                 </div>
               )}
             </div>
+
+            {/* Fill Screen toggle — like UHF */}
+            <button onClick={(e) => { e.stopPropagation(); setFilled((f) => !f); }} title={filled ? 'Fit screen' : 'Fill screen'} style={{ ...ctrlBtn, color: filled ? 'var(--accent,#E50914)' : 'inherit', opacity: filled ? 1 : 0.85 }}>
+              <Icons.CropFill size={20} />
+            </button>
+
+            {/* Channel list — live only */}
+            {live && (
+              <button onClick={(e) => { e.stopPropagation(); setShowChList((s) => !s); setChFilter(''); }} title="Channel list" style={{ ...ctrlBtn, color: showChList ? 'var(--accent,#E50914)' : 'inherit' }}>
+                <Icons.MenuList size={20} />
+              </button>
+            )}
 
             {/* Download (VOD only) */}
             {!live && (
