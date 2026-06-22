@@ -39,6 +39,16 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor }
 
   const nowOffset = Math.max(0, (nowH - start) * COL_W);
 
+  if (allChannels.length === 0) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#141414', color: '#555', gap: 12 }}>
+        <div style={{ fontSize: 48 }}>📡</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#888' }}>No live channels</div>
+        <div style={{ fontSize: 14, color: '#555' }}>Connect a real provider in Settings to see your channel guide.</div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: '100vh', paddingTop: 24, background: '#141414' }}>
       <div style={{ padding: '0 48px', marginBottom: 20, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
