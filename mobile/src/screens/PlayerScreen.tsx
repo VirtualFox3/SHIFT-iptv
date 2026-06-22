@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, StatusBar,
   Platform, BackHandler,
 } from 'react-native';
-import { VLCPlayer, type Track, type VideoInfo } from 'react-native-vlc-media-player';
+import { Video, ResizeMode, type AVPlaybackStatus } from 'expo-av';
 import { useStore } from '../store';
 import type { Title, Channel } from '../types';
 
@@ -32,7 +32,7 @@ export default function PlayerScreen({ item, onClose }: Props) {
   const continueWatching = useStore((s) => s.continueWatching);
   const accent = useStore((s) => s.settings.accentColor);
 
-  const playerRef = useRef<any>(null);
+  const videoRef = useRef<Video>(null);
   const live = isChannel(item);
 
   const [paused, setPaused] = useState(false);
@@ -41,9 +41,6 @@ export default function PlayerScreen({ item, onClose }: Props) {
   const [buffering, setBuffering] = useState(true);
   const [uiVisible, setUiVisible] = useState(true);
   const [seeked, setSeeked] = useState(false);
-  const [textTracks, setTextTracks] = useState<Track[]>([]);
-  const [selectedTextTrack, setSelectedTextTrack] = useState(-1);
-  const [showCcMenu, setShowCcMenu] = useState(false);
 
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -58,7 +55,6 @@ export default function PlayerScreen({ item, onClose }: Props) {
     return () => { if (hideTimer.current) clearTimeout(hideTimer.current); };
   }, [showUi]);
 
-  // Back button handling
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       onClose();
@@ -67,69 +63,76 @@ export default function PlayerScreen({ item, onClose }: Props) {
     return () => sub.remove();
   }, [onClose]);
 
-  const onProgress = ({ currentTime: ct, duration: dur }: { currentTime: number; duration: number }) => {
-    setCurrentTime(ct / 1000);
-    if (dur > 0) setDuration(dur / 1000);
+  const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
+    if (!status.isLoaded) {
+      setBuffering(true);
+      return;
+    }
 
-    // Resume from saved position once we know duration
+    const ct = status.positionMillis / 1000;
+    const dur = status.durationMillis ? status.durationMillis / 1000 : 0;
+
+    setCurrentTime(ct);
+    if (dur > 0) setDuration(dur);
+    setBuffering(status.isBuffering || false);
+
+    // Resume from saved position once duration is known
     if (!live && !seeked && dur > 0) {
       const savedPct = continueWatching[item.id];
       if (savedPct && savedPct > 0 && savedPct < 95) {
-        const seekTo = Math.floor((savedPct / 100) * (dur / 1000) * 1000);
-        playerRef.current?.seek(seekTo);
+        const seekToMs = Math.floor((savedPct / 100) * dur * 1000);
+        videoRef.current?.setPositionAsync(seekToMs);
       }
       setSeeked(true);
     }
 
-    // Save progress
+    // Persist progress
     if (!live && dur > 0) {
       const pct = Math.round((ct / dur) * 100);
       setProgress(item.id, pct);
     }
-  };
-
-  const onLoad = (info: VideoInfo) => {
-    setTextTracks(info.textTracks || []);
-  };
+  }, [live, seeked, continueWatching, item.id, setProgress]);
 
   const seekRel = (delta: number) => {
     const targetMs = Math.max(0, (currentTime + delta) * 1000);
-    playerRef.current?.seek(targetMs);
+    videoRef.current?.setPositionAsync(targetMs);
+    showUi();
+  };
+
+  const togglePause = () => {
+    if (paused) {
+      videoRef.current?.playAsync();
+    } else {
+      videoRef.current?.pauseAsync();
+    }
+    setPaused((p) => !p);
     showUi();
   };
 
   const progress = duration > 0 ? currentTime / duration : 0;
-
   const streamUrl = (item as any).streamUrl || '';
 
   return (
     <View style={styles.root}>
       <StatusBar hidden />
       <TouchableOpacity style={StyleSheet.absoluteFill} onPress={showUi} activeOpacity={1}>
-        <VLCPlayer
-          ref={playerRef}
+        <Video
+          ref={videoRef}
           source={{ uri: streamUrl }}
           style={StyleSheet.absoluteFill}
-          paused={paused}
-          onProgress={onProgress}
-          onPlaying={() => setBuffering(false)}
-          onBuffering={() => setBuffering(true)}
-          onError={() => setBuffering(false)}
-          onStopped={() => setPaused(true)}
-          onLoad={onLoad}
-          textTrack={selectedTextTrack}
-          videoAspectRatio="16:9"
+          resizeMode={ResizeMode.CONTAIN}
+          shouldPlay={!paused}
+          useNativeControls={false}
+          onPlaybackStatusUpdate={onPlaybackStatusUpdate}
         />
       </TouchableOpacity>
 
-      {/* Buffering indicator */}
       {buffering && (
         <View style={styles.bufferingWrap} pointerEvents="none">
           <Text style={styles.bufferingText}>●</Text>
         </View>
       )}
 
-      {/* Controls overlay */}
       {uiVisible && (
         <View style={styles.overlay} pointerEvents="box-none">
           {/* Top bar */}
@@ -142,9 +145,7 @@ export default function PlayerScreen({ item, onClose }: Props) {
                 {isChannel(item) ? item.name : (item as Title).title}
               </Text>
               {!live && (
-                <Text style={styles.metaText}>
-                  {(item as Title).year}
-                </Text>
+                <Text style={styles.metaText}>{(item as Title).year}</Text>
               )}
             </View>
           </View>
@@ -156,7 +157,7 @@ export default function PlayerScreen({ item, onClose }: Props) {
                 <Text style={styles.seekText}>−10s</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={[styles.playBtn, { backgroundColor: accent }]} onPress={() => { setPaused((p) => !p); showUi(); }}>
+            <TouchableOpacity style={[styles.playBtn, { backgroundColor: accent }]} onPress={togglePause}>
               <Text style={styles.playIcon}>{paused ? '▶' : '⏸'}</Text>
             </TouchableOpacity>
             {!live && (
@@ -166,52 +167,18 @@ export default function PlayerScreen({ item, onClose }: Props) {
             )}
           </View>
 
-          {/* Bottom bar with progress */}
-          {(!live && duration > 0) || textTracks.length > 0 ? (
+          {/* Progress bar (VOD only) */}
+          {!live && duration > 0 && (
             <View style={styles.bottomBar}>
-              {!live && duration > 0 && (
-                <View style={styles.scrubRow}>
-                  <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-                  <View style={styles.progressBg}>
-                    <View style={[styles.progressFill, { width: `${progress * 100}%` as any, backgroundColor: accent }]} />
-                  </View>
-                  <Text style={styles.timeText}>{formatTime(duration)}</Text>
+              <View style={styles.scrubRow}>
+                <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+                <View style={styles.progressBg}>
+                  <View style={[styles.progressFill, { width: `${progress * 100}%` as any, backgroundColor: accent }]} />
                 </View>
-              )}
-              {textTracks.length > 0 && (
-                <View style={styles.controlRow}>
-                  <View style={{ marginLeft: 'auto', position: 'relative' }}>
-                    <TouchableOpacity
-                      onPress={() => setShowCcMenu((s) => !s)}
-                      style={[styles.ccBtn, selectedTextTrack >= 0 ? { opacity: 1, borderBottomColor: accent } : { opacity: 0.7, borderBottomColor: 'transparent' }]}
-                    >
-                      <Text style={styles.ccIcon}>CC</Text>
-                    </TouchableOpacity>
-                    {showCcMenu && (
-                      <View style={styles.ccMenu}>
-                        <Text style={styles.ccMenuHead}>SUBTITLES</Text>
-                        <TouchableOpacity
-                          style={styles.ccMenuItem}
-                          onPress={() => { setSelectedTextTrack(-1); setShowCcMenu(false); }}
-                        >
-                          <Text style={[styles.ccMenuItemText, selectedTextTrack === -1 && { color: accent }]}>Off</Text>
-                        </TouchableOpacity>
-                        {textTracks.map((t) => (
-                          <TouchableOpacity
-                            key={t.id}
-                            style={styles.ccMenuItem}
-                            onPress={() => { setSelectedTextTrack(t.id); setShowCcMenu(false); }}
-                          >
-                            <Text style={[styles.ccMenuItemText, selectedTextTrack === t.id && { color: accent }]}>{t.name}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                </View>
-              )}
+                <Text style={styles.timeText}>{formatTime(duration)}</Text>
+              </View>
             </View>
-          ) : null}
+          )}
         </View>
       )}
     </View>
@@ -251,22 +218,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   scrubRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  controlRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
   timeText: { color: '#fff', fontSize: 13, minWidth: 44, textAlign: 'center' },
   progressBg: {
     flex: 1, height: 4, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 2, overflow: 'hidden',
   },
   progressFill: { height: '100%', borderRadius: 2 },
-  ccBtn: {
-    paddingHorizontal: 6, paddingVertical: 4, borderBottomWidth: 2,
-  },
-  ccIcon: { color: '#fff', fontSize: 15, fontWeight: '800', letterSpacing: 0.5 },
-  ccMenu: {
-    position: 'absolute', bottom: 36, right: 0, width: 180,
-    backgroundColor: 'rgba(20,20,20,0.97)', borderRadius: 8,
-    borderWidth: 1, borderColor: '#2a2a2a', padding: 8,
-  },
-  ccMenuHead: { color: '#888', fontSize: 11, fontWeight: '700', letterSpacing: 1, padding: 6 },
-  ccMenuItem: { paddingHorizontal: 10, paddingVertical: 10 },
-  ccMenuItemText: { color: '#fff', fontSize: 14 },
 });

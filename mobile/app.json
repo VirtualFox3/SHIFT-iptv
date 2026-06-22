@@ -25,7 +25,7 @@
     },
     "plugins": [
       "./plugins/withAndroidTv.js",
-      "./plugins/withVlcMavenRepos.js"
+      "expo-av"
     ]
   }
 }
