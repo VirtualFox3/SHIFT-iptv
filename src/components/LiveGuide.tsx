@@ -1,31 +1,80 @@
-import React, { useMemo, useState } from 'react';
-import type { Channel } from '../types';
-import { SCHEDULE, EPG_START, EPG_HOURS } from '../data';
-import * as Icons from './Icons';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import type { Channel, Provider } from '../types';
+import { SCHEDULE } from '../data';
+import { xtreamGetShortEPG, type EPGListing } from '../api/xtream';
 
 interface LiveGuideProps {
   channels: Channel[];
   onPlay: (ch: Channel) => void;
   accentColor: string;
+  provider: Provider | null;
 }
 
-const PAGE = 60;
+interface ScheduleEntry { t: number; dur: number; title: string; desc: string; live?: boolean; }
 
-export default function LiveGuide({ channels: allChannels, onPlay, accentColor }: LiveGuideProps) {
+const PAGE = 60;
+const COL_W = 220;
+// Show from 1 hour before now, 7 hours total
+const EPG_WINDOW_BEFORE = 1;
+const EPG_WINDOW_HOURS = 7;
+
+function tsToHour(ts: number): number {
+  const d = new Date(ts * 1000);
+  return d.getHours() + d.getMinutes() / 60;
+}
+
+export default function LiveGuide({ channels: allChannels, onPlay, accentColor, provider }: LiveGuideProps) {
   const now = new Date();
   const nowH = now.getHours() + now.getMinutes() / 60;
-  const start = EPG_START;
-  const hours = EPG_HOURS;
-  const COL_W = 220;
+  const start = Math.max(0, Math.floor(nowH) - EPG_WINDOW_BEFORE);
+  const hours = EPG_WINDOW_HOURS;
 
   const [filter, setFilter] = useState('');
   const [shown, setShown] = useState(PAGE);
+  const [epgMap, setEpgMap] = useState<Record<string, ScheduleEntry[]>>({});
+  const [epgLoading, setEpgLoading] = useState(false);
+  const fetchedIds = useRef(new Set<string>());
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
     return q ? allChannels.filter((c) => c.name.toLowerCase().includes(q) || c.cat.toLowerCase().includes(q)) : allChannels;
   }, [allChannels, filter]);
   const channels = filtered.slice(0, shown);
+
+  // Fetch EPG for visible Xtream channels
+  useEffect(() => {
+    if (!provider || provider.type !== 'xtream') return;
+    const auth = { serverUrl: provider.serverUrl!, username: provider.username!, password: provider.password! };
+
+    const toFetch = channels.filter((ch) => ch.id.startsWith('xt_live_') && !fetchedIds.current.has(ch.id));
+    if (toFetch.length === 0) return;
+
+    toFetch.forEach((ch) => fetchedIds.current.add(ch.id));
+    setEpgLoading(true);
+
+    // Batch in groups of 10 to avoid flooding the provider
+    const BATCH = 10;
+    const batches: Channel[][] = [];
+    for (let i = 0; i < toFetch.length; i += BATCH) batches.push(toFetch.slice(i, i + BATCH));
+
+    (async () => {
+      for (const batch of batches) {
+        await Promise.all(batch.map(async (ch) => {
+          const streamId = ch.id.replace('xt_live_', '');
+          const listings = await xtreamGetShortEPG(auth, streamId);
+          if (!listings.length) return;
+          const entries: ScheduleEntry[] = listings.map((e: EPGListing) => {
+            const t = tsToHour(e.start);
+            const dur = (e.end - e.start) / 3600;
+            const nowTs = Date.now() / 1000;
+            return { t, dur, title: e.title, desc: e.description, live: e.start <= nowTs && e.end > nowTs };
+          }).filter((e: ScheduleEntry) => e.dur > 0);
+          setEpgMap((prev) => ({ ...prev, [ch.id]: entries }));
+        }));
+      }
+      setEpgLoading(false);
+    })();
+  }, [channels.map((c) => c.id).join(','), provider?.id]);
 
   const timeHeaders = useMemo(() => {
     const h = [];
@@ -35,7 +84,7 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor }
       h.push({ label: `${pad(hh)}:00`, offset: i * COL_W });
     }
     return h;
-  }, []);
+  }, [start]);
 
   const nowOffset = Math.max(0, (nowH - start) * COL_W);
 
@@ -56,6 +105,7 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor }
           <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>TV Guide</h1>
           <p style={{ color: '#8a8a8a', fontSize: 14, marginTop: 6 }}>
             {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · {filtered.length.toLocaleString()} channels
+            {epgLoading && <span style={{ marginLeft: 10, color: accentColor, fontSize: 12 }}>● Loading guide…</span>}
           </p>
         </div>
         <input value={filter} onChange={(e) => { setFilter(e.target.value); setShown(PAGE); }}
@@ -83,11 +133,12 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor }
 
           {/* Channel rows */}
           {channels.map((ch) => {
-            const schedule = SCHEDULE[ch.id] || [];
+            const schedule = epgMap[ch.id] || SCHEDULE[ch.id] || [];
             return (
               <div key={ch.id} style={{ display: 'flex', borderBottom: '1px solid #1c1c1c', minHeight: 64 }}>
                 {/* Channel label */}
-                <div onClick={() => onPlay(ch)} style={{ width: 200, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', position: 'sticky', left: 0, background: '#141414', zIndex: 4, borderRight: '1px solid #242424', cursor: 'pointer' }}
+                <div onClick={() => onPlay(ch)}
+                  style={{ width: 200, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', position: 'sticky', left: 0, background: '#141414', zIndex: 4, borderRight: '1px solid #242424', cursor: 'pointer' }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = '#1a1a1a')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = '#141414')}>
                   <div style={{ width: 38, height: 38, borderRadius: 8, background: ch.logoUrl ? '#0a0a0a' : `linear-gradient(135deg,${ch.grad[0]},${ch.grad[1]})`, display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 11, flexShrink: 0, overflow: 'hidden' }}>
@@ -106,8 +157,7 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor }
                   {schedule.length === 0 && (
                     <button onClick={() => onPlay(ch)} style={{
                       position: 'absolute', left: 0, width: hours * COL_W - 2, top: 5, bottom: 5,
-                      background: '#1a1a1a',
-                      border: `1px solid ${accentColor}30`,
+                      background: '#1a1a1a', border: `1px solid ${accentColor}30`,
                       borderLeft: `3px solid ${accentColor}`,
                       borderRadius: 6, cursor: 'pointer', padding: '0 14px',
                       display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', overflow: 'hidden',
@@ -115,16 +165,9 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor }
                     }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = '#222')}
                       onMouseLeave={(e) => (e.currentTarget.style.background = '#1a1a1a')}>
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 5,
-                        background: accentColor, color: '#fff',
-                        fontWeight: 800, fontSize: 10, letterSpacing: '0.06em',
-                        padding: '3px 7px', borderRadius: 4, flexShrink: 0,
-                      }}>
-                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff', opacity: 0.8 }} />LIVE
-                      </span>
+                      <LiveBadge color={accentColor} />
                       <span style={{ fontSize: 13, fontWeight: 600, color: '#ddd', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ch.name}</span>
-                      <span style={{ fontSize: 12, color: '#555', whiteSpace: 'nowrap' }}>· Live programming</span>
+                      <span style={{ fontSize: 12, color: '#555', whiteSpace: 'nowrap', flexShrink: 0 }}>· Live programming</span>
                     </button>
                   )}
                   {schedule
@@ -134,29 +177,20 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor }
                       const right = Math.min(hours * COL_W, (p.t + p.dur - start) * COL_W);
                       const width = right - left;
                       if (width <= 0) return null;
-                      const isNow = p.live && nowH >= p.t && nowH < p.t + p.dur;
+                      const isNow = !!p.live || (nowH >= p.t && nowH < p.t + p.dur);
                       return (
-                        <button key={i} onClick={() => onPlay(ch)} style={{
+                        <button key={i} onClick={() => onPlay(ch)} title={p.desc || p.title} style={{
                           position: 'absolute', left, width: width - 2, top: 5, bottom: 5,
                           background: isNow ? `linear-gradient(90deg, color-mix(in srgb, ${accentColor} 25%, #1a1a1a), #1a1a1a)` : '#1a1a1a',
                           border: isNow ? `1px solid ${accentColor}50` : '1px solid #282828',
                           borderLeft: isNow ? `3px solid ${accentColor}` : '1px solid #282828',
-                          borderRadius: 6, cursor: 'pointer', padding: '0 12px',
+                          borderRadius: 6, cursor: 'pointer', padding: '4px 12px',
                           display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'left',
                           overflow: 'hidden', transition: 'background 140ms',
                         }}
                           onMouseEnter={(e) => (e.currentTarget.style.background = isNow ? `linear-gradient(90deg, color-mix(in srgb, ${accentColor} 32%, #222), #222)` : '#222')}
                           onMouseLeave={(e) => (e.currentTarget.style.background = isNow ? `linear-gradient(90deg, color-mix(in srgb, ${accentColor} 25%, #1a1a1a), #1a1a1a)` : '#1a1a1a')}>
-                          {isNow && (
-                            <span style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 4, alignSelf: 'flex-start',
-                              background: accentColor, color: '#fff',
-                              fontWeight: 800, fontSize: 9, letterSpacing: '0.07em',
-                              padding: '2px 6px', borderRadius: 3, marginBottom: 3, flexShrink: 0,
-                            }}>
-                              <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#fff', opacity: 0.85 }} />LIVE
-                            </span>
-                          )}
+                          {isNow && <LiveBadge color={accentColor} style={{ alignSelf: 'flex-start', marginBottom: 2 }} />}
                           <div style={{ fontSize: 13, fontWeight: isNow ? 700 : 500, color: isNow ? '#fff' : '#bbb', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {p.title}
                           </div>
@@ -165,7 +199,7 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor }
                           </div>
                           {isNow && (
                             <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: 'rgba(255,255,255,0.08)' }}>
-                              <div style={{ width: `${ch.prog}%`, height: '100%', background: accentColor, opacity: 0.7 }} />
+                              <div style={{ width: `${Math.min(100, ((nowH - p.t) / p.dur) * 100)}%`, height: '100%', background: accentColor, opacity: 0.7 }} />
                             </div>
                           )}
                         </button>
@@ -187,6 +221,20 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor }
         </div>
       )}
     </div>
+  );
+}
+
+function LiveBadge({ color, style }: { color: string; style?: React.CSSProperties }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      background: color, color: '#fff',
+      fontWeight: 800, fontSize: 9, letterSpacing: '0.07em',
+      padding: '2px 6px', borderRadius: 3, flexShrink: 0,
+      ...style,
+    }}>
+      <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#fff', opacity: 0.85 }} />LIVE
+    </span>
   );
 }
 

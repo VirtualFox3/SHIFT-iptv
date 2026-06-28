@@ -365,7 +365,7 @@ export default function App() {
 
         {/* LIVE TV GUIDE */}
         {!searchOpen && !activeCategory && tab === 'live' && (
-          <LiveGuide channels={provider?.type === 'demo' ? [] : channels} onPlay={setPlaying} accentColor={accent} />
+          <LiveGuide channels={provider?.type === 'demo' ? [] : channels} onPlay={setPlaying} accentColor={accent} provider={provider} />
         )}
 
         {/* MY LIST */}

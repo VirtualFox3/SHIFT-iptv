@@ -258,6 +258,39 @@ async function enrichEpisodesFromCinemeta(imdbId: string, seasons: SeriesInfo['s
   }
 }
 
+export interface EPGListing {
+  title: string;
+  description: string;
+  start: number; // unix timestamp
+  end: number;   // unix timestamp
+}
+
+/** Fetch short EPG for a single live stream (titles/descriptions are base64-encoded in the API). */
+export async function xtreamGetShortEPG(
+  auth: XtreamAuth,
+  streamId: string | number,
+  limit = 8,
+): Promise<EPGListing[]> {
+  try {
+    const res = await fetch(api(auth, 'get_short_epg', `&stream_id=${streamId}&limit=${limit}`));
+    if (!res.ok) return [];
+    const data = await res.json();
+    const listings: any[] = data.epg_listings || [];
+    return listings.map((e) => ({
+      title: safeAtob(e.title || ''),
+      description: safeAtob(e.description || ''),
+      start: Number(e.start_timestamp),
+      end: Number(e.stop_timestamp),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function safeAtob(s: string): string {
+  try { return atob(s); } catch { return s; }
+}
+
 function gradForCat(cat: string): [string, string] {
   const c = cat.toLowerCase();
   if (c.includes('sport')) return ['#06301d', '#0b6248'];
