@@ -78,6 +78,7 @@ export async function xtreamGetVOD(auth: XtreamAuth): Promise<Title[]> {
       synopsis: m.plot || m.description || '',
       streamUrl: `${base}/movie/${auth.username}/${auth.password}/${m.stream_id}.${m.container_extension || 'mkv'}`,
       logoUrl: m.stream_icon || m.cover || '',
+      backdropUrl: m.backdrop_path || m.cover_big || m.backdrop || '',
     }));
   } catch {
     return [];
@@ -103,6 +104,7 @@ export async function xtreamGetSeries(auth: XtreamAuth): Promise<Title[]> {
       isShift: false,
       synopsis: s.plot || '',
       logoUrl: s.cover || s.stream_icon || '',
+      backdropUrl: s.backdrop_path || s.cover_big || s.backdrop || '',
     }));
   } catch {
     return [];
@@ -189,20 +191,26 @@ export async function xtreamGetSeriesInfo(auth: XtreamAuth, seriesId: string | n
         const ext = e.container_extension || e.containerExtension || 'mp4';
         const epNum = Number(e.episode_num ?? e.episodeNum ?? e.num) || 0;
         const inf = e.info || {};
+        const epPlot =
+          inf.plot || inf.overview || inf.description || inf.episode_description ||
+          inf.synopsis || inf.storyline || inf.plot_overview || inf.summary ||
+          e.plot || e.overview || e.description || e.synopsis || '';
         return {
           id: String(e.id ?? e.stream_id ?? ''),
           title: e.title || inf.name || `Episode ${epNum}`,
           season: Number(e.season ?? sNum) || Number(sNum),
           episode: epNum,
           ext,
-          plot: inf.plot || inf.overview,
+          plot: epPlot,
           duration: inf.duration || (inf.duration_secs ? `${Math.round(inf.duration_secs / 60)} min` : undefined),
-          still: inf.movie_image || inf.cover_big || inf.still_path,
+          still: inf.movie_image || inf.cover_big || inf.still_path || inf.still,
           playUrl: `${base}/series/${auth.username}/${auth.password}/${e.id ?? e.stream_id}.${ext}`,
         };
       }).filter((e: Episode) => e.id);
       if (eps.length) seasons.push({ season: Number(sNum), episodes: eps });
     });
+    const imdbId = info.imdb_id || info.imdb || '';
+    const enrichedSeasons = imdbId ? await enrichEpisodesFromCinemeta(imdbId, seasons) : seasons;
     return {
       cast: info.cast || info.actors,
       director: info.director,
@@ -210,11 +218,77 @@ export async function xtreamGetSeriesInfo(auth: XtreamAuth, seriesId: string | n
       genre: info.genre,
       cover: info.cover,
       backdrop: Array.isArray(info.backdrop_path) ? info.backdrop_path[0] : info.backdrop_path,
-      seasons,
+      seasons: enrichedSeasons,
     };
   } catch {
     return null;
   }
+}
+
+/** Fetch episode overviews + thumbnails from Cinemeta (free, no key needed). */
+async function enrichEpisodesFromCinemeta(imdbId: string, seasons: SeriesInfo['seasons']): Promise<SeriesInfo['seasons']> {
+  try {
+    const res = await fetch(`https://v3-cinemeta.strem.io/meta/series/${imdbId}.json`);
+    if (!res.ok) return seasons;
+    const data = await res.json();
+    const videos: any[] = data.meta?.videos || [];
+    const lookup = new Map<string, { overview: string; thumbnail: string }>();
+    for (const v of videos) {
+      if (v.season && v.episode) {
+        lookup.set(`${v.season}_${v.episode}`, {
+          overview: v.overview || '',
+          thumbnail: v.thumbnail || '',
+        });
+      }
+    }
+    if (!lookup.size) return seasons;
+    return seasons.map((s) => ({
+      ...s,
+      episodes: s.episodes.map((ep) => {
+        const meta = lookup.get(`${ep.season}_${ep.episode}`);
+        return {
+          ...ep,
+          plot: ep.plot || meta?.overview || '',
+          still: ep.still || meta?.thumbnail || '',
+        };
+      }),
+    }));
+  } catch {
+    return seasons;
+  }
+}
+
+export interface EPGListing {
+  title: string;
+  description: string;
+  start: number; // unix timestamp
+  end: number;   // unix timestamp
+}
+
+/** Fetch short EPG for a single live stream (titles/descriptions are base64-encoded in the API). */
+export async function xtreamGetShortEPG(
+  auth: XtreamAuth,
+  streamId: string | number,
+  limit = 8,
+): Promise<EPGListing[]> {
+  try {
+    const res = await fetch(api(auth, 'get_short_epg', `&stream_id=${streamId}&limit=${limit}`));
+    if (!res.ok) return [];
+    const data = await res.json();
+    const listings: any[] = data.epg_listings || [];
+    return listings.map((e) => ({
+      title: safeAtob(e.title || ''),
+      description: safeAtob(e.description || ''),
+      start: Number(e.start_timestamp),
+      end: Number(e.stop_timestamp),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function safeAtob(s: string): string {
+  try { return atob(s); } catch { return s; }
 }
 
 function gradForCat(cat: string): [string, string] {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Channel, Title } from '../types';
 import { SCHEDULE } from '../data';
 import { RatingsRow } from './Badges';
@@ -41,15 +41,11 @@ function VodBillboard({ title, kind, bbStyle, posterPool, onPlay, onOpen, accent
 
   const Meta = (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14, justifyContent: centered ? 'center' : 'flex-start' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 900, fontSize: 16, letterSpacing: '0.04em' }}>
-          <span style={{ color: accentColor }}>S</span>
-          <span style={{ letterSpacing: '0.18em', fontWeight: 700 }}>ORIGINAL {kind.toUpperCase()}</span>
-        </span>
-        {title.top && (
-          <span style={{ background: accentColor, color: 'var(--ink-1)', fontWeight: 800, fontSize: 12, padding: '4px 10px', borderRadius: 3, whiteSpace: 'nowrap' }}>TOP 10 · #{title.top} {kind}</span>
-        )}
-      </div>
+      {title.top && (
+        <div style={{ marginBottom: 14, justifyContent: centered ? 'center' : 'flex-start', display: 'flex' }}>
+          <span style={{ background: accentColor, color: '#fff', fontWeight: 800, fontSize: 12, padding: '4px 10px', borderRadius: 3, whiteSpace: 'nowrap' }}>TOP 10 · #{title.top} {kind}</span>
+        </div>
+      )}
       <h1 style={{ fontWeight: 900, fontSize: centered ? 'clamp(40px,5vw,72px)' : 'clamp(44px,5vw,76px)', lineHeight: 0.98, letterSpacing: '-0.02em', margin: '0 0 16px', textShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>{title.title}</h1>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap', justifyContent: centered ? 'center' : 'flex-start' }}>
         {title.match != null && <span style={{ color: '#46D369', fontWeight: 700, fontSize: 15 }}>{title.match}% Match</span>}
@@ -77,9 +73,7 @@ function VodBillboard({ title, kind, bbStyle, posterPool, onPlay, onOpen, accent
         </div>
       )}
       {/* Hero backdrop (non-cinema-wall) */}
-      {!cinemaWall && title.logoUrl && (
-        <img src={title.logoUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-      )}
+      {!cinemaWall && title.logoUrl && <HeroImg src={title.logoUrl} />}
       <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${title.grad[0]} 0%, ${title.grad[1]} 100%)`, opacity: cinemaWall ? 0 : (title.logoUrl ? 0.35 : 1) }} />
       <div style={{ position: 'absolute', inset: 0, background: cinemaWall ? 'rgba(10,10,10,0.55)' : 'linear-gradient(180deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 45%, rgba(0,0,0,0) 60%, rgba(20,20,20,0.95) 100%)' }} />
       {cinemaWall && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(20,20,20,0.4) 0%, rgba(20,20,20,0) 40%, rgba(20,20,20,0.95) 100%)' }} />}
@@ -265,6 +259,42 @@ function LiveTag({ accentColor }: { accentColor: string }) {
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: accentColor, color: 'var(--ink-1)', fontWeight: 800, fontSize: 11.5, letterSpacing: '0.08em', padding: '4px 10px', borderRadius: 3 }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ink-1)' }} />LIVE
     </span>
+  );
+}
+
+/** Hero backdrop image with automatic retry (up to 2 retries) for flaky provider CDNs.
+ *  Proxied through /api/proxy to fix HTTP→HTTPS mixed-content blocks. */
+function HeroImg({ src }: { src: string }) {
+  const [attempt, setAttempt] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const retriesRef = useRef(0);
+
+  useEffect(() => {
+    retriesRef.current = 0;
+    setAttempt(0);
+    setFailed(false);
+  }, [src]);
+
+  const proxied = `/api/proxy?url=${encodeURIComponent(src)}`;
+
+  if (failed) return null;
+  return (
+    <img
+      key={`${proxied}_${attempt}`}
+      src={proxied}
+      alt=""
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+      {...{ fetchPriority: 'high' }}
+      onError={() => {
+        if (retriesRef.current < 2) {
+          const delay = (retriesRef.current + 1) * 1200;
+          retriesRef.current++;
+          setTimeout(() => setAttempt((a) => a + 1), delay);
+        } else {
+          setFailed(true);
+        }
+      }}
+    />
   );
 }
 

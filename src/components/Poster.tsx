@@ -19,8 +19,10 @@ interface PosterProps {
 export default function Poster({ title, idx = 0, isTopRow, progress, onPlay, onOpen }: PosterProps) {
   const [hover, setHover] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [previewActive, setPreviewActive] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const myList = useStore((s) => s.myList);
   const toggleMyList = useStore((s) => s.toggleMyList);
   const inList = myList.includes(title.id);
@@ -40,9 +42,22 @@ export default function Poster({ title, idx = 0, isTopRow, progress, onPlay, onO
     setPos({ left, top });
     setHover(true);
   }
-  function onEnter() { if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(openPreview, 260); }
-  function onLeave() { if (timer.current) clearTimeout(timer.current); setHover(false); setPos(null); }
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  function onEnter() {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(openPreview, 260);
+    previewTimer.current = setTimeout(() => setPreviewActive(true), 1260);
+  }
+  function onLeave() {
+    if (timer.current) clearTimeout(timer.current);
+    if (previewTimer.current) clearTimeout(previewTimer.current);
+    setHover(false);
+    setPos(null);
+    setPreviewActive(false);
+  }
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+    if (previewTimer.current) clearTimeout(previewTimer.current);
+  }, []);
 
   return (
     <div ref={ref} onMouseEnter={onEnter} onMouseLeave={onLeave} style={{ position: 'relative', width: 280, flexShrink: 0 }}>
@@ -87,11 +102,20 @@ export default function Poster({ title, idx = 0, isTopRow, progress, onPlay, onO
             animation: 'nfxPop2 180ms cubic-bezier(0.2,0.7,0.2,1)',
           }}
         >
-          {/* Hero thumbnail */}
+          {/* Hero thumbnail — trailer animation kicks in after 1s on hover */}
           <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: `linear-gradient(135deg, ${title.grad[0]} 0%, ${title.grad[1]} 100%)`, overflow: 'hidden' }}>
-            {title.logoUrl && (
-              <img src={title.logoUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+            {(title.backdropUrl || title.logoUrl) && (
+              <img src={title.backdropUrl || title.logoUrl} alt=""
+                className={previewActive ? 'poster-trailer-img' : undefined}
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 600ms ease' }}
+                onError={(e) => {
+                  const img = e.currentTarget as HTMLImageElement;
+                  if (title.backdropUrl && img.src !== title.logoUrl && title.logoUrl) {
+                    img.src = title.logoUrl;
+                  } else {
+                    img.style.display = 'none';
+                  }
+                }} />
             )}
             {title.isShift && (
               <span style={{ position: 'absolute', top: 10, left: 12, color: accentColor, fontWeight: 900, fontSize: 13, letterSpacing: '0.12em' }}>SHIFT</span>

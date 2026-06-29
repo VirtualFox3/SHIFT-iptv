@@ -55,6 +55,13 @@ async function stremSearch(imdbId: string, lang: string): Promise<SubResult[]> {
   }
 }
 
+/** Extract season + episode numbers from a provider title string, e.g. "S05 E06", "S5E6". */
+export function extractEpisode(t: string): { season?: number; episode?: number } {
+  const m = t.match(/\bS(\d{1,2})\s*E(\d{1,2})\b/i) || t.match(/\bSeason\s*(\d+)\s*Episode\s*(\d+)\b/i);
+  if (m) return { season: parseInt(m[1], 10), episode: parseInt(m[2], 10) };
+  return {};
+}
+
 /**
  * Find subtitles for a title.
  * @param resolveTmdbId optional async resolver (e.g. Xtream vod_info) → tmdb/imdb id
@@ -65,6 +72,8 @@ export async function findSubtitles(
   osToken?: string,
   resolveId?: () => Promise<string | undefined>
 ): Promise<SubResult[]> {
+  const { season, episode } = extractEpisode(title.title);
+
   // 1. Try an id we already have, or resolve one (Xtream vod_info).
   let id = title.imdbId || (title.tmdbId ? String(title.tmdbId) : undefined);
   if (!id && resolveId) {
@@ -79,13 +88,14 @@ export async function findSubtitles(
       if (st.length) return st;
     }
   }
-  // 2. OpenSubtitles query search (now works — we ship a real API key).
-  //    Clean provider junk from the title so the query matches: e.g.
-  //    "EN - Dexter (US) · S7 E6" → "Dexter".
-  const os = await osSearch(cleanSubtitleQuery(title.title), lang, title.imdbId, title.tmdbId, osToken);
+  // 2. OpenSubtitles query search — clean provider junk from title, pass episode params.
+  const query = cleanSubtitleQuery(title.title);
+  const os = await osSearch(query, lang, title.imdbId, title.tmdbId, osToken, season, episode);
   return os.map((s) => ({
-    id: s.id, label: `${s.languageCode.toUpperCase()} — ${s.fileName}${s.hearingImpaired ? ' [HI]' : ''}`,
-    language: s.language, fileId: s.fileId,
+    id: s.id,
+    label: s.fileName.replace(/\.[^.]+$/, ''),
+    language: s.language,
+    fileId: s.fileId,
   }));
 }
 
@@ -105,15 +115,23 @@ export function cleanSubtitleQuery(t: string): string {
 export async function loadSubtitleCues(sub: SubResult, osToken?: string): Promise<SubCue[]> {
   let text = '';
   if (sub.url) {
-    const res = await fetch(sub.url);
+    // Proxy through /api/proxy to bypass CDN CORS and fix HTTP mixed-content
+    const res = await fetch(`/api/proxy?url=${encodeURIComponent(sub.url)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     text = await res.text();
   } else if (sub.fileId) {
-    const url = await getSubtitleDownloadUrl(sub.fileId, osToken);
-    if (!url) throw new Error('No download link');
-    const res = await fetch(url);
+    // Server-side endpoint: POSTs to OS API + fetches file — no CORS issues
+    const params = new URLSearchParams({ fileId: String(sub.fileId) });
+    if (osToken) params.set('token', osToken);
+    const res = await fetch(`/api/subtitle?${params}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     text = await res.text();
+  } else {
+    throw new Error('No URL or file ID');
   }
-  // Wyzie may return WebVTT — strip the header so the SRT parser handles both.
-  text = text.replace(/^WEBVTT.*?\n/, '').replace(/\r/g, '');
-  return parseSRT(text);
+  // WebVTT header strip so the SRT parser handles both formats
+  text = text.replace(/^WEBVTT[^\n]*\n/, '').replace(/\r/g, '');
+  const cues = parseSRT(text);
+  if (!cues.length) throw new Error('Empty subtitle file');
+  return cues;
 }

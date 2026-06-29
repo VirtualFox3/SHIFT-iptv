@@ -5,6 +5,23 @@ import { osLogin, osLogout, setOsApiKey } from '../api/opensubtitles';
 import { traktGetDeviceCode, traktPollToken, traktGetProfile } from '../api/trakt';
 import * as Icons from './Icons';
 
+function OpenSubtitlesIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="5" fill="#1B73C4"/>
+      <text x="16" y="21" textAnchor="middle" fill="white" fontSize="13" fontWeight="800" fontFamily="Inter,sans-serif">OS</text>
+    </svg>
+  );
+}
+function TraktIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="5" fill="#E54B2E"/>
+      <text x="16" y="21" textAnchor="middle" fill="white" fontSize="14" fontWeight="900" fontFamily="Inter,sans-serif">T</text>
+    </svg>
+  );
+}
+
 const NAV = [
   ['account', 'Account'],
   ['playback', 'Playback'],
@@ -21,17 +38,18 @@ export default function Settings({ onBack }: SettingsProps) {
   const [pane, setPane] = useState<string>('account');
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
+  const clearHistory = useStore((s) => s.clearHistory);
   const provider = useStore((s) => s.provider);
 
   const set = (k: keyof SettingsType, v: any) => updateSettings({ [k]: v });
 
   return (
-    <div style={{ minHeight: '100vh', padding: '80px 48px', background: 'var(--app-bg)' }}>
+    <div style={{ minHeight: '100vh', padding: '80px 48px', background: 'var(--bg-page)', color: 'var(--fg-1)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, color: 'var(--ink-4)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, padding: 0 }}>
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, color: 'var(--fg-3)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, padding: 0 }}>
           <Icons.ChevronLeft size={18} /> Back
         </button>
-        <h1 style={{ fontSize: 32, fontWeight: 800, margin: 0 }}>Settings</h1>
+        <h1 style={{ fontSize: 32, fontWeight: 800, margin: 0, color: 'var(--fg-1)' }}>Settings</h1>
       </div>
 
       <div style={{ display: 'flex', gap: 48, alignItems: 'flex-start', maxWidth: 1060 }}>
@@ -41,10 +59,10 @@ export default function Settings({ onBack }: SettingsProps) {
             <button key={k} onClick={() => setPane(k)} style={{
               textAlign: 'left', padding: '11px 14px', borderRadius: 6, border: 0, cursor: 'pointer', fontFamily: 'inherit',
               fontSize: 14, fontWeight: pane === k ? 700 : 500,
-              background: pane === k ? 'var(--surface-active)' : 'transparent',
-              color: pane === k ? 'var(--ink-1)' : 'var(--ink-4)', transition: 'background 140ms',
+              background: pane === k ? 'var(--bg-input)' : 'transparent',
+              color: pane === k ? 'var(--fg-1)' : 'var(--fg-3)', transition: 'background 140ms',
             }}
-              onMouseEnter={(e) => { if (pane !== k) e.currentTarget.style.background = 'var(--surface-soft)'; }}
+              onMouseEnter={(e) => { if (pane !== k) e.currentTarget.style.background = 'var(--bg-hover)'; }}
               onMouseLeave={(e) => { if (pane !== k) e.currentTarget.style.background = 'transparent'; }}>
               {label}
             </button>
@@ -58,7 +76,7 @@ export default function Settings({ onBack }: SettingsProps) {
           {pane === 'quality' && <QualityPane settings={settings} set={set} />}
           {pane === 'subtitles' && <SubtitlesPane settings={settings} set={set} />}
           {pane === 'integrations' && <IntegrationsPane settings={settings} updateSettings={updateSettings} />}
-          {pane === 'tweaks' && <TweaksPane settings={settings} set={set} />}
+          {pane === 'tweaks' && <TweaksPane settings={settings} set={set} clearHistory={clearHistory} />}
           {pane === 'parental' && <ParentalPane settings={settings} set={set} />}
         </div>
       </div>
@@ -67,22 +85,22 @@ export default function Settings({ onBack }: SettingsProps) {
 }
 
 /* ─── Layout helpers ─── */
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 28 }}>
-      <h2 style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-5)', margin: '0 0 12px' }}>{title}</h2>
-      <div style={{ background: 'var(--surface-soft)', border: '1px solid var(--hair-1)', borderRadius: 10, overflow: 'hidden' }}>{children}</div>
+      <h2 style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--fg-4)', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 8 }}>{title}</h2>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>{children}</div>
     </div>
   );
 }
 
 function Row({ icon, title, desc, control, last }: { icon?: React.ReactNode; title: string; desc?: string; control: React.ReactNode; last?: boolean }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', borderTop: last ? 0 : '1px solid var(--hair-1)' }}>
-      {icon && <span style={{ color: 'var(--ink-5)', flexShrink: 0, width: 20, display: 'grid', placeItems: 'center' }}>{icon}</span>}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', borderTop: last ? 0 : '1px solid var(--border)' }}>
+      {icon && <span style={{ color: 'var(--fg-3)', flexShrink: 0, width: 20, display: 'grid', placeItems: 'center' }}>{icon}</span>}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--ink-1)' }}>{title}</div>
-        {desc && <div style={{ fontSize: 12.5, color: 'var(--ink-5)', marginTop: 3, lineHeight: 1.4 }}>{desc}</div>}
+        <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--fg-1)' }}>{title}</div>
+        {desc && <div style={{ fontSize: 12.5, color: 'var(--fg-3)', marginTop: 3, lineHeight: 1.4 }}>{desc}</div>}
       </div>
       <div style={{ flexShrink: 0 }}>{control}</div>
     </div>
@@ -91,17 +109,17 @@ function Row({ icon, title, desc, control, last }: { icon?: React.ReactNode; tit
 
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
-    <button onClick={() => onChange(!on)} role="switch" aria-checked={on} style={{ width: 46, height: 26, borderRadius: 999, border: 0, cursor: 'pointer', padding: 0, flexShrink: 0, background: on ? '#E50914' : 'var(--input-border)', position: 'relative', transition: 'background 180ms' }}>
-      <span style={{ position: 'absolute', top: 3, left: on ? 23 : 3, width: 20, height: 20, borderRadius: '50%', background: 'var(--ink-1)', transition: 'left 180ms', boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }} />
+    <button onClick={() => onChange(!on)} role="switch" aria-checked={on} style={{ width: 46, height: 26, borderRadius: 999, border: 0, cursor: 'pointer', padding: 0, flexShrink: 0, background: on ? 'var(--accent,#E50914)' : 'var(--bg-input)', position: 'relative', transition: 'background 180ms' }}>
+      <span style={{ position: 'absolute', top: 3, left: on ? 23 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 180ms', boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }} />
     </button>
   );
 }
 
 function Seg({ value, options, onChange }: { value: string; options: string[]; onChange: (v: string) => void }) {
   return (
-    <div style={{ display: 'inline-flex', background: 'var(--surface-3)', borderRadius: 6, padding: 3, gap: 2 }}>
+    <div style={{ display: 'inline-flex', background: 'var(--bg-input)', borderRadius: 6, padding: 3, gap: 2 }}>
       {options.map((o) => (
-        <button key={o} onClick={() => onChange(o)} style={{ padding: '6px 12px', borderRadius: 4, border: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, background: value === o ? 'var(--ink-1)' : 'transparent', color: value === o ? 'var(--app-bg)' : 'var(--ink-4)', transition: 'all 140ms' }}>{o}</button>
+        <button key={o} onClick={() => onChange(o)} style={{ padding: '6px 12px', borderRadius: 4, border: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, background: value === o ? 'var(--fg-1)' : 'transparent', color: value === o ? 'var(--bg-page)' : 'var(--fg-3)', transition: 'all 140ms' }}>{o}</button>
       ))}
     </div>
   );
@@ -116,17 +134,28 @@ function Picker({ value, options, onChange }: { value: string; options: string[]
         style={{
           appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
           padding: '8px 34px 8px 12px', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit',
-          background: 'var(--surface-3)', border: '1px solid var(--input-border)', color: 'var(--ink-1)', fontSize: 13.5, fontWeight: 600,
+          background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--fg-1)', fontSize: 13.5, fontWeight: 600,
           minWidth: 150, outline: 'none',
         }}>
-        {options.map((o) => <option key={o} value={o} style={{ background: 'var(--surface-2)', color: 'var(--ink-1)' }}>{o}</option>)}
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
-      <span style={{ position: 'absolute', right: 12, pointerEvents: 'none', display: 'inline-flex', color: '#999' }}>
+      <span style={{ position: 'absolute', right: 12, pointerEvents: 'none', display: 'inline-flex', color: 'var(--fg-3)' }}>
         <Icons.ChevronDown size={14} />
       </span>
     </div>
   );
 }
+
+const PROFILE_GRADS = [
+  'linear-gradient(135deg,#6e1015,#E50914)',
+  'linear-gradient(135deg,#11324f,#14B8A6)',
+  'linear-gradient(135deg,#2a1659,#6E3FF3)',
+  'linear-gradient(135deg,#0a3b2a,#46D369)',
+  'linear-gradient(135deg,#3a1206,#F5A623)',
+  'linear-gradient(135deg,#1a1a4e,#2E51A2)',
+  'linear-gradient(135deg,#3d0d3a,#c2369d)',
+  'linear-gradient(135deg,#0b1f3a,#1f4e88)',
+];
 
 /* ─── Panes ─── */
 function AccountPane({ provider }: { provider: any }) {
@@ -148,10 +177,16 @@ function AccountPane({ provider }: { provider: any }) {
     reader.readAsDataURL(file);
   }
 
+  function changeGradient(grad: string) {
+    const updated = { ...provider, bg: grad };
+    saveProvider(updated);
+    setProviderStore(updated);
+  }
+
   return (
     <>
     <Card title="Profile">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '20px 20px 12px' }}>
         {/* Avatar — click to upload a custom picture */}
         <div onClick={() => fileRef.current?.click()} title="Change profile picture"
           style={{ position: 'relative', width: 64, height: 64, borderRadius: 12, background: provider.bg, display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 26, flexShrink: 0, cursor: 'pointer', overflow: 'hidden' }}>
@@ -172,7 +207,7 @@ function AccountPane({ provider }: { provider: any }) {
             Connected · {provider.tag}
           </div>
           <button onClick={() => fileRef.current?.click()} style={{ marginTop: 8, background: 'transparent', border: 0, color: 'var(--accent,#E50914)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
-            Change profile picture
+            Change photo
           </button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
@@ -184,6 +219,18 @@ function AccountPane({ provider }: { provider: any }) {
           </button>
         </div>
       </div>
+      {/* Profile color picker */}
+      {!provider.profileImage && (
+        <div style={{ padding: '0 20px 18px' }}>
+          <div style={{ fontSize: 11, color: 'var(--fg-4)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>Profile Color</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {PROFILE_GRADS.map((g) => (
+              <button key={g} onClick={() => changeGradient(g)}
+                style={{ width: 32, height: 32, borderRadius: 8, background: g, border: provider.bg === g ? '2.5px solid #fff' : '2px solid transparent', cursor: 'pointer', outline: 'none', transition: 'transform 120ms, border 100ms', transform: provider.bg === g ? 'scale(1.18)' : 'scale(1)' }} />
+            ))}
+          </div>
+        </div>
+      )}
     </Card>
     <ConnectionDetails provider={provider} />
     </>
@@ -310,7 +357,7 @@ function OpenSubtitlesSection({ settings, updateSettings }: { settings: Settings
   }
 
   return (
-    <Card title="OpenSubtitles">
+    <Card title={<span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><OpenSubtitlesIcon />OpenSubtitles</span>}>
       <div style={{ padding: 20 }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: '#46D369', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#46D369', boxShadow: '0 0 6px #46D369' }} />
@@ -383,7 +430,7 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
   React.useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   return (
-    <Card title="Trakt">
+    <Card title={<span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><TraktIcon />Trakt</span>}>
       {settings.traktAccessToken ? (
         <div style={{ padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
@@ -418,15 +465,25 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
   );
 }
 
-function TweaksPane({ settings, set }: { settings: SettingsType; set: any }) {
+function TweaksPane({ settings, set, clearHistory }: { settings: SettingsType; set: any; clearHistory: () => void }) {
   const accentOptions = ['#E50914', '#6E3FF3', '#14B8A6', '#F5C518', '#46D369', '#2E51A2'];
+  const [cleared, setCleared] = React.useState(false);
+
+  function handleClear() {
+    clearHistory();
+    setCleared(true);
+    setTimeout(() => setCleared(false), 2200);
+  }
+
   return (
     <>
       <Card title="Billboard Style">
         <Row title="Layout" control={<Picker value={settings.bbStyle} options={['Spotlight', 'Centered', 'Cinema Wall']} onChange={(v) => set('bbStyle', v)} />} last />
       </Card>
       <Card title="Appearance">
-        <Row icon={<Icons.Settings size={17} />} title="Theme" desc="Switch between dark and light mode." control={<Seg value={settings.theme} options={['Dark', 'Light']} onChange={(v) => set('theme', v as any)} />} />
+        <Row title="Theme" desc="Switch between dark and light mode." control={
+          <Seg value={settings.theme || 'dark'} options={['dark', 'light']} onChange={(v) => set('theme', v)} />
+        } />
         <Row title="Accent color" control={
           <div style={{ display: 'flex', gap: 8 }}>
             {accentOptions.map((c) => (
@@ -436,6 +493,13 @@ function TweaksPane({ settings, set }: { settings: SettingsType; set: any }) {
         } />
         <Row title="Card radius" control={<Seg value={String(settings.cardRadius)} options={['0', '4', '8', '12']} onChange={(v) => set('cardRadius', Number(v))} />} last />
       </Card>
+      <Card title="Watch History">
+        <Row title="Clear watch history" desc="Remove all progress from Continue Watching." control={
+          <button onClick={handleClear} style={{ ...outlineBtn, color: cleared ? '#46D369' : '#fff', borderColor: cleared ? '#46D369' : '#444' }}>
+            {cleared ? '✓ Cleared' : 'Clear history'}
+          </button>
+        } last />
+      </Card>
     </>
   );
 }
@@ -443,12 +507,11 @@ function TweaksPane({ settings, set }: { settings: SettingsType; set: any }) {
 function ParentalPane({ settings, set }: { settings: SettingsType; set: any }) {
   return (
     <Card title="Parental Controls">
-      <Row icon={<Icons.Info size={17} />} title="Maturity rating" desc="Only show titles at or below this rating." control={<Seg value={settings.maturity} options={['Kids', 'TV-PG', 'TV-14', 'All']} onChange={(v) => set('maturity', v)} />} />
-      <Row icon={<Icons.Check size={17} />} title="Require PIN to play" desc="Ask for a PIN on mature titles." control={<Toggle on={settings.pinLock} onChange={(v) => set('pinLock', v)} />} last />
+      <Row icon={<Icons.Info size={17} />} title="Maturity rating" desc="Only show titles at or below this rating." control={<Seg value={settings.maturity} options={['Kids', 'TV-PG', 'TV-14', 'All']} onChange={(v) => set('maturity', v)} />} last />
     </Card>
   );
 }
 
-const inp: React.CSSProperties = { background: 'var(--surface-3)', border: '1px solid var(--input-border)', borderRadius: 6, padding: '11px 14px', color: 'var(--ink-1)', fontSize: 14, fontFamily: 'inherit', outline: 'none', width: '100%' };
-const primaryBtn: React.CSSProperties = { background: '#E50914', border: 0, borderRadius: 6, padding: '12px 20px', color: 'var(--ink-1)', fontWeight: 700, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer' };
-const outlineBtn: React.CSSProperties = { border: '1px solid #444', borderRadius: 4, padding: '9px 16px', background: 'transparent', color: 'var(--ink-1)', fontWeight: 600, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' };
+const inp: React.CSSProperties = { background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, padding: '11px 14px', color: 'var(--fg-1)', fontSize: 14, fontFamily: 'inherit', outline: 'none', width: '100%' };
+const primaryBtn: React.CSSProperties = { background: 'var(--accent,#E50914)', border: 0, borderRadius: 6, padding: '12px 20px', color: '#fff', fontWeight: 700, fontSize: 14, fontFamily: 'inherit', cursor: 'pointer' };
+const outlineBtn: React.CSSProperties = { border: '1px solid var(--border)', borderRadius: 4, padding: '9px 16px', background: 'transparent', color: 'var(--fg-1)', fontWeight: 600, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' };

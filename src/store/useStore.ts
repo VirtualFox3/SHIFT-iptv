@@ -34,6 +34,7 @@ interface AppStore {
   continueWatching: Record<string, number>;
   watchedAt: Record<string, number>;  // title id → last-watched timestamp (ms)
   setProgress: (id: string, pct: number) => void;
+  clearHistory: () => void;
 
   // Settings
   settings: Settings;
@@ -61,7 +62,6 @@ const DEFAULT_SETTINGS: Settings = {
   subSize: 'Medium',
   subEnabled: false,
   maturity: 'All maturity',
-  pinLock: false,
   notifNew: true,
   notifReminders: true,
   notifRecs: false,
@@ -70,6 +70,7 @@ const DEFAULT_SETTINGS: Settings = {
   bbStyle: 'Spotlight',
   accentColor: '#E50914',
   cardRadius: 4,
+  theme: 'dark',
 };
 
 export const useStore = create<AppStore>()(
@@ -111,6 +112,8 @@ export const useStore = create<AppStore>()(
           if (p.type === 'm3u' && p.m3uUrl) {
             const channels = await fetchM3U(p.m3uUrl);
             set({ channels, titles: [] });
+          } else if (p.type === 'manifest' && p.manifestUrl) {
+            set({ channels: [{ id: 'manifest_ch_1', num: 1, name: p.name, logo: p.letter || '?', cat: 'Live', grad: ['#1a1a2e', '#16213e'] as [string, string], now: 'Live', next: '', prog: 0, rating: 'HD', viewers: '—', desc: '', streamUrl: p.manifestUrl, logoUrl: '' }], titles: [] });
           } else if (p.type === 'xtream' && p.serverUrl && p.username) {
             const auth = { serverUrl: p.serverUrl, username: p.username, password: p.password || '' };
             const [channels, vod, series] = await Promise.all([
@@ -146,6 +149,7 @@ export const useStore = create<AppStore>()(
         continueWatching: { ...s.continueWatching, [id]: pct },
         watchedAt: { ...s.watchedAt, [id]: Date.now() },
       })),
+      clearHistory: () => set({ continueWatching: {}, watchedAt: {} }),
 
       settings: DEFAULT_SETTINGS,
       updateSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),

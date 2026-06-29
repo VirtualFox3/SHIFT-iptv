@@ -89,6 +89,7 @@ export default function App() {
   const watchedAt = useStore((s) => s.watchedAt);
 
   const [playing, setPlaying] = useState<Channel | Title | null>(null);
+  const [nextItem, setNextItem] = useState<Title | null>(null);
   const [detail, setDetail] = useState<Channel | Title | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [seenWelcome, setSeenWelcome] = useState(() => {
@@ -138,7 +139,7 @@ export default function App() {
   // Home billboard — rotates through top ENGLISH movies AND series with artwork.
   // Popular flagship titles (Dexter, Supernatural, etc.) are pinned to the front.
   const heroPool = useMemo<Title[]>(() => {
-    const FEATURED = /\b(dexter|supernatural|breaking bad|the boys|game of thrones|stranger things|the last of us)\b/i;
+    const FEATURED = /\b(dexter|supernatural|breaking bad|the boys|game of thrones|stranger things|the last of us|five nights at freddy|fnaf)\b/i;
     const withArt = enTitles.filter((t) => t.logoUrl);
     const pool = withArt.length >= 5 ? withArt : enTitles;
     const score = (t: Title) => (FEATURED.test(t.title) ? 100 : 0) + (t.logoUrl ? 10 : 0) + (t.match || 0) / 100;
@@ -228,17 +229,22 @@ export default function App() {
     };
   }, [activeCategory, titles, channels]);
 
-  if (!provider && !seenWelcome) return <Welcome onStart={dismissWelcome} />;
+  // Apply theme to document root — must be before any conditional returns (Rules of Hooks).
+  const theme = settings.theme || 'dark';
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
   if (!provider) return <Auth />;
   if (showSettings) return <Settings onBack={() => setShowSettings(false)} />;
 
   // Real provider still fetching its catalogue
   if (reconnecting && channels.length === 0 && titles.length === 0) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--app-bg)' }}>
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg-page)' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid var(--surface-3)', borderTopColor: settings.accentColor, animation: 'spin 0.7s linear infinite', margin: '0 auto 20px' }} />
-          <div style={{ fontSize: 16, color: 'var(--ink-4)' }}>Loading your channels & titles…</div>
+          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid var(--border)', borderTopColor: settings.accentColor, animation: 'spin 0.7s linear infinite', margin: '0 auto 20px' }} />
+          <div style={{ fontSize: 16, color: 'var(--fg-3)' }}>Loading your channels & titles…</div>
         </div>
       </div>
     );
@@ -248,10 +254,10 @@ export default function App() {
   // user retry in-app instead of refreshing the whole page.
   if (loadFailed && channels.length === 0 && titles.length === 0) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--app-bg)', padding: 24 }}>
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg-page)', padding: 24 }}>
         <div style={{ textAlign: 'center', maxWidth: 420 }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink-1)', marginBottom: 10 }}>Couldn't load your channels</div>
-          <div style={{ fontSize: 14, color: 'var(--ink-5)', lineHeight: 1.55, marginBottom: 22 }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--fg-1)', marginBottom: 10 }}>Couldn't load your channels</div>
+          <div style={{ fontSize: 14, color: 'var(--fg-3)', lineHeight: 1.55, marginBottom: 22 }}>
             Your provider may be busy — it allows one connection at a time, so make sure it's closed on your phone and other devices, then try again.
           </div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
@@ -260,7 +266,7 @@ export default function App() {
               ↻ Try again
             </button>
             <button onClick={() => setShowSettings(true)}
-              style={{ background: 'var(--surface-3)', color: 'var(--ink-1)', border: '1px solid var(--input-border)', borderRadius: 6, padding: '12px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ background: 'var(--bg-input)', color: 'var(--fg-1)', border: '1px solid var(--border)', borderRadius: 6, padding: '12px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
               Settings
             </button>
           </div>
@@ -278,16 +284,22 @@ export default function App() {
 
       {/* Player overlay */}
       {playing && (
-        <Player item={playing} channels={channels} onClose={() => setPlaying(null)} />
+        <Player
+          item={playing}
+          channels={channels}
+          onClose={() => { setPlaying(null); setNextItem(null); }}
+          nextEpisode={nextItem || undefined}
+          onNext={() => { if (nextItem) { setPlaying(nextItem); setNextItem(null); } }}
+        />
       )}
 
       {/* Detail modal */}
       {detail && !playing && (
-        <DetailModal item={detail} onClose={() => setDetail(null)} onPlay={(item) => { setDetail(null); setPlaying(item); }} />
+        <DetailModal item={detail} onClose={() => setDetail(null)} onPlay={(item, next) => { setDetail(null); setPlaying(item as Title); setNextItem((next as Title) || null); }} />
       )}
 
       {/* Main app */}
-      <div id="app-scroll" style={{ height: '100vh', overflowY: 'auto', background: 'var(--app-bg)', color: 'var(--ink-1)', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <div id="app-scroll" style={{ height: '100vh', overflowY: 'auto', background: 'var(--bg-page)', color: 'var(--fg-1)', fontFamily: 'Inter, system-ui, sans-serif' }}>
         <Header
           provider={provider}
           tab={tab}
@@ -306,21 +318,21 @@ export default function App() {
 
         {/* SEARCH */}
         {searchOpen && (
-          <div style={{ minHeight: '100vh', padding: '24px 48px 80px', background: 'var(--app-bg)' }}>
+          <div style={{ minHeight: '100vh', padding: '24px 48px 80px', background: 'var(--bg-page)' }}>
             {searchQuery.trim() && searchResults.length === 0 ? (
               <div style={{ paddingTop: 24, maxWidth: 640 }}>
-                <p style={{ fontSize: 18, color: 'var(--ink-1)', margin: '0 0 8px' }}>
+                <p style={{ fontSize: 18, color: 'var(--fg-1)', margin: '0 0 8px' }}>
                   Your search for "{searchQuery}" did not have any matches.
                 </p>
-                <p style={{ color: 'var(--ink-4)', fontSize: 15, margin: 0 }}>
+                <p style={{ color: 'var(--fg-3)', fontSize: 15, margin: 0 }}>
                   Try a different title, channel name or genre — like "drama", "sports" or "news".
                 </p>
               </div>
             ) : (
               <>
-                <h2 style={{ fontSize: 17, fontWeight: 500, color: 'var(--ink-2)', margin: '0 0 18px' }}>
+                <h2 style={{ fontSize: 17, fontWeight: 500, color: 'var(--fg-2)', margin: '0 0 18px' }}>
                   {searchQuery.trim()
-                    ? <React.Fragment>Results for "<span style={{ color: 'var(--ink-1)', fontWeight: 700 }}>{searchQuery}</span>"</React.Fragment>
+                    ? <React.Fragment>Results for "<span style={{ color: 'var(--fg-1)', fontWeight: 700 }}>{searchQuery}</span>"</React.Fragment>
                     : 'Top Searches'}
                 </h2>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
@@ -363,7 +375,7 @@ export default function App() {
 
         {/* LIVE TV GUIDE */}
         {!searchOpen && !activeCategory && tab === 'live' && (
-          <LiveGuide channels={channels} onPlay={setPlaying} accentColor={accent} />
+          <LiveGuide channels={provider?.type === 'demo' ? [] : channels} onPlay={setPlaying} accentColor={accent} provider={provider} />
         )}
 
         {/* MY LIST */}
@@ -390,20 +402,28 @@ export default function App() {
           />
         )}
 
-        {/* HOME — VOD only (no Live TV); billboard features a movie/series */}
+        {/* HOME — VOD rails when available; falls back to live channel billboard + rail */}
         {!searchOpen && !activeCategory && tab === 'home' && (
           <>
-            {homeHero && (
-              <Billboard channel={null as any} bbStyle={settings.bbStyle} channels={channels} titles={titles}
-                vodHero={homeHero} heroKind={isMovie(homeHero) ? 'Film' : 'Series'}
+            {(homeHero || (!homeHero && channels.length > 0)) && (
+              <Billboard
+                channel={!homeHero ? channels[0] : null as any}
+                bbStyle={settings.bbStyle} channels={channels} titles={titles}
+                vodHero={homeHero || undefined} heroKind={homeHero && isMovie(homeHero) ? 'Film' : 'Series'}
                 onPlay={setPlaying} onOpen={setDetail} accentColor={accent} />
             )}
-            <div style={{ paddingTop: homeHero ? 130 : 24 }}>
+            <div style={{ paddingTop: (homeHero || channels.length > 0) ? 130 : 24 }}>
               {continueWatchingRail && (
                 <Rail rail={continueWatchingRail} titlesById={titlesById} channelsById={channelsById} onPlay={setPlaying} onOpen={setDetail} />
               )}
-              {rails.length === 0 && !continueWatchingRail && (
-                <p style={{ color: 'var(--ink-5)', fontSize: 16, padding: '0 48px' }}>
+              {rails.length === 0 && channels.length > 0 && (
+                <Rail
+                  rail={{ id: 'live-home', title: 'Live Channels', kind: 'channel', ids: channels.slice(0, 40).map((c) => c.id) }}
+                  titlesById={titlesById} channelsById={channelsById} onPlay={setPlaying} onOpen={setDetail}
+                />
+              )}
+              {rails.length === 0 && !continueWatchingRail && channels.length === 0 && (
+                <p style={{ color: '#8a8a8a', fontSize: 16, padding: '0 48px' }}>
                   No movies or series in this provider yet. Check the <strong>Live TV</strong> tab for channels.
                 </p>
               )}
@@ -417,7 +437,7 @@ export default function App() {
         <div style={{ height: 60 }} />
       </div>
 
-      <TweaksPanel />
+      {!playing && <TweaksPanel />}
     </>
   );
 }

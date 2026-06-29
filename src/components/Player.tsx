@@ -1,9 +1,9 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import Hls from 'hls.js';
-import type { Channel, Title } from '../types';
+import type { Channel, Title, AspectRatio } from '../types';
 import { useStore } from '../store/useStore';
 import { type SubCue } from '../api/opensubtitles';
-import { findSubtitles, loadSubtitleCues, type SubResult } from '../api/subtitles';
+import { findSubtitles, loadSubtitleCues, cleanSubtitleQuery, extractEpisode, type SubResult } from '../api/subtitles';
 import { xtreamGetVodInfo } from '../api/xtream';
 import { deproxify, streamSrc, proxify } from '../api/proxy';
 import { traktScrobbleStart, traktScrobbleStop } from '../api/trakt';
@@ -13,6 +13,8 @@ interface PlayerProps {
   item: Channel | Title;
   onClose: () => void;
   channels?: Channel[];
+  nextEpisode?: Title;
+  onNext?: () => void;
 }
 
 function isChannel(item: Channel | Title): item is Channel {
@@ -41,8 +43,9 @@ function openInExternal(kind: 'vlc' | 'infuse', rawUrl: string) {
   window.location.href = scheme;
 }
 
-export default function Player({ item, onClose, channels = [] }: PlayerProps) {
+export default function Player({ item, onClose, channels = [], nextEpisode, onNext }: PlayerProps) {
   const settings = useStore((s) => s.settings);
+  const updateSettings = useStore((s) => s.updateSettings);
   const setProgress = useStore((s) => s.setProgress);
   const continueWatching = useStore((s) => s.continueWatching);
   const provider = useStore((s) => s.provider);
@@ -82,7 +85,12 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   const [scrubPct, setScrubPct] = useState(0);          // 0–1 visual drag position
   const [hoverPct, setHoverPct] = useState<number | null>(null);  // hover preview
   const [pip, setPip] = useState(false);
-  const [aspect, setAspect] = useState<'fit' | 'fill' | '16:9' | '4:3' | 'stretch'>('fit');
+  const [aspect, setAspect] = useState<AspectRatio>('auto');
+  const [filled, setFilled] = useState(false);          // fill-screen toggle
+  const [showChList, setShowChList] = useState(false);  // live channel drawer
+  const [chFilter, setChFilter] = useState('');
+  const [zapBanner, setZapBanner] = useState<string | null>(null); // brief "CH N · Name" on zap
+  const zapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [uiHidden, setUiHidden] = useState(false);  // explicit hide via 'h' / button
   const [isFs, setIsFs] = useState(false);
 
@@ -92,11 +100,22 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   const [subCues, setSubCues] = useState<SubCue[]>([]);
   const [currentCue, setCurrentCue] = useState<string>('');
   const [loadingSubs, setLoadingSubs] = useState(false);
+  const [loadingSubId, setLoadingSubId] = useState<string | null>(null);
+  const [subLoadError, setSubLoadError] = useState<string | null>(null);
+  const [nativeTracks, setNativeTracks] = useState<TextTrack[]>([]);
+
+  // Audio tracks (HLS multi-audio)
+  const [audioTracks, setAudioTracks] = useState<{ id: number; name: string; lang: string }[]>([]);
+  const [activeAudio, setActiveAudio] = useState(0);
+
+  // Playback speed
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
 
   const [streamError, setStreamError] = useState(false);
   const [errorKind, setErrorKind] = useState<'format' | 'busy'>('format');
   const [retryNonce, setRetryNonce] = useState(0);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [nextDismissed, setNextDismissed] = useState(false);
 
   // In the desktop app, mpv handles playback — pass the ORIGINAL provider URL
   // (deproxified) and return to the library. mpv connects directly and plays it.
@@ -118,6 +137,8 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
     if (!video || !streamUrl) return;
     setStreamError(false);
     setBuffering(true);
+    setAudioTracks([]);
+    setActiveAudio(0);
 
     const isHls = /\.m3u8(\?|$)/i.test(streamUrl);
     let usedProxy = false;
@@ -126,11 +147,27 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
     const playDirectFile = (src: string) => { video.src = src; video.play().catch(() => {}); };
 
     if (isHls && Hls.isSupported()) {
-      const hls = new Hls({ enableWorker: true, lowLatencyMode: live });
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: live,
+        // Buffer aggressively for VOD so seeks within the buffer are instant
+        maxBufferLength: live ? 30 : 120,
+        maxMaxBufferLength: live ? 60 : 300,
+        backBufferLength: live ? 0 : 60,   // keep 60s behind for backward seeks
+        startFragPrefetch: true,
+        // Faster recovery after a seek lands outside the buffer
+        nudgeMaxRetry: 6,
+        nudgeOffset: 0.2,
+      });
       hlsRef.current = hls;
       hls.loadSource(proxify(streamUrl));
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); });
+      hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
+        setAudioTracks(hls.audioTracks.map((t, i) => ({ id: i, name: t.name || t.lang || `Track ${i + 1}`, lang: t.lang || '' })));
+        setActiveAudio(hls.audioTrack);
+      });
+      hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_e, data) => { setActiveAudio(data.id); });
       hls.on(Hls.Events.ERROR, (_e, data) => {
         if (!data.fatal) return;
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) { try { hls.startLoad(); return; } catch {} }
@@ -172,6 +209,17 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
       hlsRef.current = null;
     };
   }, [streamUrl, live, chIdx, retryNonce]);
+
+  // Reset next-episode card whenever item changes
+  useEffect(() => { setNextDismissed(false); }, [item.id]);
+
+  // Auto-advance to next episode when video ends (if user hasn't dismissed the card)
+  useEffect(() => {
+    if (live || !nextEpisode || !onNext || nextDismissed) return;
+    if (duration > 0 && currentTime >= duration - 1) {
+      onNext();
+    }
+  }, [currentTime, duration]);
 
   // Resume VOD from saved position (runs once per item load, skipped for live).
   useEffect(() => {
@@ -304,10 +352,34 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
     };
   }, []);
 
-  // Load subtitle search when panel opens — Wyzie (keyless) + OpenSubtitles fallback
+  // Detect native subtitle tracks embedded in the video (HLS WebVTT, MP4 TTML, etc.)
   useEffect(() => {
-    if (!showSubMenu || live) return;
+    const video = videoRef.current;
+    if (!video) return;
+    const update = () => {
+      const tracks = Array.from(video.textTracks).filter((t) => t.kind === 'subtitles' || t.kind === 'captions');
+      setNativeTracks(tracks);
+    };
+    video.addEventListener('loadedmetadata', update);
+    update();
+    return () => video.removeEventListener('loadedmetadata', update);
+  }, [streamUrl]);
+
+  function selectNativeTrack(track: TextTrack | null) {
+    const video = videoRef.current;
+    if (!video) return;
+    Array.from(video.textTracks).forEach((t) => { t.mode = 'disabled'; });
+    if (track) track.mode = 'showing';
+    setActiveSub(track ? `native_${track.label}_${track.language}` : null);
+    setSubCues([]); setCurrentCue('');
+    setShowQuality(false);
+  }
+
+  // Load subtitle search when settings panel opens — Wyzie (keyless) + OpenSubtitles fallback
+  useEffect(() => {
+    if (!showQuality || live) return;
     setLoadingSubs(true);
+    setSubLoadError(null);
     const t = item as Title;
     const lang = settings.subLang?.slice(0, 2).toLowerCase() || 'en';
     // For Xtream movies, resolve a TMDB/IMDB id from vod_info so Wyzie can match.
@@ -323,16 +395,21 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
       .then((subs) => setSubtitles(subs.slice(0, 12)))
       .catch(() => setSubtitles([]))
       .finally(() => setLoadingSubs(false));
-  }, [showSubMenu]);
+  }, [showQuality]);
 
   async function loadSubtitle(sub: SubResult) {
+    setLoadingSubId(sub.id);
+    setSubLoadError(null);
     try {
       const cues = await loadSubtitleCues(sub, settings.openSubtitlesToken);
-      if (!cues.length) throw new Error('Empty subtitle');
       setSubCues(cues);
       setActiveSub(sub.id);
-      setShowSubMenu(false);
-    } catch {}
+      setShowQuality(false);
+    } catch (e) {
+      setSubLoadError('Failed to load — try another');
+    } finally {
+      setLoadingSubId(null);
+    }
   }
 
   function togglePlay() {
@@ -355,9 +432,46 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
   }
 
   function zap(dir: number) {
-    setChIdx((i) => (i + dir + channels.length) % channels.length);
+    const next = (chIdx + dir + channels.length) % channels.length;
+    const ch = channels[next];
+    setChIdx(next);
     setBuffering(true);
     poke();
+    if (ch) {
+      setZapBanner(`CH ${ch.num} · ${ch.name}`);
+      if (zapTimer.current) clearTimeout(zapTimer.current);
+      zapTimer.current = setTimeout(() => setZapBanner(null), 2000);
+    }
+  }
+
+  function switchAudio(id: number) {
+    if (hlsRef.current) hlsRef.current.audioTrack = id;
+    setActiveAudio(id);
+  }
+
+  function changeSpeed(speed: number) {
+    const v = videoRef.current;
+    if (v) v.playbackRate = speed;
+    setPlaybackSpeed(speed);
+  }
+
+  function downloadStream() {
+    const url = deproxify(streamUrl);
+    const isHls = /\.m3u8(\?|$)/i.test(url);
+    if (isHls) {
+      try { navigator.clipboard.writeText(url); } catch {}
+      setCopiedUrl(true);
+      setTimeout(() => setCopiedUrl(false), 2000);
+      return;
+    }
+    const title = (item as Title).title?.replace(/[/\\?%*:|"<>]/g, '-') || 'video';
+    const ext = url.match(/\.(mp4|mkv|ts|avi|mov)(\?|$)/i)?.[1] || 'mp4';
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
   async function togglePip() {
@@ -386,26 +500,32 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
     return () => document.removeEventListener('fullscreenchange', onFs);
   }, []);
 
-
   const pct = live ? ((current as Channel).prog || 0) : (duration ? (currentTime / duration) * 100 : 0);
   const bufferedPct = duration ? (buffered / duration) * 100 : 0;
 
   const subSize = { Small: 16, Medium: 20, Large: 26 }[settings.subSize] || 20;
 
   // Aspect-ratio → CSS for the <video>
+  // `filled` is an independent overlay toggle (contain ↔ cover) like UHF's fill button.
   const videoStyle: React.CSSProperties = (() => {
-    const base: React.CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', margin: 'auto' };
-    switch (aspect) {
-      case 'fill': return { ...base, objectFit: 'cover' };
-      case 'stretch': return { ...base, objectFit: 'fill' };
-      case '16:9': return { ...base, objectFit: 'contain', aspectRatio: '16 / 9', height: 'auto', maxHeight: '100%' };
-      case '4:3': return { ...base, objectFit: 'contain', aspectRatio: '4 / 3', height: 'auto', maxHeight: '100%' };
-      default: return { ...base, objectFit: 'contain' };  // 'fit'
+    const base: React.CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%' };
+    if (aspect === 'auto' || aspect === 'fill') {
+      return { ...base, objectFit: filled ? 'cover' : 'contain' };
     }
+    const [ws, hs] = aspect.split(':').map(Number);
+    return {
+      position: 'absolute',
+      top: '50%', left: '50%',
+      transform: 'translate(-50%, -50%)',
+      objectFit: filled ? ('cover' as const) : ('fill' as const),
+      aspectRatio: `${ws} / ${hs}`,
+      width: `min(100vw, calc(100vh * (${ws} / ${hs})))`,
+      height: 'auto',
+    };
   })();
 
   // When UI is explicitly hidden, suppress all chrome
-  const chromeVisible = uiVisible && !uiHidden;
+  const chromeVisible = (uiVisible || showQuality) && !uiHidden;
 
   // Desktop: mpv plays in its own window — show a brief hand-off screen.
   if (isDesktop) {
@@ -424,7 +544,7 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
     <div
       ref={rootRef}
       onMouseMove={() => { if (!uiHidden) poke(); }}
-      onClick={() => { if (uiHidden) { setUiHidden(false); return; } setShowQuality(false); setShowSubMenu(false); poke(); }}
+      onClick={() => { if (uiHidden) { setUiHidden(false); return; } setShowQuality(false); setShowQuality(false); poke(); }}
       style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 200, cursor: chromeVisible ? 'default' : 'none', overflow: 'hidden' }}
     >
       {/* Video element */}
@@ -446,8 +566,8 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
         <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${(current as any).grad?.[0] || '#111'} 0%, ${(current as any).grad?.[1] || '#333'} 100%)`, opacity: 0.7, pointerEvents: 'none' }} />
       )}
 
-      {/* Buffering spinner */}
-      {buffering && !streamError && (
+      {/* Buffering spinner — hidden while user is actively scrubbing */}
+      {buffering && !streamError && !dragging && (
         <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
           <div style={{ width: 56, height: 56, borderRadius: '50%', border: '4px solid rgba(255,255,255,0.2)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />
         </div>
@@ -502,12 +622,102 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
         </div>
       )}
 
-      {/* Subtitle display */}
+      {/* Zap banner — brief channel info on channel switch */}
+      {live && zapBanner && (
+        <div style={{ position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 25, pointerEvents: 'none', animation: 'slideInRight 200ms ease' }}>
+          <div style={{ background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 22px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--accent,#E50914)', color: '#fff', fontWeight: 800, fontSize: 10, padding: '2px 7px', borderRadius: 3, letterSpacing: '0.08em' }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />LIVE
+            </span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>{zapBanner}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Live channel list drawer */}
+      {live && showChList && (
+        <div onClick={() => setShowChList(false)} style={{ position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(0,0,0,0.4)' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            position: 'absolute', right: 0, top: 0, bottom: 0, width: 320,
+            background: 'rgba(14,14,14,0.97)', backdropFilter: 'blur(20px)',
+            borderLeft: '1px solid rgba(255,255,255,0.08)',
+            display: 'flex', flexDirection: 'column', overflowY: 'hidden',
+          }}>
+            <div style={{ padding: '18px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#fff', marginBottom: 10 }}>Channels</div>
+              <input
+                autoFocus
+                placeholder="Search channels…"
+                onChange={(e) => { const q = e.target.value.toLowerCase(); setChFilter(q); }}
+                style={{ width: '100%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7, padding: '8px 12px', fontSize: 13, color: '#fff', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {channels
+                .filter((c) => !chFilter || c.name.toLowerCase().includes(chFilter) || c.cat.toLowerCase().includes(chFilter))
+                .map((ch, i) => {
+                  const isActive = ch.id === (channels[chIdx] || item).id;
+                  return (
+                    <button key={ch.id} onClick={() => { setChIdx(channels.indexOf(ch)); setBuffering(true); setShowChList(false); poke(); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 16px', background: isActive ? 'rgba(255,255,255,0.07)' : 'transparent', border: 0, borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 6, background: ch.logoUrl ? '#111' : `linear-gradient(135deg,${ch.grad[0]},${ch.grad[1]})`, display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 11, color: '#fff', flexShrink: 0, overflow: 'hidden' }}>
+                        {ch.logoUrl
+                          ? <img src={ch.logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                          : ch.logo}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: isActive ? 700 : 500, color: isActive ? '#fff' : '#ccc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ch.name}</div>
+                        <div style={{ fontSize: 11, color: '#555', marginTop: 1 }}>CH {ch.num} · {ch.cat}</div>
+                      </div>
+                      {isActive && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent,#E50914)', flexShrink: 0 }} />}
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Subtitle display — slides up when controls are visible */}
       {(activeSub || settings.subEnabled) && currentCue && (
-        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 110, textAlign: 'center', pointerEvents: 'none', padding: '0 64px' }}>
-          <span style={{ background: 'rgba(0,0,0,0.8)', color: '#fff', fontSize: subSize, padding: '5px 14px', borderRadius: 4, lineHeight: 1.5, display: 'inline-block' }}>
-            {currentCue}
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: chromeVisible ? 110 : 32, textAlign: 'center', pointerEvents: 'none', padding: '0 64px', transition: 'bottom 250ms ease', zIndex: 15 }}>
+          <span style={{ background: 'rgba(0,0,0,0.45)', color: '#fff', fontSize: subSize, padding: '6px 16px', borderRadius: 5, lineHeight: 1.55, display: 'inline-block', whiteSpace: 'pre-line', textShadow: '0 1px 4px rgba(0,0,0,0.9)', letterSpacing: '0.01em' }}>
+            {currentCue.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')}
           </span>
+        </div>
+      )}
+
+      {/* Up Next card — Netflix style, appears at last 30s */}
+      {!live && nextEpisode && !nextDismissed && duration > 0 && (duration - currentTime) <= 30 && (duration - currentTime) > 0 && (
+        <div onClick={(e) => e.stopPropagation()} style={{
+          position: 'absolute', bottom: chromeVisible ? 120 : 28, right: 24,
+          width: 280, borderRadius: 6, overflow: 'hidden',
+          background: '#141414', boxShadow: '0 8px 40px rgba(0,0,0,0.85)',
+          transition: 'bottom 250ms ease', zIndex: 20,
+          animation: 'slideInRight 300ms ease',
+        }}>
+          {/* countdown progress bar */}
+          <div style={{ height: 3, background: 'rgba(255,255,255,0.15)' }}>
+            <div style={{ height: '100%', background: '#fff', width: `${((30 - (duration - currentTime)) / 30) * 100}%`, transition: 'width 1s linear' }} />
+          </div>
+          <div style={{ padding: '12px 14px 14px' }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: '#aaa', letterSpacing: '0.1em', marginBottom: 8 }}>NEXT EPISODE</div>
+            {nextEpisode.logoUrl && (
+              <img src={nextEpisode.logoUrl} alt="" style={{ width: '100%', height: 76, objectFit: 'cover', borderRadius: 4, marginBottom: 10, display: 'block' }}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+            )}
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 12, lineHeight: 1.3 }}>{nextEpisode.title}</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={(e) => { e.stopPropagation(); onNext?.(); }}
+                style={{ flex: 1, background: '#fff', color: '#000', border: 0, borderRadius: 4, padding: '8px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                <Icons.Play size={11} color="#000" /> Play Now
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); setNextDismissed(true); }}
+                style={{ background: 'rgba(255,255,255,0.08)', color: '#aaa', border: '1px solid #333', borderRadius: 4, padding: '8px 11px', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                ✕
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -640,61 +850,107 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
           )}
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 18, position: 'relative' }}>
-            {/* Subtitles */}
-            {!live && (
-              <div style={{ position: 'relative' }}>
-                <button onClick={(e) => { e.stopPropagation(); setShowSubMenu((s) => !s); setShowQuality(false); }} title="Subtitles"
-                  style={{ ...ctrlBtn, opacity: activeSub ? 1 : 0.7, borderBottom: activeSub ? '2px solid var(--accent,#E50914)' : '2px solid transparent' }}>
-                  <Icons.Subtitles size={22} />
-                </button>
-                {showSubMenu && (
-                  <div onClick={(e) => e.stopPropagation()} style={menuPanel}>
-                    <div style={menuHead}>SUBTITLES · opensubtitles.com</div>
-                    {loadingSubs && (
-                      <div style={{ padding: '10px 12px', fontSize: 12.5, color: '#8a8a8a', display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #444', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />
-                        Searching…
-                      </div>
-                    )}
-                    {!loadingSubs && subtitles.length === 0 && (
-                      <div style={{ padding: '10px 12px', fontSize: 12.5, color: '#8a8a8a' }}>No subtitles found.</div>
-                    )}
-                    {activeSub && <SubMenuItem label="Off" active={false} onClick={() => { setActiveSub(null); setSubCues([]); setCurrentCue(''); setShowSubMenu(false); }} />}
-                    {subtitles.map((s) => (
-                      <SubMenuItem key={s.id} label={s.label} active={activeSub === s.id} onClick={() => loadSubtitle(s)} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Quality */}
+            {/* Settings — quality, aspect, speed, audio, subtitles */}
             <div style={{ position: 'relative' }}>
-              <button onClick={(e) => { e.stopPropagation(); setShowQuality((s) => !s); setShowSubMenu(false); }} style={ctrlBtn}>
+              <button onClick={(e) => { e.stopPropagation(); setShowQuality((s) => !s); }} style={{ ...ctrlBtn, color: activeSub ? settings.accentColor || '#E50914' : 'inherit' }} title="Settings">
                 <Icons.Settings size={21} />
               </button>
               {showQuality && (
-                <div onClick={(e) => e.stopPropagation()} style={{ ...menuPanel, width: 250 }}>
+                <div onClick={(e) => e.stopPropagation()} style={{ ...menuPanel, width: 270, maxHeight: 520, overflowY: 'auto' }}>
                   <div style={menuHead}>QUALITY</div>
                   {['Auto', '1080p', '720p', '480p'].map((q) => (
                     <SubMenuItem key={q} label={q} active={quality === q} onClick={() => { setQuality(q); }} />
                   ))}
                   <div style={{ ...menuHead, marginTop: 6, borderTop: '1px solid #2a2a2a', paddingTop: 10 }}>ASPECT RATIO</div>
                   {([
-                    ['fit', 'Fit (default)'],
-                    ['fill', 'Fill screen'],
-                    ['16:9', '16:9 Widescreen'],
-                    ['4:3', '4:3'],
-                    ['stretch', 'Stretch'],
+                    ['auto', 'Auto (default)'],
+                    ['21:9', '21:9 — Ultrawide cinema'],
+                    ['19.5:9', '19.5:9 — Modern phone'],
+                    ['16:10', '16:10'],
+                    ['16:9', '16:9 — Widescreen'],
+                    ['5:4', '5:4'],
+                    ['4:3', '4:3 — Classic TV'],
+                    ['1:1', '1:1 — Square'],
                   ] as const).map(([val, label]) => (
                     <SubMenuItem key={val} label={label} active={aspect === val} onClick={() => { setAspect(val); }} />
                   ))}
+                  {!live && (
+                    <>
+                      <div style={{ ...menuHead, marginTop: 6, borderTop: '1px solid #2a2a2a', paddingTop: 10 }}>SPEED</div>
+                      {[0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => (
+                        <SubMenuItem key={s} label={s === 1 ? 'Normal' : `${s}×`} active={playbackSpeed === s} onClick={() => changeSpeed(s)} />
+                      ))}
+                    </>
+                  )}
+                  {audioTracks.length > 1 && (
+                    <>
+                      <div style={{ ...menuHead, marginTop: 6, borderTop: '1px solid #2a2a2a', paddingTop: 10 }}>AUDIO TRACK</div>
+                      {audioTracks.map((t) => (
+                        <SubMenuItem key={t.id} label={t.name || t.lang || `Track ${t.id + 1}`} active={activeAudio === t.id} onClick={() => { switchAudio(t.id); }} />
+                      ))}
+                    </>
+                  )}
+                  {!live && (() => {
+                    const hasResults = !loadingSubs && (nativeTracks.length > 0 || subtitles.length > 0);
+                    const accent = settings.accentColor || '#E50914';
+                    return (
+                      <>
+                        <div style={{ marginTop: 6, borderTop: '1px solid #222', paddingTop: 10, paddingBottom: 2 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px 6px' }}>
+                            <span style={{ fontSize: 11, color: '#666', fontWeight: 700, letterSpacing: '0.06em' }}>SUBTITLES</span>
+                            {loadingSubs && <div style={{ width: 10, height: 10, borderRadius: '50%', border: '1.5px solid #333', borderTopColor: '#999', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
+                          </div>
+                          <div style={{ display: 'flex', gap: 4, padding: '0 10px 6px' }}>
+                            {(['Small', 'Medium', 'Large'] as const).map((s) => (
+                              <button key={s} onClick={() => updateSettings({ subSize: s })}
+                                style={{ flex: 1, fontFamily: 'inherit', fontSize: 11, fontWeight: 700, padding: '5px 0', border: settings.subSize === s ? `1px solid ${accent}` : '1px solid #333', borderRadius: 20, cursor: 'pointer', background: settings.subSize === s ? `${accent}22` : 'transparent', color: settings.subSize === s ? accent : '#666', transition: 'all 140ms' }}>
+                                {s}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {subLoadError && (
+                          <div style={{ margin: '0 10px 6px', padding: '6px 10px', background: 'rgba(224,82,82,0.1)', border: '1px solid rgba(224,82,82,0.3)', borderRadius: 6, fontSize: 11, color: '#e05252' }}>
+                            Failed to load — try another
+                          </div>
+                        )}
+                        {!loadingSubs && !hasResults && <div style={{ padding: '4px 10px 8px', fontSize: 12, color: '#444' }}>No subtitles found.</div>}
+                        {activeSub && <SubMenuItem label="Off" active={false} onClick={() => { setActiveSub(null); setSubCues([]); setCurrentCue(''); if (nativeTracks.length) selectNativeTrack(null); }} />}
+                        {nativeTracks.map((t) => {
+                          const id = `native_${t.label}_${t.language}`;
+                          return <SubMenuItem key={id} label={`⬩ ${t.label || t.language || 'Embedded'}`} active={activeSub === id} onClick={() => selectNativeTrack(t)} />;
+                        })}
+                        {subtitles.map((s) => (
+                          <SubMenuItem key={s.id} label={s.label} active={activeSub === s.id} loading={loadingSubId === s.id} onClick={() => loadSubtitle(s)} />
+                        ))}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>
 
+            {/* Fill Screen toggle — like UHF */}
+            <button onClick={(e) => { e.stopPropagation(); setFilled((f) => !f); }} title={filled ? 'Fit screen' : 'Fill screen'} style={{ ...ctrlBtn, color: filled ? 'var(--accent,#E50914)' : 'inherit', opacity: filled ? 1 : 0.85 }}>
+              <Icons.CropFill size={20} />
+            </button>
+
+            {/* Channel list — live only */}
+            {live && (
+              <button onClick={(e) => { e.stopPropagation(); setShowChList((s) => !s); setChFilter(''); }} title="Channel list" style={{ ...ctrlBtn, color: showChList ? 'var(--accent,#E50914)' : 'inherit' }}>
+                <Icons.MenuList size={20} />
+              </button>
+            )}
+
+            {/* Download (VOD only) */}
+            {!live && (
+              <button onClick={(e) => { e.stopPropagation(); downloadStream(); }} title={copiedUrl ? 'URL copied!' : 'Download'} style={{ ...ctrlBtn, opacity: copiedUrl ? 1 : 0.85, color: copiedUrl ? '#46D369' : 'inherit' }}>
+                <Icons.Download size={20} />
+              </button>
+            )}
+
             {/* Hide UI */}
-            <button onClick={() => { setUiHidden(true); setShowQuality(false); setShowSubMenu(false); }} title="Hide controls (H)" style={ctrlBtn}>
+            <button onClick={() => { setUiHidden(true); setShowQuality(false); }} title="Hide controls (H)" style={ctrlBtn}>
               <Icons.EyeOff size={21} />
             </button>
 
@@ -708,12 +964,11 @@ export default function Player({ item, onClose, channels = [] }: PlayerProps) {
             <button onClick={toggleFullscreen} title="Fullscreen (F)" style={ctrlBtn}>
               {isFs ? <Icons.FullscreenExit size={21} /> : <Icons.Fullscreen size={21} />}
             </button>
-            <button onClick={onClose} title="Close" style={ctrlBtn}><Icons.Close size={20} /></button>
           </div>
         </div>
       </div>
 
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}@keyframes slideInRight{from{transform:translateX(20px);opacity:0}to{transform:none;opacity:1}}`}</style>
     </div>
   );
 }
@@ -733,11 +988,58 @@ const ctrlBtn: React.CSSProperties = { background: 'transparent', border: 0, col
 const menuPanel: React.CSSProperties = { position: 'absolute', bottom: 40, right: 0, width: 230, background: 'rgba(18,18,18,0.97)', border: '1px solid #2a2a2a', borderRadius: 8, padding: 8, boxShadow: '0 12px 36px rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', zIndex: 10 };
 const menuHead: React.CSSProperties = { fontSize: 11, color: '#666', padding: '4px 10px 6px', fontWeight: 700, letterSpacing: '0.06em' };
 
-function SubMenuItem({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function SubMenuItem({ label, active, loading, onClick }: { label: string; active: boolean; loading?: boolean; onClick: () => void }) {
+  const [hov, setHov] = React.useState(false);
+  const accent = 'var(--accent,#E50914)';
   return (
-    <button onClick={onClick} style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 8, padding: '9px 10px', border: 0, background: active ? 'rgba(255,255,255,0.07)' : 'transparent', color: '#fff', fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit', borderRadius: 5, textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-      <span style={{ width: 16, color: '#E50914', flexShrink: 0 }}>{active ? '✓' : ''}</span>
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+    <button
+      onClick={onClick}
+      disabled={loading}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '9px 12px', border: 0,
+        background: hov ? 'rgba(255,255,255,0.06)' : 'transparent',
+        color: active ? '#fff' : '#ccc', fontSize: 13, cursor: loading ? 'default' : 'pointer',
+        fontFamily: 'inherit', borderRadius: 5, textAlign: 'left',
+      }}>
+      <span style={{
+        width: 17, height: 17, borderRadius: 4, flexShrink: 0,
+        border: `1.5px solid ${active ? accent : '#444'}`,
+        background: active ? accent : 'transparent',
+        display: 'grid', placeItems: 'center', transition: 'all 140ms',
+      }}>
+        {loading
+          ? <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', border: '1.5px solid #444', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />
+          : active ? <span style={{ color: '#fff', fontSize: 10, fontWeight: 900, lineHeight: 1 }}>✓</span> : null}
+      </span>
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+    </button>
+  );
+}
+
+// Subtitle file row — icon + filename, matching UHF design
+function SubFileItem({ label, active, loading, onClick }: { label: string; active: boolean; loading: boolean; onClick: () => void }) {
+  const [hov, setHov] = React.useState(false);
+  return (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{ display: 'flex', width: '100%', alignItems: 'flex-start', gap: 10, padding: '9px 14px', border: 0,
+        background: active ? 'rgba(255,255,255,0.08)' : hov ? 'rgba(255,255,255,0.05)' : 'transparent',
+        color: active ? '#fff' : '#d4d4d4', fontSize: 13, cursor: loading ? 'default' : 'pointer', fontFamily: 'inherit',
+        borderRadius: 0, textAlign: 'left', lineHeight: 1.35 }}>
+      {loading ? (
+        <div style={{ width: 15, height: 15, borderRadius: '50%', border: '2px solid #333', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite', flexShrink: 0, marginTop: 1 }} />
+      ) : (
+        <svg viewBox="0 0 20 20" width="15" height="15" fill="currentColor" style={{ opacity: 0.5, flexShrink: 0, marginTop: 1 }}>
+          <path d="M2 3a1 1 0 011-1h10a1 1 0 011 1v6a1 1 0 01-1 1H7l-3 3V10H3a1 1 0 01-1-1V3z"/>
+          <path d="M15 7h1a1 1 0 011 1v5a1 1 0 01-1 1h-1v2l-2.5-2H9a1 1 0 01-1-1v-1h7V7z" opacity="0.6"/>
+        </svg>
+      )}
+      <span style={{ flex: 1, wordBreak: 'break-word' }}>{label}</span>
     </button>
   );
 }
