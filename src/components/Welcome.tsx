@@ -1,7 +1,7 @@
 import React from 'react';
 
 // First-run welcome / intro screen — branded SHIFT hero shown before the login
-// screen. Fully themed (dark/light) via the CSS variables in global.css.
+// screen. Themed (dark/light) via the app's CSS variables.
 export default function Welcome({ onStart }: { onStart: () => void }) {
   const features = [
     { icon: '📺', title: 'Live TV & EPG', desc: 'Thousands of channels with a full programme guide.' },
@@ -10,7 +10,7 @@ export default function Welcome({ onStart }: { onStart: () => void }) {
     { icon: '🎨', title: 'Dark & Light', desc: 'A clean theme for day or night, your call.' },
   ];
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--app-bg)', color: 'var(--ink-1)', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-page)', color: 'var(--fg-1)', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
       {/* soft accent glow backdrop */}
       <div style={{ position: 'absolute', top: '-20%', left: '50%', transform: 'translateX(-50%)', width: 900, height: 900, borderRadius: '50%', background: 'radial-gradient(circle, color-mix(in srgb, var(--accent) 22%, transparent) 0%, transparent 60%)', pointerEvents: 'none', filter: 'blur(30px)' }} />
 
@@ -25,7 +25,7 @@ export default function Welcome({ onStart }: { onStart: () => void }) {
         <h1 style={{ fontSize: 'clamp(40px, 6vw, 76px)', fontWeight: 900, lineHeight: 1.02, letterSpacing: '-0.03em', margin: '0 0 18px', maxWidth: 900 }}>
           Every channel. Every show.<br />One stunning app.
         </h1>
-        <p style={{ fontSize: 18, color: 'var(--ink-4)', lineHeight: 1.5, maxWidth: 560, margin: '0 0 34px' }}>
+        <p style={{ fontSize: 18, color: 'var(--fg-3)', lineHeight: 1.5, maxWidth: 560, margin: '0 0 34px' }}>
           Connect your IPTV provider and stream live TV, movies and series with subtitles — on a player that finally looks the part.
         </p>
         <button onClick={onStart}
@@ -35,16 +35,16 @@ export default function Welcome({ onStart }: { onStart: () => void }) {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 16, marginTop: 64, maxWidth: 880, width: '100%' }}>
           {features.map((f) => (
-            <div key={f.title} style={{ background: 'var(--surface-1)', border: '1px solid var(--hair-1)', borderRadius: 14, padding: '22px 20px', textAlign: 'left', boxShadow: 'var(--pop-shadow)' }}>
+            <div key={f.title} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '22px 20px', textAlign: 'left', boxShadow: '0 8px 24px rgba(0,0,0,0.18)' }}>
               <div style={{ fontSize: 26, marginBottom: 10 }}>{f.icon}</div>
               <div style={{ fontSize: 15.5, fontWeight: 700, marginBottom: 5 }}>{f.title}</div>
-              <div style={{ fontSize: 13, color: 'var(--ink-5)', lineHeight: 1.45 }}>{f.desc}</div>
+              <div style={{ fontSize: 13, color: 'var(--fg-4)', lineHeight: 1.45 }}>{f.desc}</div>
             </div>
           ))}
         </div>
       </main>
 
-      <footer style={{ padding: '20px 48px', textAlign: 'center', color: 'var(--ink-5)', fontSize: 12.5, position: 'relative', zIndex: 1 }}>
+      <footer style={{ padding: '20px 48px', textAlign: 'center', color: 'var(--fg-4)', fontSize: 12.5, position: 'relative', zIndex: 1 }}>
         SHIFT — bring your own IPTV provider. No content included.
       </footer>
     </div>

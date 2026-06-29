@@ -116,11 +116,6 @@ export default function App() {
   // Keep the OpenSubtitles API key in sync with settings.
   useEffect(() => { setOsApiKey(settings.openSubtitlesApiKey); }, [settings.openSubtitlesApiKey]);
 
-  // Apply the light/dark theme to <html> (drives the CSS variables in global.css).
-  useEffect(() => {
-    document.documentElement.dataset.theme = settings.theme === 'Light' ? 'light' : '';
-  }, [settings.theme]);
-
   // On load: if a provider was persisted but its content is empty, re-fetch it.
   useEffect(() => {
     if (provider && channels.length === 0 && titles.length === 0 && !reconnecting) {

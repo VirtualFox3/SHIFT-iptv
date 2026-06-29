@@ -112,7 +112,6 @@ export interface Settings {
   notifRecs: boolean;
   notifEmail: boolean;
   // Tweaks
-  theme: 'Dark' | 'Light';
   bbStyle: 'Spotlight' | 'Cinema Wall' | 'Centered' | 'Mosaic';
   accentColor: string;
   cardRadius: number;

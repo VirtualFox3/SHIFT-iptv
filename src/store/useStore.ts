@@ -66,7 +66,6 @@ const DEFAULT_SETTINGS: Settings = {
   notifReminders: true,
   notifRecs: false,
   notifEmail: true,
-  theme: 'Dark',
   bbStyle: 'Spotlight',
   accentColor: '#E50914',
   cardRadius: 4,
