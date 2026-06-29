@@ -66,7 +66,7 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
       <div
         onClick={(e) => e.stopPropagation()}
         className="nfx-scroll"
-        style={{ width: '100%', maxWidth: 860, maxHeight: '92vh', overflowY: 'auto', background: '#181818', borderRadius: 10, boxShadow: '0 25px 60px rgba(0,0,0,0.8)' }}
+        style={{ width: '100%', maxWidth: 860, maxHeight: '92vh', overflowY: 'auto', background: 'var(--surface-1)', borderRadius: 10, boxShadow: '0 25px 60px rgba(0,0,0,0.8)' }}
       >
         {/* Hero */}
         <div style={{ position: 'relative', height: 360, background: `linear-gradient(135deg, ${(item as any).grad?.[0] || '#111'} 0%, ${(item as any).grad?.[1] || '#333'} 100%)`, overflow: 'hidden' }}>
@@ -74,10 +74,10 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
             <img src={heroImg} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
           )}
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 30%, #181818 100%)' }} />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 30%, var(--surface-1) 100%)' }} />
           <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '55%', background: 'linear-gradient(90deg, rgba(0,0,0,0.5) 0%, transparent 100%)' }} />
 
-          <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, width: 36, height: 36, borderRadius: '50%', background: '#181818', border: 0, color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', zIndex: 2 }}>
+          <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, width: 36, height: 36, borderRadius: '50%', background: 'var(--surface-1)', border: 0, color: 'var(--ink-1)', cursor: 'pointer', display: 'grid', placeItems: 'center', zIndex: 2 }}>
             <Icons.Close size={18} />
           </button>
 
@@ -85,25 +85,25 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
             <div style={{ position: 'absolute', top: 18, left: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 48, height: 48, borderRadius: 8, background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 18 }}>{(item as Channel).logo}</div>
               <div>
-                <div style={{ fontWeight: 800, fontSize: 16, color: '#fff' }}>{(item as Channel).name}</div>
+                <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--ink-1)' }}>{(item as Channel).name}</div>
                 <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>CH {(item as Channel).num}</div>
               </div>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: accentColor, color: '#fff', fontWeight: 800, fontSize: 11, padding: '3px 8px', borderRadius: 3 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />LIVE
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: accentColor, color: 'var(--ink-1)', fontWeight: 800, fontSize: 11, padding: '3px 8px', borderRadius: 3 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ink-1)' }} />LIVE
               </span>
             </div>
           )}
 
           <div style={{ position: 'absolute', left: 32, bottom: 36 }}>
-            <h2 style={{ fontWeight: 900, fontSize: isTitle(item) ? 'clamp(28px,3vw,48px)' : 28, lineHeight: 1.05, letterSpacing: '-0.02em', margin: '0 0 10px', textShadow: '0 3px 12px rgba(0,0,0,0.5)', color: '#fff' }}>
+            <h2 style={{ fontWeight: 900, fontSize: isTitle(item) ? 'clamp(28px,3vw,48px)' : 28, lineHeight: 1.05, letterSpacing: '-0.02em', margin: '0 0 10px', textShadow: '0 3px 12px rgba(0,0,0,0.5)', color: 'var(--ink-1)' }}>
               {isTitle(item) ? item.title : item.now}
             </h2>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <button onClick={() => onPlay(item)} style={{ background: '#fff', border: 0, borderRadius: 4, padding: '9px 20px', color: '#000', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}>
+              <button onClick={() => onPlay(item)} style={{ background: 'var(--ink-1)', border: 0, borderRadius: 4, padding: '9px 20px', color: '#000', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}>
                 <Icons.Play size={18} color="#000" />{isTitle(item) ? 'Play' : 'Watch Live'}
               </button>
               {isTitle(item) && (
-                <button onClick={() => toggleMyList(item.id)} style={{ background: 'rgba(109,109,110,0.6)', border: '2px solid rgba(255,255,255,0.4)', borderRadius: 4, padding: '9px 20px', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}>
+                <button onClick={() => toggleMyList(item.id)} style={{ background: 'rgba(109,109,110,0.6)', border: '2px solid rgba(255,255,255,0.4)', borderRadius: 4, padding: '9px 20px', color: 'var(--ink-1)', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}>
                   {inList ? <Icons.Check size={18} /> : <Icons.Plus size={18} />}
                   {inList ? 'In My List' : 'My List'}
                 </button>
@@ -144,16 +144,16 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
             {isTitle(item) && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
                 {item.genres.map((g) => (
-                  <span key={g} style={{ fontSize: 12, background: 'rgba(255,255,255,0.08)', padding: '4px 10px', borderRadius: 999, color: '#ccc' }}>{g}</span>
+                  <span key={g} style={{ fontSize: 12, background: 'var(--hair-1)', padding: '4px 10px', borderRadius: 999, color: '#ccc' }}>{g}</span>
                 ))}
               </div>
             )}
             {'now' in item && 'next' in item && (
               <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 6, padding: '12px 16px', marginBottom: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#666', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>On Now</div>
-                <div style={{ fontSize: 14, color: '#fff', fontWeight: 600, marginBottom: 4 }}>{(item as Channel).now}</div>
-                <div style={{ fontSize: 12, color: '#8a8a8a' }}>Up next: {(item as Channel).next}</div>
-                <div style={{ marginTop: 10, height: 3, background: 'rgba(255,255,255,0.15)', borderRadius: 2 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>On Now</div>
+                <div style={{ fontSize: 14, color: 'var(--ink-1)', fontWeight: 600, marginBottom: 4 }}>{(item as Channel).now}</div>
+                <div style={{ fontSize: 12, color: 'var(--ink-5)' }}>Up next: {(item as Channel).next}</div>
+                <div style={{ marginTop: 10, height: 3, background: 'var(--hair-2)', borderRadius: 2 }}>
                   <div style={{ width: `${(item as Channel).prog}%`, height: '100%', background: accentColor, borderRadius: 2 }} />
                 </div>
               </div>
@@ -163,16 +163,16 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
           {isTitle(item) && (item.imdbRating || item.trakt != null || item.rt != null) && (
             <div style={{ width: 200, flexShrink: 0, fontSize: 13 }}>
               {item.imdbRating && (
-                <div style={{ marginBottom: 12 }}><span style={{ color: '#666' }}>IMDb: </span><span style={{ color: '#ddd', fontWeight: 600 }}>{item.imdbRating}</span></div>
+                <div style={{ marginBottom: 12 }}><span style={{ color: 'var(--ink-5)' }}>IMDb: </span><span style={{ color: '#ddd', fontWeight: 600 }}>{item.imdbRating}</span></div>
               )}
               {item.trakt != null && (
-                <div style={{ marginBottom: 12 }}><span style={{ color: '#666' }}>Trakt: </span><span style={{ color: '#ddd', fontWeight: 600 }}>{item.trakt}%</span></div>
+                <div style={{ marginBottom: 12 }}><span style={{ color: 'var(--ink-5)' }}>Trakt: </span><span style={{ color: '#ddd', fontWeight: 600 }}>{item.trakt}%</span></div>
               )}
               {item.rt != null && (
-                <div style={{ marginBottom: 12 }}><span style={{ color: '#666' }}>RT: </span><span style={{ color: '#ddd', fontWeight: 600 }}>{item.rt}%</span></div>
+                <div style={{ marginBottom: 12 }}><span style={{ color: 'var(--ink-5)' }}>RT: </span><span style={{ color: '#ddd', fontWeight: 600 }}>{item.rt}%</span></div>
               )}
               {item.watchers && (
-                <div style={{ marginBottom: 12 }}><span style={{ color: '#666' }}>Watchers: </span><span style={{ color: '#ddd', fontWeight: 600 }}>{item.watchers}</span></div>
+                <div style={{ marginBottom: 12 }}><span style={{ color: 'var(--ink-5)' }}>Watchers: </span><span style={{ color: '#ddd', fontWeight: 600 }}>{item.watchers}</span></div>
               )}
             </div>
           )}
@@ -181,32 +181,32 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
         {/* Episodes & Seasons (Xtream series) — full width */}
         {isTitle(item) && (loadingEps || seriesInfo) && (
           <div style={{ padding: '0 32px 32px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, borderTop: '1px solid #2a2a2a', paddingTop: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, borderTop: '1px solid var(--surface-3)', paddingTop: 24 }}>
               <h3 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>
                 Episodes{seasonObj ? ` · ${seasonObj.episodes.length}` : ''}
               </h3>
               {seriesInfo && seriesInfo.seasons.length > 1 && (
                 <select value={activeSeason} onChange={(e) => setActiveSeason(Number(e.target.value))}
-                  style={{ appearance: 'none', WebkitAppearance: 'none', background: '#2a2a2a', border: '1px solid #383838', color: '#fff', borderRadius: 6, padding: '9px 16px', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }}>
-                  {seriesInfo.seasons.map((s) => <option key={s.season} value={s.season} style={{ background: '#202020' }}>Season {s.season} ({s.episodes.length})</option>)}
+                  style={{ appearance: 'none', WebkitAppearance: 'none', background: 'var(--surface-3)', border: '1px solid var(--input-border)', color: 'var(--ink-1)', borderRadius: 6, padding: '9px 16px', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }}>
+                  {seriesInfo.seasons.map((s) => <option key={s.season} value={s.season} style={{ background: 'var(--surface-2)' }}>Season {s.season} ({s.episodes.length})</option>)}
                 </select>
               )}
             </div>
 
             {loadingEps && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#8a8a8a', fontSize: 14, padding: '8px 0' }}>
-                <div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid #333', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--ink-5)', fontSize: 14, padding: '8px 0' }}>
+                <div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid #333', borderTopColor: 'var(--ink-1)', animation: 'spin 0.7s linear infinite' }} />
                 Loading episodes…
               </div>
             )}
             {!loadingEps && seriesInfo && !seasonObj?.episodes.length && (
-              <p style={{ color: '#8a8a8a', fontSize: 14 }}>No episodes listed for this series.</p>
+              <p style={{ color: 'var(--ink-5)', fontSize: 14 }}>No episodes listed for this series.</p>
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {seasonObj?.episodes.map((ep) => (
-                <button key={ep.id} onClick={() => playEpisode(ep)} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 8px', background: 'transparent', border: 0, borderTop: '1px solid #242424', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%', transition: 'background 120ms' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#1f1f1f')}
+                <button key={ep.id} onClick={() => playEpisode(ep)} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 8px', background: 'transparent', border: 0, borderTop: '1px solid var(--hair-1)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%', transition: 'background 120ms' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-2)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
                   <span style={{ fontSize: 20, fontWeight: 800, color: '#888', width: 30, flexShrink: 0, textAlign: 'center' }}>{ep.episode}</span>
                   <div style={{ position: 'relative', width: 130, height: 73, borderRadius: 6, background: '#0a0a0a', flexShrink: 0, overflow: 'hidden', display: 'grid', placeItems: 'center' }}>
@@ -220,10 +220,10 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                      <span style={{ fontSize: 15, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ep.title}</span>
+                      <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink-1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ep.title}</span>
                       {ep.duration && <span style={{ fontSize: 12.5, color: '#888', flexShrink: 0 }}>{ep.duration}</span>}
                     </div>
-                    {ep.plot && <div style={{ fontSize: 13, color: '#8a8a8a', marginTop: 5, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{ep.plot}</div>}
+                    {ep.plot && <div style={{ fontSize: 13, color: 'var(--ink-5)', marginTop: 5, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{ep.plot}</div>}
                   </div>
                 </button>
               ))}

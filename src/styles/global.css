@@ -4,14 +4,15 @@
 
 html, body {
   margin: 0;
-  background: #141414;
-  color: #fff;
+  background: var(--app-bg);
+  color: var(--ink-1);
   font-family: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
   overflow-x: hidden;
   /* iOS: stop the rubber-band white flash and pull-to-refresh inside the app */
   overscroll-behavior-y: none;
   -webkit-text-size-adjust: 100%;     /* iOS Safari: don't auto-enlarge text */
 }
+html { transition: background-color 280ms var(--ease-out); }
 
 /* iOS: remove the grey tap flash, allow text selection only where wanted */
 * { -webkit-tap-highlight-color: transparent; }
@@ -30,11 +31,73 @@ video::-webkit-media-controls { display: none !important; }
   --bb-scrim-grad: linear-gradient(90deg, rgba(0,0,0,0.86) 0%, rgba(0,0,0,0.40) 45%, rgba(0,0,0,0) 72%);
   --card-radius: 8px;
   --logo-r: 24;
-  --fg-3: #b3b3b3;
-  --fg-4: #808080;
   --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ===== Theme: DARK (default) ===== */
+  --app-bg: #141414;
+  --surface-1: #181818;      /* modal / login / detail / dropdown body */
+  --surface-2: #1f1f1f;      /* hover-preview shelf, inputs, guide cells, popovers */
+  --surface-3: #2a2a2a;      /* hover, segmented track, picker */
+  --surface-soft: #1a1a1a;   /* guide-row hover, settings card */
+  --surface-active: #262626; /* settings nav active */
+  --ink-1: #ffffff;
+  --ink-2: #e5e5e5;
+  --ink-3: #d2d2d2;
+  --ink-4: #b3b3b3;
+  --ink-5: #8a8a8a;
+  --hair-1: rgba(255,255,255,0.08);
+  --hair-2: rgba(255,255,255,0.15);
+  --hair-3: rgba(255,255,255,0.30);
+  --hair-strong: rgba(255,255,255,0.40);
+  --input-bg: #1f1f1f;
+  --input-border: #333333;
+  --nav-fg: #ffffff;
+  --nav-fg-dim: #e5e5e5;
+  --head-scrolled: #141414;
+  --dropdown-bg: rgba(15,15,15,0.96);
+  --pop-shadow: 0 12px 30px rgba(0,0,0,0.7);
+  --modal-shadow: 0 25px 60px rgba(0,0,0,0.8);
+  /* design-system greys used across components */
+  --fg-1: #ffffff;
+  --fg-2: #e5e5e5;
+  --fg-3: #b3b3b3;
+  --fg-4: #808080;
+  --fg-5: #4d4d4d;
 }
+
+/* ===== Theme: LIGHT ===== */
+html[data-theme="light"] {
+  --app-bg: #f3f3f5;
+  --surface-1: #ffffff;
+  --surface-2: #ffffff;
+  --surface-3: #e7e7ea;
+  --surface-soft: #ededf0;
+  --surface-active: #e2e2e6;
+  --ink-1: #16181c;
+  --ink-2: #2b2d31;
+  --ink-3: #3f4147;
+  --ink-4: #5c5e66;
+  --ink-5: #7c7e87;
+  --hair-1: rgba(0,0,0,0.08);
+  --hair-2: rgba(0,0,0,0.12);
+  --hair-3: rgba(0,0,0,0.18);
+  --hair-strong: rgba(0,0,0,0.32);
+  --input-bg: #ffffff;
+  --input-border: #d2d3d8;
+  --nav-fg: #16181c;
+  --nav-fg-dim: #44464d;
+  --head-scrolled: rgba(247,247,249,0.97);
+  --dropdown-bg: rgba(255,255,255,0.99);
+  --pop-shadow: 0 12px 30px rgba(0,0,0,0.18);
+  --modal-shadow: 0 24px 60px rgba(0,0,0,0.28);
+  --fg-1: #16181c;
+  --fg-2: #2b2d31;
+  --fg-3: #4a4c52;
+  --fg-4: #6b6d75;
+  --fg-5: #9a9ca3;
+}
+html[data-theme="light"] a:hover { color: #000; }
 
 /* SHIFT wordmark — heavy, brand accent, tight tracking. Upright + clean. */
 .shift-wordmark {

@@ -127,11 +127,11 @@ function LoginScreen({ addMode, onBack, onBrowseDemo, setProvider, setChannels, 
     : (addMode ? 'Add Playlist' : 'Load Playlist');
 
   return (
-    <div style={{ minHeight: '100vh', position: 'relative', background: '#141414', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100vh', position: 'relative', background: 'var(--app-bg)', overflow: 'hidden' }}>
       {/* Brand bar */}
       <div style={{ position: 'relative', padding: '22px 48px', display: 'flex', alignItems: 'center', gap: 18 }}>
         {addMode && onBack && (
-          <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.16)', color: '#fff', borderRadius: 4, padding: '8px 14px 8px 10px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+          <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.16)', color: 'var(--ink-1)', borderRadius: 4, padding: '8px 14px 8px 10px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
             onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.13)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}>
             <Icons.Back size={18} />Providers
@@ -141,19 +141,19 @@ function LoginScreen({ addMode, onBack, onBrowseDemo, setProvider, setChannels, 
       </div>
 
       <div style={{ position: 'relative', display: 'grid', placeItems: 'center', padding: '12px 16px 80px' }}>
-        <div style={{ width: 460, maxWidth: '100%', background: '#181818', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '48px 64px 40px', color: '#fff' }}>
+        <div style={{ width: 460, maxWidth: '100%', background: 'var(--surface-1)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '48px 64px 40px', color: 'var(--ink-1)' }}>
           <h1 style={{ fontWeight: 700, fontSize: 30, margin: '0 0 6px' }}>{addMode ? 'Add a provider' : 'Sign In'}</h1>
-          <p style={{ margin: '0 0 24px', color: 'var(--fg-3,#b3b3b3)', fontSize: 14 }}>
+          <p style={{ margin: '0 0 24px', color: 'var(--fg-3,var(--ink-4))', fontSize: 14 }}>
             {addMode ? 'Connect another IPTV service to this device.' : 'Connect your IPTV service to start streaming.'}
           </p>
 
           {/* Mode toggle */}
-          <div style={{ display: 'flex', gap: 4, background: '#1a1a1a', padding: 4, borderRadius: 6, marginBottom: 20 }}>
+          <div style={{ display: 'flex', gap: 4, background: 'var(--surface-soft)', padding: 4, borderRadius: 6, marginBottom: 20 }}>
             {(['xtream', 'playlist'] as const).map((k) => (
               <button key={k} onClick={() => { setMode(k); setError(''); }} style={{
                 flex: 1, padding: '9px 0', border: 0, borderRadius: 4, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                 background: mode === k ? 'var(--accent,#E50914)' : 'transparent',
-                color: mode === k ? '#fff' : 'var(--fg-3,#b3b3b3)', transition: 'all 160ms',
+                color: mode === k ? 'var(--ink-1)' : 'var(--fg-3,var(--ink-4))', transition: 'all 160ms',
               }}>
                 {k === 'xtream' ? 'Xtream Codes' : 'Playlist URL'}
               </button>
@@ -184,12 +184,12 @@ function LoginScreen({ addMode, onBack, onBrowseDemo, setProvider, setChannels, 
             {error && <p style={{ margin: 0, fontSize: 13, color: 'var(--accent,#E50914)', fontWeight: 600 }}>{error}</p>}
 
             {loading ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: '#1f1f1f', borderRadius: 4, marginTop: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'var(--surface-2)', borderRadius: 4, marginTop: 6 }}>
                 <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2.5px solid #333', borderTopColor: 'var(--accent,#E50914)', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
-                <span style={{ fontSize: 14, color: '#b3b3b3' }}>{loadStep}</span>
+                <span style={{ fontSize: 14, color: 'var(--ink-4)' }}>{loadStep}</span>
               </div>
             ) : (
-              <button onClick={handleSubmit} style={{ marginTop: 6, padding: '14px 16px', background: 'var(--accent,#E50914)', color: '#fff', border: 0, borderRadius: 4, fontWeight: 700, fontSize: 16, cursor: 'pointer', fontFamily: 'inherit', transition: 'background 150ms' }}
+              <button onClick={handleSubmit} style={{ marginTop: 6, padding: '14px 16px', background: 'var(--accent,#E50914)', color: 'var(--ink-1)', border: 0, borderRadius: 4, fontWeight: 700, fontSize: 16, cursor: 'pointer', fontFamily: 'inherit', transition: 'background 150ms' }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--shift-accent-hover,#f40612)')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--accent,#E50914)')}>
                 {cta}
@@ -197,7 +197,7 @@ function LoginScreen({ addMode, onBack, onBrowseDemo, setProvider, setChannels, 
             )}
 
             {!loading && addMode && (
-              <button onClick={onBrowseDemo} style={{ padding: '14px 16px', background: 'rgba(128,128,128,0.35)', color: '#fff', border: 0, borderRadius: 4, fontWeight: 500, fontSize: 16, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button onClick={onBrowseDemo} style={{ padding: '14px 16px', background: 'rgba(128,128,128,0.35)', color: 'var(--ink-1)', border: 0, borderRadius: 4, fontWeight: 500, fontSize: 16, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Cancel
               </button>
             )}
@@ -224,21 +224,21 @@ function ProviderGate({ saved, reconnecting, onPickSaved, onPickDemo, onRemove, 
 
   if (reconnecting) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#141414' }}>
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--app-bg)' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid #2a2a2a', borderTopColor: 'var(--accent,#E50914)', animation: 'spin 0.7s linear infinite', margin: '0 auto 20px' }} />
-          <div style={{ fontSize: 16, color: '#b3b3b3' }}>Reconnecting to your provider…</div>
+          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid var(--surface-3)', borderTopColor: 'var(--accent,#E50914)', animation: 'spin 0.7s linear infinite', margin: '0 auto 20px' }} />
+          <div style={{ fontSize: 16, color: 'var(--ink-4)' }}>Reconnecting to your provider…</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#141414', paddingTop: 24, paddingBottom: 48 }}>
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--app-bg)', paddingTop: 24, paddingBottom: 48 }}>
       <div style={{ textAlign: 'center', maxWidth: 1100, padding: '0 32px' }}>
         <div style={{ marginBottom: 36, display: 'flex', justifyContent: 'center' }}><ShiftLogo size={26} /></div>
-        <h1 style={{ fontWeight: 400, fontSize: 52, color: '#fff', margin: '0 0 12px', letterSpacing: '-0.01em' }}>Who's streaming?</h1>
-        <p style={{ margin: '0 0 44px', color: 'var(--fg-3,#b3b3b3)', fontSize: 17 }}>Choose a provider connection.</p>
+        <h1 style={{ fontWeight: 400, fontSize: 52, color: 'var(--ink-1)', margin: '0 0 12px', letterSpacing: '-0.01em' }}>Who's streaming?</h1>
+        <p style={{ margin: '0 0 44px', color: 'var(--fg-3,var(--ink-4))', fontSize: 17 }}>Choose a provider connection.</p>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: 32, flexWrap: 'wrap' }}>
           {tiles.map((p) => (
@@ -248,14 +248,14 @@ function ProviderGate({ saved, reconnecting, onPickSaved, onPickDemo, onRemove, 
               onRename={() => { const name = window.prompt('Rename provider', p.name); if (name && name.trim()) onRename(p, name.trim()); }} />
           ))}
           <div onClick={onAdd} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, width: 180 }}>
-            <div style={{ width: 170, height: 170, borderRadius: 8, border: '2px dashed #404040', display: 'grid', placeItems: 'center', color: '#737373', fontSize: 72, fontWeight: 200, transition: 'border-color 200ms, color 200ms' }}
-              onMouseEnter={(e) => { (e.currentTarget as any).style.borderColor = '#737373'; (e.currentTarget as any).style.color = '#999'; }}
-              onMouseLeave={(e) => { (e.currentTarget as any).style.borderColor = '#404040'; (e.currentTarget as any).style.color = '#737373'; }}>+</div>
+            <div style={{ width: 170, height: 170, borderRadius: 8, border: '2px dashed #404040', display: 'grid', placeItems: 'center', color: 'var(--ink-5)', fontSize: 72, fontWeight: 200, transition: 'border-color 200ms, color 200ms' }}
+              onMouseEnter={(e) => { (e.currentTarget as any).style.borderColor = 'var(--ink-5)'; (e.currentTarget as any).style.color = '#999'; }}
+              onMouseLeave={(e) => { (e.currentTarget as any).style.borderColor = '#404040'; (e.currentTarget as any).style.color = 'var(--ink-5)'; }}>+</div>
             <div style={{ fontSize: 20, fontWeight: 600, color: 'var(--fg-4,#808080)' }}>Add Provider</div>
           </div>
         </div>
 
-        <button onClick={() => setManage((m) => !m)} style={{ marginTop: 52, padding: '11px 30px', background: manage ? 'var(--accent,#E50914)' : 'transparent', color: manage ? '#fff' : 'var(--fg-4,#808080)', border: `1px solid ${manage ? 'var(--accent,#E50914)' : '#737373'}`, fontSize: 15, fontWeight: 500, letterSpacing: '0.04em', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 2 }}>
+        <button onClick={() => setManage((m) => !m)} style={{ marginTop: 52, padding: '11px 30px', background: manage ? 'var(--accent,#E50914)' : 'transparent', color: manage ? 'var(--ink-1)' : 'var(--fg-4,#808080)', border: `1px solid ${manage ? 'var(--accent,#E50914)' : 'var(--ink-5)'}`, fontSize: 15, fontWeight: 500, letterSpacing: '0.04em', cursor: 'pointer', fontFamily: 'inherit', borderRadius: 2 }}>
           {manage ? 'Done' : 'Manage Providers'}
         </button>
       </div>
@@ -269,28 +269,28 @@ function ProviderTile({ provider, manage, onPick, onRemove, onRename }: { provid
   return (
     <div onClick={() => (manage ? undefined : onPick())} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{ cursor: manage ? 'default' : 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, width: 180 }}>
-      <div style={{ position: 'relative', width: 170, height: 170, borderRadius: 8, background: provider.bg, display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 800, fontSize: 64, overflow: 'hidden', boxShadow: hover && !manage ? '0 0 0 4px rgba(255,255,255,0.85), 0 12px 32px rgba(0,0,0,0.5)' : 'none', transform: hover && !manage ? 'scale(1.03)' : 'scale(1)', transition: 'box-shadow 200ms, transform 200ms' }}>
+      <div style={{ position: 'relative', width: 170, height: 170, borderRadius: 8, background: provider.bg, display: 'grid', placeItems: 'center', color: 'var(--ink-1)', fontWeight: 800, fontSize: 64, overflow: 'hidden', boxShadow: hover && !manage ? '0 0 0 4px rgba(255,255,255,0.85), 0 12px 32px rgba(0,0,0,0.5)' : 'none', transform: hover && !manage ? 'scale(1.03)' : 'scale(1)', transition: 'box-shadow 200ms, transform 200ms' }}>
         {provider.profileImage
           ? <img src={provider.profileImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           : provider.letter}
         {provider.type !== 'demo' && !manage && (
-          <span style={{ position: 'absolute', top: 12, right: 12, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', color: '#fff', background: 'rgba(0,0,0,0.4)', padding: '3px 8px', borderRadius: 999 }}>
+          <span style={{ position: 'absolute', top: 12, right: 12, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', color: 'var(--ink-1)', background: 'rgba(0,0,0,0.4)', padding: '3px 8px', borderRadius: 999 }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#46D369', boxShadow: '0 0 6px #46D369' }} />SAVED
           </span>
         )}
         {editable && (
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.72)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-            <button onClick={(e) => { e.stopPropagation(); onRename(); }} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(255,255,255,0.12)', border: 0, color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 6 }}>
+            <button onClick={(e) => { e.stopPropagation(); onRename(); }} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(255,255,255,0.12)', border: 0, color: 'var(--ink-1)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 6 }}>
               <Icons.Pencil size={15} /> Rename
             </button>
-            <button onClick={(e) => { e.stopPropagation(); onRemove(); }} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(229,9,20,0.85)', border: 0, color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 6 }}>
+            <button onClick={(e) => { e.stopPropagation(); onRemove(); }} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(229,9,20,0.85)', border: 0, color: 'var(--ink-1)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 6 }}>
               <Icons.LogOut size={15} /> Remove
             </button>
           </div>
         )}
       </div>
       <div>
-        <div style={{ fontSize: 20, fontWeight: 600, color: hover && !manage ? '#fff' : 'var(--fg-3,#b3b3b3)', transition: 'color 200ms' }}>{provider.name}</div>
+        <div style={{ fontSize: 20, fontWeight: 600, color: hover && !manage ? 'var(--ink-1)' : 'var(--fg-3,var(--ink-4))', transition: 'color 200ms' }}>{provider.name}</div>
         <div style={{ fontSize: 13, color: 'var(--fg-4,#808080)', marginTop: 2 }}>{provider.tag}</div>
       </div>
     </div>
@@ -307,7 +307,7 @@ function Field({ label, value, onChange, type = 'text' }: { label: string; value
     <div style={{ position: 'relative' }}>
       <input value={value} type={inputType} onChange={(e) => onChange(e.target.value)}
         onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
-        style={{ width: '100%', height: 58, padding: `22px ${isPassword ? 48 : 16}px 8px 16px`, fontFamily: 'inherit', fontSize: 16, background: '#1f1f1f', color: '#fff', border: `1px solid ${focus ? 'var(--accent,#E50914)' : '#333'}`, borderRadius: 4, outline: 0, transition: 'border-color 140ms' }} />
+        style={{ width: '100%', height: 58, padding: `22px ${isPassword ? 48 : 16}px 8px 16px`, fontFamily: 'inherit', fontSize: 16, background: 'var(--surface-2)', color: 'var(--ink-1)', border: `1px solid ${focus ? 'var(--accent,#E50914)' : '#333'}`, borderRadius: 4, outline: 0, transition: 'border-color 140ms' }} />
       <span style={{ position: 'absolute', left: 16, pointerEvents: 'none', top: raised ? 9 : 18, fontSize: raised ? 11 : 16, color: 'var(--fg-4,#808080)', transition: 'top 140ms, font-size 140ms' }}>{label}</span>
       {isPassword && (
         <button type="button" onClick={() => setReveal((r) => !r)} title={reveal ? 'Hide password' : 'Show password'}

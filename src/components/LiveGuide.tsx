@@ -41,25 +41,25 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor }
   const nowOffset = Math.max(0, (nowH - start) * COL_W);
 
   return (
-    <div style={{ minHeight: '100vh', paddingTop: 24, background: '#141414' }}>
+    <div style={{ minHeight: '100vh', paddingTop: 24, background: 'var(--app-bg)' }}>
       <div style={{ padding: '0 48px', marginBottom: 20, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>TV Guide</h1>
-          <p style={{ color: '#8a8a8a', fontSize: 14, marginTop: 6 }}>
+          <p style={{ color: 'var(--ink-5)', fontSize: 14, marginTop: 6 }}>
             {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · {filtered.length.toLocaleString()} channels
           </p>
         </div>
         <input value={filter} onChange={(e) => { setFilter(e.target.value); setShown(PAGE); }}
           placeholder="Filter channels…"
-          style={{ background: '#1f1f1f', border: '1px solid #333', borderRadius: 6, padding: '10px 14px', color: '#fff', fontSize: 14, fontFamily: 'inherit', outline: 'none', width: 260 }} />
+          style={{ background: 'var(--surface-2)', border: '1px solid #333', borderRadius: 6, padding: '10px 14px', color: 'var(--ink-1)', fontSize: 14, fontFamily: 'inherit', outline: 'none', width: 260 }} />
       </div>
 
       <div style={{ overflowX: 'auto', paddingBottom: 24 }}>
         <div style={{ minWidth: 900, position: 'relative' }}>
           {/* Time header */}
-          <div style={{ display: 'flex', paddingLeft: 180, position: 'sticky', top: 66, background: '#141414', zIndex: 10, borderBottom: '1px solid #242424' }}>
+          <div style={{ display: 'flex', paddingLeft: 180, position: 'sticky', top: 66, background: 'var(--app-bg)', zIndex: 10, borderBottom: '1px solid var(--hair-1)' }}>
             {timeHeaders.map((h) => (
-              <div key={h.label} style={{ width: COL_W, flexShrink: 0, padding: '8px 12px', fontSize: 12, fontWeight: 700, color: '#666', letterSpacing: '0.04em' }}>
+              <div key={h.label} style={{ width: COL_W, flexShrink: 0, padding: '8px 12px', fontSize: 12, fontWeight: 700, color: 'var(--ink-5)', letterSpacing: '0.04em' }}>
                 {h.label}
               </div>
             ))}
@@ -68,7 +68,7 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor }
           {/* "Now" indicator */}
           {nowH >= start && nowH <= start + hours && (
             <div style={{ position: 'absolute', left: 180 + nowOffset, top: 0, bottom: 0, width: 2, background: accentColor, zIndex: 5, pointerEvents: 'none' }}>
-              <div style={{ position: 'absolute', top: 34, left: -20, background: accentColor, color: '#fff', fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 2, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>NOW</div>
+              <div style={{ position: 'absolute', top: 34, left: -20, background: accentColor, color: 'var(--ink-1)', fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 2, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>NOW</div>
             </div>
           )}
 
@@ -76,17 +76,17 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor }
           {channels.map((ch) => {
             const schedule = SCHEDULE[ch.id] || [];
             return (
-              <div key={ch.id} style={{ display: 'flex', borderBottom: '1px solid #1e1e1e', minHeight: 56 }}>
+              <div key={ch.id} style={{ display: 'flex', borderBottom: '1px solid var(--surface-2)', minHeight: 56 }}>
                 {/* Channel label */}
-                <div onClick={() => onPlay(ch)} style={{ width: 180, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', position: 'sticky', left: 0, background: '#141414', zIndex: 4, borderRight: '1px solid #242424', cursor: 'pointer' }}>
+                <div onClick={() => onPlay(ch)} style={{ width: 180, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', position: 'sticky', left: 0, background: 'var(--app-bg)', zIndex: 4, borderRight: '1px solid var(--hair-1)', cursor: 'pointer' }}>
                   <div style={{ width: 36, height: 36, borderRadius: 6, background: ch.logoUrl ? '#0a0a0a' : `linear-gradient(135deg,${ch.grad[0]},${ch.grad[1]})`, display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 11, flexShrink: 0, overflow: 'hidden' }}>
                     {ch.logoUrl
                       ? <img src={ch.logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget.parentElement as HTMLElement).textContent = ch.logo; }} />
                       : ch.logo}
                   </div>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: '#e5e5e5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ch.name}</div>
-                    <div style={{ fontSize: 11, color: '#666' }}>CH {ch.num}</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ch.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--ink-5)' }}>CH {ch.num}</div>
                   </div>
                 </div>
 
@@ -96,13 +96,13 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor }
                   {schedule.length === 0 && (
                     <button onClick={() => onPlay(ch)} style={{
                       position: 'absolute', left: 0, width: hours * COL_W - 2, top: 4, bottom: 4,
-                      background: '#1e1e1e',
-                      border: '1px solid #2a2a2a', borderRadius: 4, cursor: 'pointer', padding: '0 12px',
+                      background: 'var(--surface-2)',
+                      border: '1px solid var(--surface-3)', borderRadius: 4, cursor: 'pointer', padding: '0 12px',
                       display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', overflow: 'hidden',
                       transition: 'background 140ms',
                     }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = '#262626')}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = '#1e1e1e')}>
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-active)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--surface-2)')}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: '#9a9a9a', fontWeight: 800, fontSize: 10, letterSpacing: '0.06em' }}>
                         <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#9a9a9a' }} />LIVE
                       </span>
@@ -120,20 +120,20 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor }
                       return (
                         <button key={i} onClick={() => onPlay(ch)} style={{
                           position: 'absolute', left, width: width - 2, top: 4, bottom: 4,
-                          background: isNow ? `linear-gradient(90deg, color-mix(in srgb, ${accentColor} 20%, #1e1e1e), #1e1e1e)` : '#1e1e1e',
-                          border: isNow ? `1px solid ${accentColor}40` : '1px solid #2a2a2a',
+                          background: isNow ? `linear-gradient(90deg, color-mix(in srgb, ${accentColor} 20%, var(--surface-2)), var(--surface-2))` : 'var(--surface-2)',
+                          border: isNow ? `1px solid ${accentColor}40` : '1px solid var(--surface-3)',
                           borderRadius: 4, cursor: 'pointer', padding: '0 10px',
                           display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'left',
                           overflow: 'hidden',
                         }}>
-                          <div style={{ fontSize: 12.5, fontWeight: isNow ? 700 : 500, color: isNow ? '#fff' : '#ccc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <div style={{ fontSize: 12.5, fontWeight: isNow ? 700 : 500, color: isNow ? 'var(--ink-1)' : '#ccc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {p.title}
                           </div>
-                          <div style={{ fontSize: 10.5, color: '#666', marginTop: 2 }}>
+                          <div style={{ fontSize: 10.5, color: 'var(--ink-5)', marginTop: 2 }}>
                             {fmt12(p.t)} – {fmt12(p.t + p.dur)}
                           </div>
                           {isNow && (
-                            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: 'rgba(255,255,255,0.15)' }}>
+                            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: 'var(--hair-2)' }}>
                               <div style={{ width: `${ch.prog}%`, height: '100%', background: accentColor }} />
                             </div>
                           )}
@@ -150,7 +150,7 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor }
       {shown < filtered.length && (
         <div style={{ padding: '20px 48px 40px', textAlign: 'center' }}>
           <button onClick={() => setShown((s) => s + PAGE)}
-            style={{ background: '#1f1f1f', border: '1px solid #383838', color: '#fff', borderRadius: 6, padding: '11px 26px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ background: 'var(--surface-2)', border: '1px solid var(--input-border)', color: 'var(--ink-1)', borderRadius: 6, padding: '11px 26px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
             Load more channels ({filtered.length - shown} left)
           </button>
         </div>

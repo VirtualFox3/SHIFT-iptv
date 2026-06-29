@@ -46,9 +46,9 @@ export default function TweaksPanel() {
         style={{
           position: 'fixed', right: 16, bottom: open ? pos.bottom + 300 + 8 : 16,
           zIndex: 2000, width: 42, height: 42, borderRadius: '50%',
-          background: open ? '#fff' : 'rgba(30,30,30,0.9)',
-          border: '1px solid rgba(255,255,255,0.15)',
-          color: open ? '#0a0a0a' : '#fff',
+          background: open ? 'var(--ink-1)' : 'rgba(30,30,30,0.9)',
+          border: '1px solid var(--hair-2)',
+          color: open ? '#0a0a0a' : 'var(--ink-1)',
           cursor: 'pointer', display: 'grid', placeItems: 'center',
           boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
           backdropFilter: 'blur(8px)',
@@ -67,10 +67,10 @@ export default function TweaksPanel() {
           background: 'rgba(22,22,22,0.92)', backdropFilter: 'blur(24px) saturate(160%)',
           border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14,
           boxShadow: '0 12px 40px rgba(0,0,0,0.55)',
-          color: '#fff', fontFamily: 'inherit', overflow: 'hidden',
+          color: 'var(--ink-1)', fontFamily: 'inherit', overflow: 'hidden',
         }}>
           {/* Header / drag handle */}
-          <div onMouseDown={onDragStart} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', cursor: 'move', userSelect: 'none', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <div onMouseDown={onDragStart} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', cursor: 'move', userSelect: 'none', borderBottom: '1px solid var(--hair-1)' }}>
             <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '0.04em' }}>Tweaks</span>
           </div>
 
@@ -79,8 +79,8 @@ export default function TweaksPanel() {
             <TwkSection label="Billboard" />
             <TwkRow label="Style">
               <select value={settings.bbStyle} onChange={(e) => updateSettings({ bbStyle: e.target.value as any })}
-                style={{ width: '100%', appearance: 'none', WebkitAppearance: 'none', background: 'rgba(255,255,255,0.06)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '7px 10px', fontSize: 12, fontFamily: 'inherit', fontWeight: 600, cursor: 'pointer', outline: 'none' }}>
-                {['Spotlight', 'Centered', 'Cinema Wall'].map((o) => <option key={o} value={o} style={{ background: '#1a1a1a', color: '#fff' }}>{o}</option>)}
+                style={{ width: '100%', appearance: 'none', WebkitAppearance: 'none', background: 'rgba(255,255,255,0.06)', color: 'var(--ink-1)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '7px 10px', fontSize: 12, fontFamily: 'inherit', fontWeight: 600, cursor: 'pointer', outline: 'none' }}>
+                {['Spotlight', 'Centered', 'Cinema Wall'].map((o) => <option key={o} value={o} style={{ background: 'var(--surface-soft)', color: 'var(--ink-1)' }}>{o}</option>)}
               </select>
             </TwkRow>
 
@@ -88,7 +88,7 @@ export default function TweaksPanel() {
             <TwkRow label="Accent color">
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {accentOptions.map((c) => (
-                  <button key={c} onClick={() => updateSettings({ accentColor: c })} style={{ width: 24, height: 24, borderRadius: '50%', background: c, border: settings.accentColor === c ? '2.5px solid #fff' : '2px solid transparent', cursor: 'pointer', outline: 'none', transition: 'transform 120ms', transform: settings.accentColor === c ? 'scale(1.2)' : 'scale(1)' }} />
+                  <button key={c} onClick={() => updateSettings({ accentColor: c })} style={{ width: 24, height: 24, borderRadius: '50%', background: c, border: settings.accentColor === c ? '2.5px solid var(--ink-1)' : '2px solid transparent', cursor: 'pointer', outline: 'none', transition: 'transform 120ms', transform: settings.accentColor === c ? 'scale(1.2)' : 'scale(1)' }} />
                 ))}
               </div>
             </TwkRow>
@@ -133,8 +133,8 @@ function TwkToggleRow({ label, value, onChange }: { label: string; value: boolea
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>{label}</span>
-      <button onClick={() => onChange(!value)} style={{ position: 'relative', width: 32, height: 18, borderRadius: 999, border: 0, background: value ? '#34c759' : 'rgba(255,255,255,0.15)', padding: 0, cursor: 'pointer', transition: 'background 150ms' }}>
-        <span style={{ position: 'absolute', top: 2, left: value ? 14 : 2, width: 14, height: 14, borderRadius: '50%', background: '#fff', transition: 'left 150ms', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+      <button onClick={() => onChange(!value)} style={{ position: 'relative', width: 32, height: 18, borderRadius: 999, border: 0, background: value ? '#34c759' : 'var(--hair-2)', padding: 0, cursor: 'pointer', transition: 'background 150ms' }}>
+        <span style={{ position: 'absolute', top: 2, left: value ? 14 : 2, width: 14, height: 14, borderRadius: '50%', background: 'var(--ink-1)', transition: 'left 150ms', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
       </button>
     </div>
   );
