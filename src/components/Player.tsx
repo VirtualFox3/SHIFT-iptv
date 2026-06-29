@@ -147,7 +147,18 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
     const playDirectFile = (src: string) => { video.src = src; video.play().catch(() => {}); };
 
     if (isHls && Hls.isSupported()) {
-      const hls = new Hls({ enableWorker: true, lowLatencyMode: live });
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: live,
+        // Buffer aggressively for VOD so seeks within the buffer are instant
+        maxBufferLength: live ? 30 : 120,
+        maxMaxBufferLength: live ? 60 : 300,
+        backBufferLength: live ? 0 : 60,   // keep 60s behind for backward seeks
+        startFragPrefetch: true,
+        // Faster recovery after a seek lands outside the buffer
+        nudgeMaxRetry: 6,
+        nudgeOffset: 0.2,
+      });
       hlsRef.current = hls;
       hls.loadSource(proxify(streamUrl));
       hls.attachMedia(video);
@@ -555,8 +566,8 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
         <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${(current as any).grad?.[0] || '#111'} 0%, ${(current as any).grad?.[1] || '#333'} 100%)`, opacity: 0.7, pointerEvents: 'none' }} />
       )}
 
-      {/* Buffering spinner */}
-      {buffering && !streamError && (
+      {/* Buffering spinner — hidden while user is actively scrubbing */}
+      {buffering && !streamError && !dragging && (
         <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
           <div style={{ width: 56, height: 56, borderRadius: '50%', border: '4px solid rgba(255,255,255,0.2)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />
         </div>
