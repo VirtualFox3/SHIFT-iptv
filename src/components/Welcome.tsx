@@ -12,7 +12,7 @@ export default function Welcome({ onStart }: { onStart: () => void }) {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-page)', color: 'var(--fg-1)', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
       {/* soft accent glow backdrop */}
-      <div style={{ position: 'absolute', top: '-20%', left: '50%', transform: 'translateX(-50%)', width: 900, height: 900, borderRadius: '50%', background: 'radial-gradient(circle, color-mix(in srgb, var(--accent) 22%, transparent) 0%, transparent 60%)', pointerEvents: 'none', filter: 'blur(30px)' }} />
+      <div style={{ position: 'absolute', top: '-25%', left: '50%', transform: 'translateX(-50%)', width: 1000, height: 1000, borderRadius: '50%', background: 'radial-gradient(circle, color-mix(in srgb, var(--accent) 20%, transparent) 0%, transparent 62%)', pointerEvents: 'none' }} />
 
       <header style={{ padding: '26px 48px', position: 'relative', zIndex: 1 }}>
         <span className="shift-wordmark" style={{ fontSize: 30 }}>SHIFT</span>
