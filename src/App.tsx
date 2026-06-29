@@ -230,6 +230,7 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+  if (!provider && !seenWelcome) return <Welcome onStart={dismissWelcome} />;
   if (!provider) return <Auth />;
   if (showSettings) return <Settings onBack={() => setShowSettings(false)} />;
 
