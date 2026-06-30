@@ -6,6 +6,16 @@ import { proxify } from './proxy';
 
 interface XtreamAuth { serverUrl: string; username: string; password: string; }
 
+// Some providers use runs of "#"/"="/"*"/"-" as decorative separators in
+// channel names — e.g. "###### RELAX 4K ######". Strip those, keep real text.
+export function cleanChannelName(raw: string): string {
+  return raw
+    .replace(/[#=*~]{2,}/g, ' ')
+    .replace(/(^|\s)-{2,}(\s|$)/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim() || raw.trim();
+}
+
 // `extra` MUST be included before proxifying — otherwise on the deployed site
 // it lands outside the encoded ?url= param and the server ignores it.
 function api(auth: XtreamAuth, action: string, extra = '') {
@@ -33,11 +43,13 @@ export async function xtreamGetLive(auth: XtreamAuth): Promise<Channel[]> {
     const base = auth.serverUrl.replace(/\/$/, '');
 
     // Load EVERY channel (no cap).
-    return data.map((ch, i) => ({
+    return data.map((ch, i) => {
+      const name = cleanChannelName(ch.name || 'Channel ' + i);
+      return {
       id: 'xt_live_' + (ch.stream_id || i),
       num: ch.num || i + 1,
-      name: ch.name || 'Channel ' + i,
-      logo: (ch.name || 'C').slice(0, 2).toUpperCase(),
+      name,
+      logo: name.slice(0, 2).toUpperCase(),
       cat: ch.category_name || 'General',
       grad: gradForCat(ch.category_name || ''),
       now: 'Live',
@@ -45,12 +57,13 @@ export async function xtreamGetLive(auth: XtreamAuth): Promise<Channel[]> {
       prog: 0,
       rating: 'TV-G',
       viewers: '—',
-      desc: ch.name || '',
+      desc: name,
       // .m3u8 is the HLS-playlist form — playable by HLS.js in the browser.
       streamUrl: `${base}/live/${auth.username}/${auth.password}/${ch.stream_id}.m3u8`,
       logoUrl: ch.stream_icon || '',
       epgId: ch.epg_channel_id || '',
-    }));
+      };
+    });
   } catch {
     return [];
   }

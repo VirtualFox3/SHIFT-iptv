@@ -14,6 +14,8 @@ interface ScheduleEntry { t: number; dur: number; title: string; desc: string; l
 
 const PAGE = 60;
 const COL_W = 220;
+const ROW_H = 68;
+const LABEL_W = 220;
 // Show from 1 hour before now, 7 hours total
 const EPG_WINDOW_BEFORE = 1;
 const EPG_WINDOW_HOURS = 7;
@@ -90,10 +92,10 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor, 
 
   if (allChannels.length === 0) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#141414', color: '#555', gap: 12 }}>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--app-bg)', color: 'var(--ink-5)', gap: 12 }}>
         <div style={{ fontSize: 48 }}>📡</div>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#888' }}>No live channels</div>
-        <div style={{ fontSize: 14, color: '#555' }}>Connect a real provider in Settings to see your channel guide.</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink-3)' }}>No live channels</div>
+        <div style={{ fontSize: 14, color: 'var(--ink-5)' }}>Connect a real provider in Settings to see your channel guide.</div>
       </div>
     );
   }
@@ -102,23 +104,23 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor, 
     <div style={{ minHeight: '100vh', paddingTop: 24, background: 'var(--app-bg)' }}>
       <div style={{ padding: '0 48px', marginBottom: 20, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>TV Guide</h1>
+          <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, color: 'var(--ink-1)' }}>TV Guide</h1>
           <p style={{ color: 'var(--ink-5)', fontSize: 14, marginTop: 6 }}>
             {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · {filtered.length.toLocaleString()} channels
-            {epgLoading && <span style={{ marginLeft: 10, color: accentColor, fontSize: 12 }}>● Loading guide…</span>}
+            {epgLoading && <span style={{ marginLeft: 10, color: accentColor, fontSize: 12, fontWeight: 700 }}>● Loading guide…</span>}
           </p>
         </div>
         <input value={filter} onChange={(e) => { setFilter(e.target.value); setShown(PAGE); }}
           placeholder="Filter channels…"
-          style={{ background: 'var(--surface-2)', border: '1px solid #333', borderRadius: 6, padding: '10px 14px', color: 'var(--ink-1)', fontSize: 14, fontFamily: 'inherit', outline: 'none', width: 260 }} />
+          style={{ background: 'var(--surface-2)', border: '1px solid var(--input-border)', borderRadius: 8, padding: '10px 14px', color: 'var(--ink-1)', fontSize: 14, fontFamily: 'inherit', outline: 'none', width: 260 }} />
       </div>
 
-      <div style={{ overflowX: 'auto', paddingBottom: 24 }}>
+      <div style={{ overflowX: 'auto', paddingBottom: 24, borderTop: '1px solid var(--hair-1)' }}>
         <div style={{ minWidth: 900, position: 'relative' }}>
           {/* Time header */}
-          <div style={{ display: 'flex', paddingLeft: 200, position: 'sticky', top: 66, background: '#0f0f0f', zIndex: 10, borderBottom: '1px solid #2a2a2a' }}>
+          <div style={{ display: 'flex', paddingLeft: LABEL_W, position: 'sticky', top: 66, background: 'var(--surface-2)', zIndex: 10, borderBottom: '1px solid var(--hair-1)' }}>
             {timeHeaders.map((h) => (
-              <div key={h.label} style={{ width: COL_W, flexShrink: 0, padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#555', letterSpacing: '0.08em' }}>
+              <div key={h.label} style={{ width: COL_W, flexShrink: 0, padding: '10px 14px', fontSize: 11, fontWeight: 700, color: 'var(--ink-5)', letterSpacing: '0.08em' }}>
                 {h.label}
               </div>
             ))}
@@ -126,48 +128,48 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor, 
 
           {/* "Now" indicator */}
           {nowH >= start && nowH <= start + hours && (
-            <div style={{ position: 'absolute', left: 200 + nowOffset, top: 0, bottom: 0, width: 2, background: accentColor, zIndex: 5, pointerEvents: 'none', boxShadow: `0 0 8px ${accentColor}80` }}>
+            <div style={{ position: 'absolute', left: LABEL_W + nowOffset, top: 0, bottom: 0, width: 2, background: accentColor, zIndex: 5, pointerEvents: 'none', boxShadow: `0 0 8px ${accentColor}80` }}>
               <div style={{ position: 'absolute', top: 32, left: -18, background: accentColor, color: '#fff', fontSize: 9, fontWeight: 800, padding: '3px 6px', borderRadius: 3, letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>NOW</div>
             </div>
           )}
 
           {/* Channel rows */}
-          {channels.map((ch) => {
+          {channels.map((ch, ri) => {
             const schedule = epgMap[ch.id] || SCHEDULE[ch.id] || [];
             return (
-              <div key={ch.id} style={{ display: 'flex', borderBottom: '1px solid #1c1c1c', minHeight: 64 }}>
+              <div key={ch.id} style={{ display: 'flex', borderBottom: '1px solid var(--hair-1)', minHeight: ROW_H, background: ri % 2 === 1 ? 'var(--bg-hover)' : 'transparent' }}>
                 {/* Channel label */}
                 <div onClick={() => onPlay(ch)}
-                  style={{ width: 200, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', position: 'sticky', left: 0, background: '#141414', zIndex: 4, borderRight: '1px solid #242424', cursor: 'pointer' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#1a1a1a')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = '#141414')}>
-                  <div style={{ width: 38, height: 38, borderRadius: 8, background: ch.logoUrl ? '#0a0a0a' : `linear-gradient(135deg,${ch.grad[0]},${ch.grad[1]})`, display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 11, flexShrink: 0, overflow: 'hidden' }}>
+                  style={{ width: LABEL_W, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', position: 'sticky', left: 0, background: ri % 2 === 1 ? 'var(--surface-2)' : 'var(--app-bg)', zIndex: 4, borderRight: '1px solid var(--hair-1)', cursor: 'pointer', transition: 'background 140ms' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-3)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = ri % 2 === 1 ? 'var(--surface-2)' : 'var(--app-bg)')}>
+                  <div style={{ width: 40, height: 40, borderRadius: 8, background: ch.logoUrl ? '#0a0a0a' : `linear-gradient(135deg,${ch.grad[0]},${ch.grad[1]})`, display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 11, color: '#fff', flexShrink: 0, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>
                     {ch.logoUrl
                       ? <img src={ch.logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget.parentElement as HTMLElement).textContent = ch.logo; }} />
                       : ch.logo}
                   </div>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: '#e5e5e5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ch.name}</div>
-                    <div style={{ fontSize: 11, color: '#555' }}>CH {ch.num}</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink-1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ch.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--ink-5)' }}>CH {ch.num}</div>
                   </div>
                 </div>
 
                 {/* Programme blocks */}
-                <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', height: 64 }}>
+                <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', height: ROW_H }}>
                   {schedule.length === 0 && (
                     <button onClick={() => onPlay(ch)} style={{
-                      position: 'absolute', left: 0, width: hours * COL_W - 2, top: 5, bottom: 5,
-                      background: '#1a1a1a', border: `1px solid ${accentColor}30`,
+                      position: 'absolute', left: 0, width: hours * COL_W - 2, top: 6, bottom: 6,
+                      background: 'var(--surface-2)', border: `1px solid ${accentColor}30`,
                       borderLeft: `3px solid ${accentColor}`,
                       borderRadius: 6, cursor: 'pointer', padding: '0 14px',
                       display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', overflow: 'hidden',
                       transition: 'background 140ms',
                     }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = '#222')}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = '#1a1a1a')}>
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-3)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--surface-2)')}>
                       <LiveBadge color={accentColor} />
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#ddd', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ch.name}</span>
-                      <span style={{ fontSize: 12, color: '#555', whiteSpace: 'nowrap', flexShrink: 0 }}>· Live programming</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ch.name}</span>
+                      <span style={{ fontSize: 12, color: 'var(--ink-5)', whiteSpace: 'nowrap', flexShrink: 0 }}>· Live programming</span>
                     </button>
                   )}
                   {schedule
@@ -180,26 +182,26 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor, 
                       const isNow = !!p.live || (nowH >= p.t && nowH < p.t + p.dur);
                       return (
                         <button key={i} onClick={() => onPlay(ch)} title={p.desc || p.title} style={{
-                          position: 'absolute', left, width: width - 2, top: 5, bottom: 5,
-                          background: isNow ? `linear-gradient(90deg, color-mix(in srgb, ${accentColor} 25%, #1a1a1a), #1a1a1a)` : '#1a1a1a',
-                          border: isNow ? `1px solid ${accentColor}50` : '1px solid #282828',
-                          borderLeft: isNow ? `3px solid ${accentColor}` : '1px solid #282828',
+                          position: 'absolute', left, width: width - 2, top: 6, bottom: 6,
+                          background: isNow ? `linear-gradient(90deg, color-mix(in srgb, ${accentColor} 22%, var(--surface-2)), var(--surface-2))` : 'var(--surface-2)',
+                          border: isNow ? `1px solid ${accentColor}50` : '1px solid var(--hair-1)',
+                          borderLeft: isNow ? `3px solid ${accentColor}` : '1px solid var(--hair-1)',
                           borderRadius: 6, cursor: 'pointer', padding: '4px 12px',
                           display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'left',
                           overflow: 'hidden', transition: 'background 140ms',
                         }}
-                          onMouseEnter={(e) => (e.currentTarget.style.background = isNow ? `linear-gradient(90deg, color-mix(in srgb, ${accentColor} 32%, #222), #222)` : '#222')}
-                          onMouseLeave={(e) => (e.currentTarget.style.background = isNow ? `linear-gradient(90deg, color-mix(in srgb, ${accentColor} 25%, #1a1a1a), #1a1a1a)` : '#1a1a1a')}>
+                          onMouseEnter={(e) => (e.currentTarget.style.filter = 'brightness(1.18)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.filter = 'none')}>
                           {isNow && <LiveBadge color={accentColor} style={{ alignSelf: 'flex-start', marginBottom: 2 }} />}
-                          <div style={{ fontSize: 13, fontWeight: isNow ? 700 : 500, color: isNow ? '#fff' : '#bbb', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <div style={{ fontSize: 13, fontWeight: isNow ? 700 : 500, color: isNow ? 'var(--ink-1)' : 'var(--ink-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {p.title}
                           </div>
-                          <div style={{ fontSize: 10.5, color: '#555', marginTop: 1 }}>
+                          <div style={{ fontSize: 10.5, color: 'var(--ink-5)', marginTop: 1 }}>
                             {fmt24(p.t)} – {fmt24(p.t + p.dur)}
                           </div>
                           {isNow && (
-                            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: 'rgba(255,255,255,0.08)' }}>
-                              <div style={{ width: `${Math.min(100, ((nowH - p.t) / p.dur) * 100)}%`, height: '100%', background: accentColor, opacity: 0.7 }} />
+                            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: 'rgba(128,128,128,0.2)' }}>
+                              <div style={{ width: `${Math.min(100, ((nowH - p.t) / p.dur) * 100)}%`, height: '100%', background: accentColor, opacity: 0.8 }} />
                             </div>
                           )}
                         </button>
