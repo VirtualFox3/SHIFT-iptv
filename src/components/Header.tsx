@@ -77,7 +77,7 @@ export default function Header({
         {NAV.map(([k, label]) => (
           <button key={k} onClick={() => { onNav(k); }} style={{
             background: 'transparent', border: 0, cursor: 'pointer', fontFamily: 'inherit', padding: 0,
-            color: tab === k && !activeCategory ? '#fff' : '#e5e5e5',
+            color: tab === k && !activeCategory ? 'var(--ink-1)' : 'var(--ink-2)',
             fontWeight: tab === k && !activeCategory ? 700 : 400,
             opacity: tab === k && !activeCategory ? 1 : 0.85,
             display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
@@ -91,7 +91,7 @@ export default function Header({
         {categories.length > 0 && (
           <div style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
             <button onClick={() => { setCatOpen((o) => !o); setMenuOpen(false); }} style={{
-              background: 'transparent', border: 0, color: activeCategory ? '#fff' : '#e5e5e5', cursor: 'pointer', fontFamily: 'inherit',
+              background: 'transparent', border: 0, color: activeCategory ? 'var(--ink-1)' : 'var(--ink-2)', cursor: 'pointer', fontFamily: 'inherit',
               fontSize: 14, fontWeight: activeCategory ? 700 : 400, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', padding: 0,
             }}>
               {activeCategory || 'Categories'}
@@ -104,11 +104,11 @@ export default function Header({
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '2px 0' }}>
                   {categories.map((c) => (
                     <button key={c} onClick={() => { setCatOpen(false); onCategory(c); }} style={{
-                      background: 'transparent', border: 0, color: activeCategory === c ? '#fff' : '#d2d2d2', fontSize: 13.5, padding: '7px 18px',
+                      background: 'transparent', border: 0, color: activeCategory === c ? 'var(--ink-1)' : 'var(--ink-3)', fontSize: 13.5, padding: '7px 18px',
                       fontWeight: activeCategory === c ? 700 : 400, whiteSpace: 'nowrap', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
                     }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = '#fff')}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = activeCategory === c ? '#fff' : '#d2d2d2')}>
+                      onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--ink-1)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = activeCategory === c ? 'var(--ink-1)' : 'var(--ink-3)')}>
                       {c}
                     </button>
                   ))}
@@ -120,7 +120,7 @@ export default function Header({
       </nav>
 
       {/* Right side */}
-      <div style={{ marginLeft: 'auto', display: 'flex', gap: 18, alignItems: 'center', color: '#fff' }}>
+      <div style={{ marginLeft: 'auto', display: 'flex', gap: 18, alignItems: 'center', color: 'var(--ink-1)' }}>
         <InstallButton />
         {/* TV Guide */}
         <button onClick={() => onNav('live')} title="TV Guide" style={iconBtn}><Icons.Grid size={19} /></button>
@@ -144,7 +144,7 @@ export default function Header({
               onKeyDown={(e) => { if (e.key === 'Escape') onCloseSearch(); }}
               placeholder="Titles, channels, genres"
               tabIndex={searchOpen ? 0 : -1}
-              style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 'none', color: '#fff', fontSize: 14, fontFamily: 'inherit', opacity: searchOpen ? 1 : 0, pointerEvents: searchOpen ? 'auto' : 'none' }}
+              style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, outline: 'none', color: 'var(--ink-1)', fontSize: 14, fontFamily: 'inherit', opacity: searchOpen ? 1 : 0, pointerEvents: searchOpen ? 'auto' : 'none' }}
             />
             {searchOpen && (
               <button onClick={onCloseSearch} style={{ ...iconBtn, flexShrink: 0, padding: '0 8px', opacity: 0.7 }}>
@@ -168,12 +168,12 @@ export default function Header({
             <div className="nfx-dropdown" style={{ position: 'absolute', top: 42, right: 0, background: 'rgba(15,15,15,0.97)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, padding: '8px 0', minWidth: 220, boxShadow: '0 12px 30px rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)', zIndex: 60 }}>
               <div style={{ padding: '6px 16px 10px', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: 6 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700 }}>{provider.name}</div>
-                <div style={{ fontSize: 12, color: '#8a8a8a', marginTop: 2 }}>{provider.tag}</div>
+                <div style={{ fontSize: 12, color: 'var(--ink-5)', marginTop: 2 }}>{provider.tag}</div>
               </div>
               {([['Settings', onSettings], ['Switch provider', onSignOut]] as [string, () => void][]).map(([label, fn]) => (
-                <button key={label} onClick={() => { setMenuOpen(false); fn(); }} style={{ display: 'block', width: '100%', background: 'transparent', border: 0, color: '#d2d2d2', fontSize: 13.5, padding: '9px 16px', fontFamily: 'inherit', cursor: 'pointer', textAlign: 'left' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = '#fff')}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = '#d2d2d2')}>
+                <button key={label} onClick={() => { setMenuOpen(false); fn(); }} style={{ display: 'block', width: '100%', background: 'transparent', border: 0, color: 'var(--ink-3)', fontSize: 13.5, padding: '9px 16px', fontFamily: 'inherit', cursor: 'pointer', textAlign: 'left' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--ink-1)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--ink-3)')}>
                   {label}
                 </button>
               ))}
@@ -185,7 +185,7 @@ export default function Header({
   );
 }
 
-const iconBtn: React.CSSProperties = { background: 'transparent', border: 0, color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0, opacity: 0.92 };
+const iconBtn: React.CSSProperties = { background: 'transparent', border: 0, color: 'var(--ink-1)', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0, opacity: 0.92 };
 
 // "Install app" — appears when Chrome fires beforeinstallprompt (and hides once installed).
 function InstallButton() {
@@ -202,7 +202,7 @@ function InstallButton() {
     <button
       onClick={async () => { deferred.prompt(); try { await deferred.userChoice; } catch {} setDeferred(null); }}
       title="Install SHIFT as an app"
-      style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'var(--accent,#E50914)', border: 0, color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, padding: '7px 13px', borderRadius: 6, whiteSpace: 'nowrap' }}
+      style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'var(--accent,#E50914)', border: 0, color: 'var(--ink-1)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, padding: '7px 13px', borderRadius: 6, whiteSpace: 'nowrap' }}
     >
       <Icons.Download size={16} /> Install app
     </button>

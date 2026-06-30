@@ -339,21 +339,21 @@ function ProviderTile({ provider, manage, onPick, onRemove, onRename }: { provid
   return (
     <div onClick={() => (manage ? undefined : onPick())} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       style={{ cursor: manage ? 'default' : 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, width: 180 }}>
-      <div style={{ position: 'relative', width: 170, height: 170, borderRadius: 8, background: provider.bg, display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 800, fontSize: 64, overflow: 'hidden', boxShadow: hover && !manage ? '0 0 0 4px rgba(255,255,255,0.85), 0 12px 32px rgba(0,0,0,0.5)' : 'none', transform: hover && !manage ? 'scale(1.03)' : 'scale(1)', transition: 'box-shadow 200ms, transform 200ms' }}>
+      <div style={{ position: 'relative', width: 170, height: 170, borderRadius: 8, background: provider.bg, display: 'grid', placeItems: 'center', color: 'var(--ink-1)', fontWeight: 800, fontSize: 64, overflow: 'hidden', boxShadow: hover && !manage ? '0 0 0 4px rgba(255,255,255,0.85), 0 12px 32px rgba(0,0,0,0.5)' : 'none', transform: hover && !manage ? 'scale(1.03)' : 'scale(1)', transition: 'box-shadow 200ms, transform 200ms' }}>
         {provider.profileImage
           ? <img src={provider.profileImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           : <span style={{ textShadow: '0 2px 12px rgba(0,0,0,0.4)', userSelect: 'none' }}>{provider.letter}</span>}
         {provider.type !== 'demo' && !manage && (
-          <span style={{ position: 'absolute', top: 12, right: 12, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', color: '#fff', background: 'rgba(0,0,0,0.4)', padding: '3px 8px', borderRadius: 999 }}>
+          <span style={{ position: 'absolute', top: 12, right: 12, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', color: 'var(--ink-1)', background: 'rgba(0,0,0,0.4)', padding: '3px 8px', borderRadius: 999 }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#46D369', boxShadow: '0 0 6px #46D369' }} />SAVED
           </span>
         )}
         {editable && (
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.72)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-            <button onClick={(e) => { e.stopPropagation(); onRename(); }} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(255,255,255,0.12)', border: 0, color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 6 }}>
+            <button onClick={(e) => { e.stopPropagation(); onRename(); }} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(255,255,255,0.12)', border: 0, color: 'var(--ink-1)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 6 }}>
               <Icons.Pencil size={15} /> Rename
             </button>
-            <button onClick={(e) => { e.stopPropagation(); onRemove(); }} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(229,9,20,0.85)', border: 0, color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 6 }}>
+            <button onClick={(e) => { e.stopPropagation(); onRemove(); }} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(229,9,20,0.85)', border: 0, color: 'var(--ink-1)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 6 }}>
               <Icons.LogOut size={15} /> Remove
             </button>
           </div>

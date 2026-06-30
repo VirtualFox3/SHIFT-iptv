@@ -162,7 +162,7 @@ function AccountPane({ provider }: { provider: any }) {
   const setProviderStore = useStore((s) => s.setProvider);
   const saveProvider = useStore((s) => s.saveProvider);
   const fileRef = React.useRef<HTMLInputElement>(null);
-  if (!provider) return <p style={{ color: '#8a8a8a' }}>Not connected.</p>;
+  if (!provider) return <p style={{ color: 'var(--ink-5)' }}>Not connected.</p>;
 
   function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -202,7 +202,7 @@ function AccountPane({ provider }: { provider: any }) {
         <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onPickImage} />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 18, fontWeight: 800 }}>{provider.name}</div>
-          <div style={{ fontSize: 13, color: '#8a8a8a', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ fontSize: 13, color: 'var(--ink-5)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#46D369', boxShadow: '0 0 6px #46D369' }} />
             Connected · {provider.tag}
           </div>
@@ -211,10 +211,10 @@ function AccountPane({ provider }: { provider: any }) {
           </button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
-          <button onClick={() => setProviderStore(null)} style={{ padding: '10px 18px', borderRadius: 4, border: '1px solid #444', background: 'transparent', color: '#fff', fontWeight: 600, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+          <button onClick={() => setProviderStore(null)} style={{ padding: '10px 18px', borderRadius: 4, border: '1px solid #444', background: 'transparent', color: 'var(--ink-1)', fontWeight: 600, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
             <Icons.Grid size={14} />Manage providers
           </button>
-          <button onClick={() => setProviderStore(null)} style={{ padding: '10px 18px', borderRadius: 4, border: '1px solid #444', background: 'transparent', color: '#fff', fontWeight: 600, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+          <button onClick={() => setProviderStore(null)} style={{ padding: '10px 18px', borderRadius: 4, border: '1px solid #444', background: 'transparent', color: 'var(--ink-1)', fontWeight: 600, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
             <Icons.LogOut size={14} />Switch / disconnect
           </button>
         </div>
@@ -263,9 +263,9 @@ function ConnectionDetails({ provider }: { provider: any }) {
     <Card title="Connection details">
       <div style={{ padding: '8px 0' }}>
         {rows.map(([k, v], i) => (
-          <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderTop: i ? '1px solid #242424' : 0 }}>
-            <span style={{ fontSize: 13.5, color: '#8a8a8a', width: 110, flexShrink: 0 }}>{k}</span>
-            <span style={{ fontSize: 13.5, color: '#e5e5e5', flex: 1, minWidth: 0, fontFamily: (k === 'Server URL' || k === 'Password' || k === 'Playlist URL') ? 'monospace' : 'inherit', wordBreak: 'break-all' }}>{v}</span>
+          <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderTop: i ? '1px solid var(--hair-1)' : 0 }}>
+            <span style={{ fontSize: 13.5, color: 'var(--ink-5)', width: 110, flexShrink: 0 }}>{k}</span>
+            <span style={{ fontSize: 13.5, color: 'var(--ink-2)', flex: 1, minWidth: 0, fontFamily: (k === 'Server URL' || k === 'Password' || k === 'Playlist URL') ? 'monospace' : 'inherit', wordBreak: 'break-all' }}>{v}</span>
           </div>
         ))}
         {provider.type !== 'demo' && (
@@ -420,8 +420,8 @@ function OpenSubtitlesSection({ settings, updateSettings }: { settings: Settings
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#46D369', boxShadow: '0 0 6px #46D369' }} />
           {settings.openSubtitlesToken ? `Signed in as ${settings.openSubtitlesUsername}` : 'Subtitles active (keyless)'}
         </div>
-        <p style={{ fontSize: 13, color: '#8a8a8a', margin: '0 0 14px', lineHeight: 1.5 }}>
-          Subtitles work automatically with no setup. To use your full <strong style={{ color: '#b3b3b3' }}>opensubtitles.com</strong> account (like UHF), sign in below — enter your account plus a free API key from{' '}
+        <p style={{ fontSize: 13, color: 'var(--ink-5)', margin: '0 0 14px', lineHeight: 1.5 }}>
+          Subtitles work automatically with no setup. To use your full <strong style={{ color: 'var(--ink-4)' }}>opensubtitles.com</strong> account (like UHF), sign in below — enter your account plus a free API key from{' '}
           <button onClick={() => window.open('https://www.opensubtitles.com/en/consumers', '_blank', 'noopener')} style={{ background: 'transparent', border: 0, color: 'var(--accent,#E50914)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, padding: 0, textDecoration: 'underline' }}>opensubtitles.com → API</button>.
         </p>
 
@@ -495,25 +495,25 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#E54B2E', boxShadow: '0 0 6px #E54B2E' }} />
               Connected as @{settings.traktUsername}
             </div>
-            <div style={{ fontSize: 12.5, color: '#8a8a8a', marginTop: 4 }}>Watch history synced · ratings enabled</div>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-5)', marginTop: 4 }}>Watch history synced · ratings enabled</div>
           </div>
           <button onClick={logout} style={outlineBtn}>Disconnect</button>
         </div>
       ) : step === 'polling' && code ? (
         <div style={{ padding: 20 }}>
-          <p style={{ fontSize: 13.5, color: '#b3b3b3', margin: '0 0 16px' }}>
-            1. Go to <strong style={{ color: '#fff' }}>{code.verification_url}</strong><br />
+          <p style={{ fontSize: 13.5, color: 'var(--ink-4)', margin: '0 0 16px' }}>
+            1. Go to <strong style={{ color: 'var(--ink-1)' }}>{code.verification_url}</strong><br />
             2. Enter the code below:
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ fontFamily: 'monospace', fontSize: 28, fontWeight: 900, letterSpacing: '0.25em', color: '#fff', background: '#2a2a2a', padding: '12px 24px', borderRadius: 8 }}>{code.user_code}</div>
+            <div style={{ fontFamily: 'monospace', fontSize: 28, fontWeight: 900, letterSpacing: '0.25em', color: 'var(--ink-1)', background: 'var(--surface-3)', padding: '12px 24px', borderRadius: 8 }}>{code.user_code}</div>
             <button onClick={copyCode} style={outlineBtn}>{copied ? '✓ Copied' : <><Icons.Copy size={14} /> Copy</>}</button>
           </div>
-          <p style={{ fontSize: 12.5, color: '#8a8a8a', marginTop: 12 }}>The Trakt activation page opened in a new tab and the code is copied. Waiting for authorization…</p>
+          <p style={{ fontSize: 12.5, color: 'var(--ink-5)', marginTop: 12 }}>The Trakt activation page opened in a new tab and the code is copied. Waiting for authorization…</p>
         </div>
       ) : (
         <div style={{ padding: 20 }}>
-          <p style={{ fontSize: 13.5, color: '#8a8a8a', margin: '0 0 16px' }}>Connect Trakt to sync your watch history and get personalized ratings.</p>
+          <p style={{ fontSize: 13.5, color: 'var(--ink-5)', margin: '0 0 16px' }}>Connect Trakt to sync your watch history and get personalized ratings.</p>
           {step === 'error' && <p style={{ color: '#E50914', fontSize: 13, marginBottom: 12 }}>Authentication failed. Try again.</p>}
           <button onClick={startLogin} style={primaryBtn}>Connect Trakt</button>
         </div>
@@ -544,7 +544,7 @@ function TweaksPane({ settings, set, clearHistory }: { settings: SettingsType; s
         <Row title="Accent color" control={
           <div style={{ display: 'flex', gap: 8 }}>
             {accentOptions.map((c) => (
-              <button key={c} onClick={() => set('accentColor', c)} style={{ width: 26, height: 26, borderRadius: '50%', background: c, border: settings.accentColor === c ? '3px solid #fff' : '2px solid transparent', cursor: 'pointer', outline: 'none' }} />
+              <button key={c} onClick={() => set('accentColor', c)} style={{ width: 26, height: 26, borderRadius: '50%', background: c, border: settings.accentColor === c ? '3px solid var(--ink-1)' : '2px solid transparent', cursor: 'pointer', outline: 'none' }} />
             ))}
           </div>
         } />

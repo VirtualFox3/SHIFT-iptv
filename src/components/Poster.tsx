@@ -74,14 +74,14 @@ export default function Poster({ title, idx = 0, isTopRow, progress, onPlay, onO
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
         )}
         {isTopRow && (
-          <div style={{ position: 'absolute', left: -14, bottom: -38, fontWeight: 900, fontSize: 200, lineHeight: 1, color: 'transparent', WebkitTextStroke: '8px #fff', letterSpacing: '-0.08em', userSelect: 'none' }}>
+          <div style={{ position: 'absolute', left: -14, bottom: -38, fontWeight: 900, fontSize: 200, lineHeight: 1, color: 'transparent', WebkitTextStroke: '8px var(--ink-1)', letterSpacing: '-0.08em', userSelect: 'none' }}>
             {idx + 1}
           </div>
         )}
         {title.isShift && (
           <span style={{ position: 'absolute', top: 10, left: 12, color: accentColor, fontWeight: 900, fontSize: 13, letterSpacing: '0.12em' }}>SHIFT</span>
         )}
-        <div style={{ position: 'absolute', right: 14, bottom: 14, left: 14, color: '#fff', fontWeight: 800, fontSize: 16, textAlign: 'right', textShadow: '0 2px 6px rgba(0,0,0,0.7)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ position: 'absolute', right: 14, bottom: 14, left: 14, color: 'var(--ink-1)', fontWeight: 800, fontSize: 16, textAlign: 'right', textShadow: '0 2px 6px rgba(0,0,0,0.7)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {title.title}
         </div>
         {progress != null && progress > 0 && (
@@ -97,7 +97,7 @@ export default function Poster({ title, idx = 0, isTopRow, progress, onPlay, onO
           onClick={() => onOpen(title)}
           style={{
             position: 'fixed', left: pos.left, top: pos.top, width: POP_W,
-            background: '#1F1F1F', borderRadius: cardRadius || 6, overflow: 'hidden',
+            background: 'var(--surface-2)', borderRadius: cardRadius || 6, overflow: 'hidden',
             boxShadow: '0 12px 30px rgba(0,0,0,0.75)', zIndex: 2000, cursor: 'pointer',
             animation: 'nfxPop2 180ms cubic-bezier(0.2,0.7,0.2,1)',
           }}
@@ -120,7 +120,7 @@ export default function Poster({ title, idx = 0, isTopRow, progress, onPlay, onO
             {title.isShift && (
               <span style={{ position: 'absolute', top: 10, left: 12, color: accentColor, fontWeight: 900, fontSize: 13, letterSpacing: '0.12em' }}>SHIFT</span>
             )}
-            <div style={{ position: 'absolute', right: 14, bottom: 14, left: 14, color: '#fff', fontWeight: 800, fontSize: 18, textAlign: 'right', textShadow: '0 2px 6px rgba(0,0,0,0.7)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ position: 'absolute', right: 14, bottom: 14, left: 14, color: 'var(--ink-1)', fontWeight: 800, fontSize: 18, textAlign: 'right', textShadow: '0 2px 6px rgba(0,0,0,0.7)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {title.title}
             </div>
           </div>
@@ -143,9 +143,9 @@ export default function Poster({ title, idx = 0, isTopRow, progress, onPlay, onO
             {/* Match + meta */}
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginBottom: 9, flexWrap: 'wrap' }}>
               {title.match != null && <span style={{ color: '#46D369', fontWeight: 700 }}>{title.match}% Match</span>}
-              <span style={{ padding: '1px 6px', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 2, fontSize: 11, color: '#e5e5e5' }}>{title.rating}</span>
-              <span style={{ color: '#b3b3b3' }}>{title.year}</span>
-              <span style={{ padding: '0 4px', border: '1px solid rgba(255,255,255,0.3)', fontSize: 10, borderRadius: 2, color: '#e5e5e5' }}>HD</span>
+              <span style={{ padding: '1px 6px', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 2, fontSize: 11, color: 'var(--ink-2)' }}>{title.rating}</span>
+              <span style={{ color: 'var(--ink-4)' }}>{title.year}</span>
+              <span style={{ padding: '0 4px', border: '1px solid rgba(255,255,255,0.3)', fontSize: 10, borderRadius: 2, color: 'var(--ink-2)' }}>HD</span>
             </div>
 
             {/* RT + Trakt + seasons */}
@@ -154,10 +154,10 @@ export default function Poster({ title, idx = 0, isTopRow, progress, onPlay, onO
             </div>
 
             {/* Genres */}
-            <div style={{ display: 'flex', gap: 6, fontSize: 12, color: '#e5e5e5', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 6, fontSize: 12, color: 'var(--ink-2)', flexWrap: 'wrap' }}>
               {title.genres.map((g, i) => (
                 <React.Fragment key={g}>
-                  {i > 0 && <span style={{ color: '#737373' }}>•</span>}
+                  {i > 0 && <span style={{ color: 'var(--ink-5)' }}>•</span>}
                   <span>{g}</span>
                 </React.Fragment>
               ))}
@@ -208,17 +208,17 @@ export function ChannelCard({ channel, onPlay, onOpen }: { channel: Channel; onP
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
         )}
         {/* Logo chip */}
-        <div style={{ position: 'absolute', top: 12, left: 12, width: 40, height: 40, borderRadius: 6, background: 'rgba(0,0,0,0.42)', border: '1px solid rgba(255,255,255,0.25)', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 15, color: '#fff', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: 12, left: 12, width: 40, height: 40, borderRadius: 6, background: 'rgba(0,0,0,0.42)', border: '1px solid rgba(255,255,255,0.25)', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 15, color: 'var(--ink-1)', overflow: 'hidden' }}>
           {channel.logoUrl ? <img src={channel.logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget.parentElement as HTMLElement).textContent = channel.logo; }} /> : channel.logo}
         </div>
         {/* LIVE badge */}
-        <span style={{ position: 'absolute', top: 12, right: 12, display: 'flex', alignItems: 'center', gap: 5, background: accentColor, color: '#fff', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 3 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff', animation: 'pulse 1.4s ease-in-out infinite' }} />LIVE
+        <span style={{ position: 'absolute', top: 12, right: 12, display: 'flex', alignItems: 'center', gap: 5, background: accentColor, color: 'var(--ink-1)', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 3 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ink-1)', animation: 'pulse 1.4s ease-in-out infinite' }} />LIVE
         </span>
         {/* Now playing strip */}
         <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '22px 12px 9px', background: 'linear-gradient(0deg, rgba(0,0,0,0.85), transparent)' }}>
           <div style={{ fontSize: 11, color: '#cfcfcf', fontWeight: 600, letterSpacing: '0.03em', marginBottom: 2 }}>{channel.name} · CH {channel.num}</div>
-          <div style={{ fontSize: 14, color: '#fff', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{channel.now}</div>
+          <div style={{ fontSize: 14, color: 'var(--ink-1)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{channel.now}</div>
         </div>
         {/* Progress */}
         <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, background: 'rgba(255,255,255,0.25)' }}>
@@ -231,16 +231,16 @@ export function ChannelCard({ channel, onPlay, onOpen }: { channel: Channel; onP
         <div onClick={(e) => { e.stopPropagation(); onOpen(channel); }}
           style={{
             position: 'fixed', left: pos.left, top: pos.top, width: POP_W,
-            background: '#1F1F1F', borderRadius: cardRadius || 6, overflow: 'hidden',
+            background: 'var(--surface-2)', borderRadius: cardRadius || 6, overflow: 'hidden',
             boxShadow: '0 12px 30px rgba(0,0,0,0.75)', zIndex: 2000, cursor: 'pointer',
             animation: 'nfxPop2 180ms cubic-bezier(0.2,0.7,0.2,1)',
           }}
         >
           {/* Hero */}
           <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: `linear-gradient(135deg, ${channel.grad[0]} 0%, ${channel.grad[1]} 100%)` }}>
-            <div style={{ position: 'absolute', top: 12, left: 12, width: 42, height: 42, borderRadius: 6, background: 'rgba(0,0,0,0.42)', border: '1px solid rgba(255,255,255,0.25)', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 16, color: '#fff' }}>{channel.logo}</div>
-            <span style={{ position: 'absolute', top: 14, right: 14, display: 'flex', alignItems: 'center', gap: 5, background: accentColor, color: '#fff', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 3 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />LIVE
+            <div style={{ position: 'absolute', top: 12, left: 12, width: 42, height: 42, borderRadius: 6, background: 'rgba(0,0,0,0.42)', border: '1px solid rgba(255,255,255,0.25)', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 16, color: 'var(--ink-1)' }}>{channel.logo}</div>
+            <span style={{ position: 'absolute', top: 14, right: 14, display: 'flex', alignItems: 'center', gap: 5, background: accentColor, color: 'var(--ink-1)', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 3 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ink-1)' }} />LIVE
             </span>
             <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, background: 'rgba(255,255,255,0.25)' }}>
               <div style={{ width: `${channel.prog}%`, height: '100%', background: accentColor }} />
@@ -255,13 +255,13 @@ export function ChannelCard({ channel, onPlay, onOpen }: { channel: Channel; onP
               <IconBtn onClick={(e: React.MouseEvent) => e.stopPropagation()}><Icons.ThumbUp size={14} /></IconBtn>
               <IconBtn style={{ marginLeft: 'auto' }} onClick={(e: React.MouseEvent) => { e.stopPropagation(); onOpen(channel); }}><Icons.CaretDown size={14} /></IconBtn>
             </div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{channel.now}</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink-1)', marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{channel.now}</div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12.5, marginBottom: 8, flexWrap: 'wrap' }}>
               <span style={{ color: accentColor, fontWeight: 800 }}>● LIVE</span>
-              <span style={{ color: '#b3b3b3' }}>{channel.viewers} watching</span>
-              <span style={{ padding: '1px 6px', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 2, fontSize: 11, color: '#e5e5e5' }}>{channel.rating}</span>
+              <span style={{ color: 'var(--ink-4)' }}>{channel.viewers} watching</span>
+              <span style={{ padding: '1px 6px', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 2, fontSize: 11, color: 'var(--ink-2)' }}>{channel.rating}</span>
             </div>
-            <div style={{ fontSize: 12.5, color: '#8a8a8a' }}><span style={{ color: '#b3b3b3' }}>Up next:</span> {channel.next}</div>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-5)' }}><span style={{ color: 'var(--ink-4)' }}>Up next:</span> {channel.next}</div>
           </div>
         </div>
       )}
@@ -275,8 +275,8 @@ function IconBtn({ children, variant, style, onClick }: { children: React.ReactN
     <button onClick={onClick} style={{
       width: 34, height: 34, borderRadius: '50%',
       border: white ? '0' : '1.5px solid rgba(255,255,255,0.5)',
-      background: white ? '#fff' : 'rgba(42,42,42,0.6)',
-      color: white ? '#000' : '#fff',
+      background: white ? 'var(--ink-1)' : 'rgba(42,42,42,0.6)',
+      color: white ? '#000' : 'var(--ink-1)',
       cursor: 'pointer', display: 'grid', placeItems: 'center', transition: 'all 150ms',
       ...style,
     }}>{children}</button>

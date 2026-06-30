@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from './store/useStore';
 import Auth from './components/Auth';
+import Welcome from './components/Welcome';
 import Header from './components/Header';
 import Billboard from './components/Billboard';
 import Rail from './components/Rail';
@@ -94,6 +95,10 @@ export default function App() {
   const [nextItem, setNextItem] = useState<Title | null>(null);
   const [detail, setDetail] = useState<Channel | Title | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [seenWelcome, setSeenWelcome] = useState(() => {
+    try { return localStorage.getItem('shift_seen_welcome') === '1'; } catch { return false; }
+  });
+  const dismissWelcome = () => { try { localStorage.setItem('shift_seen_welcome', '1'); } catch {} setSeenWelcome(true); };
 
   const titlesById = useMemo(() => Object.fromEntries(titles.map((t) => [t.id, t])), [titles]);
   const channelsById = useMemo(() => Object.fromEntries(channels.map((c) => [c.id, c])), [channels]);
@@ -235,6 +240,7 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+  if (!provider && !seenWelcome) return <Welcome onStart={dismissWelcome} />;
   if (!provider) return <Auth />;
   if (showSettings) return <Settings onBack={() => setShowSettings(false)} />;
 
@@ -262,7 +268,7 @@ export default function App() {
           </div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
             <button onClick={() => provider && reconnectProvider(provider)}
-              style={{ background: settings.accentColor, color: '#fff', border: 0, borderRadius: 6, padding: '12px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ background: settings.accentColor, color: 'var(--ink-1)', border: 0, borderRadius: 6, padding: '12px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
               ↻ Try again
             </button>
             <button onClick={() => setShowSettings(true)}
@@ -280,7 +286,7 @@ export default function App() {
   return (
     <>
       {/* Keep accent synced to CSS var — global.css handles everything else */}
-      <style>{`:root { --accent: ${accent}; --shift-accent: ${accent}; --shift-accent-hover: color-mix(in srgb, ${accent} 85%, #fff); }`}</style>
+      <style>{`:root { --accent: ${accent}; --shift-accent: ${accent}; --shift-accent-hover: color-mix(in srgb, ${accent} 85%, var(--ink-1)); }`}</style>
 
       {/* Player overlay */}
       {playing && (
@@ -343,7 +349,7 @@ export default function App() {
                   )}
                 </div>
                 {searchResults.length > 60 && (
-                  <p style={{ color: '#666', fontSize: 13, marginTop: 16 }}>Showing 60 of {searchResults.length} — refine your search to narrow it down.</p>
+                  <p style={{ color: 'var(--ink-5)', fontSize: 13, marginTop: 16 }}>Showing 60 of {searchResults.length} — refine your search to narrow it down.</p>
                 )}
               </>
             )}
@@ -355,11 +361,11 @@ export default function App() {
           <div style={{ padding: '24px 48px', minHeight: '100vh' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 28 }}>
               <h1 style={{ fontSize: 32, fontWeight: 800, margin: 0 }}>{activeCategory}</h1>
-              <span style={{ fontSize: 14, color: '#8a8a8a' }}>{categoryItems.titles.length + categoryItems.channels.length} results</span>
+              <span style={{ fontSize: 14, color: 'var(--ink-5)' }}>{categoryItems.titles.length + categoryItems.channels.length} results</span>
             </div>
             {categoryItems.channels.length > 0 && (
               <div style={{ marginBottom: 32 }}>
-                <h3 style={{ fontSize: 12, fontWeight: 700, color: '#8a8a8a', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>Live Channels</h3>
+                <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-5)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>Live Channels</h3>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                   {categoryItems.channels.slice(0, 60).map((c) => <ChannelCard key={c.id} channel={c} onPlay={setPlaying} onOpen={setDetail} />)}
                 </div>
@@ -383,7 +389,7 @@ export default function App() {
           <div style={{ padding: '24px 48px', minHeight: '100vh' }}>
             <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 24 }}>My List</h1>
             {myListTitles.length === 0
-              ? <p style={{ color: '#8a8a8a', fontSize: 16 }}>Add titles to your list using the + button on any card.</p>
+              ? <p style={{ color: 'var(--ink-5)', fontSize: 16 }}>Add titles to your list using the + button on any card.</p>
               : <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                   {myListTitles.map((t, i) => <Poster key={t.id} title={t} idx={i} onPlay={setPlaying} onOpen={setDetail} />)}
                 </div>
@@ -491,10 +497,10 @@ function TitleTab({ kind, list, allList, channels, titles, titlesById, channelsB
 
   const Toggle = (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 48px 12px', flexWrap: 'wrap', gap: 12 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>{label} <span style={{ fontSize: 16, color: '#666', fontWeight: 600 }}>({allList.length.toLocaleString()})</span></h1>
-      <div style={{ display: 'flex', gap: 4, background: '#1a1a1a', padding: 4, borderRadius: 8 }}>
+      <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>{label} <span style={{ fontSize: 16, color: 'var(--ink-5)', fontWeight: 600 }}>({allList.length.toLocaleString()})</span></h1>
+      <div style={{ display: 'flex', gap: 4, background: 'var(--surface-soft)', padding: 4, borderRadius: 8 }}>
         {(['rails', 'all'] as const).map((v) => (
-          <button key={v} onClick={() => setView(v)} style={{ padding: '7px 16px', border: 0, borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600, background: view === v ? accent : 'transparent', color: view === v ? '#fff' : '#b3b3b3' }}>
+          <button key={v} onClick={() => setView(v)} style={{ padding: '7px 16px', border: 0, borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600, background: view === v ? accent : 'transparent', color: view === v ? 'var(--ink-1)' : 'var(--ink-4)' }}>
             {v === 'rails' ? 'Browse' : `All ${label}`}
           </button>
         ))}
@@ -510,7 +516,7 @@ function TitleTab({ kind, list, allList, channels, titles, titlesById, channelsB
       )}
       <div style={{ paddingTop: hero ? 130 : 24 }}>
         {Toggle}
-        {allList.length === 0 && <p style={{ color: '#8a8a8a', fontSize: 16, padding: '0 48px' }}>No {label.toLowerCase()} in this provider's catalogue.</p>}
+        {allList.length === 0 && <p style={{ color: 'var(--ink-5)', fontSize: 16, padding: '0 48px' }}>No {label.toLowerCase()} in this provider's catalogue.</p>}
 
         {view === 'rails' && genreRails.map((rail, i) => (
           <LazyRail key={rail.id} index={i}><Rail rail={rail} titlesById={titlesById} channelsById={channelsById} onPlay={onPlay} onOpen={onOpen} /></LazyRail>
@@ -523,7 +529,7 @@ function TitleTab({ kind, list, allList, channels, titles, titlesById, channelsB
             </div>
             {shown < allList.length && (
               <div style={{ textAlign: 'center', padding: '28px 0 8px' }}>
-                <button onClick={() => setShown((s) => s + 60)} style={{ background: '#1f1f1f', border: '1px solid #383838', color: '#fff', borderRadius: 6, padding: '11px 26px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <button onClick={() => setShown((s) => s + 60)} style={{ background: 'var(--surface-2)', border: '1px solid var(--input-border)', color: 'var(--ink-1)', borderRadius: 6, padding: '11px 26px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                   Load more ({(allList.length - shown).toLocaleString()} left)
                 </button>
               </div>

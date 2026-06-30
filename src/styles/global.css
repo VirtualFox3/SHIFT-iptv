@@ -4,14 +4,15 @@
 
 html, body {
   margin: 0;
-  background: #141414;
-  color: #fff;
+  background: var(--app-bg);
+  color: var(--ink-1);
   font-family: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
   overflow-x: hidden;
   /* iOS: stop the rubber-band white flash and pull-to-refresh inside the app */
   overscroll-behavior-y: none;
   -webkit-text-size-adjust: 100%;     /* iOS Safari: don't auto-enlarge text */
 }
+html { transition: background-color 280ms var(--ease-out); }
 
 /* iOS: remove the grey tap flash, allow text selection only where wanted */
 * { -webkit-tap-highlight-color: transparent; }
@@ -30,8 +31,6 @@ video::-webkit-media-controls { display: none !important; }
   --bb-scrim-grad: linear-gradient(90deg, rgba(0,0,0,0.86) 0%, rgba(0,0,0,0.40) 45%, rgba(0,0,0,0) 72%);
   --card-radius: 8px;
   --logo-r: 24;
-  --fg-3: #b3b3b3;
-  --fg-4: #808080;
   --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   /* Theme tokens */
@@ -43,6 +42,30 @@ video::-webkit-media-controls { display: none !important; }
   --border: #242424;
   --fg-1: #ffffff;
   --fg-2: #e5e5e5;
+  --fg-3: #b3b3b3;
+  --fg-4: #808080;
+  --fg-5: #4d4d4d;
+  /* Aliases: handoff token names mapped onto the theme tokens above. Because they
+     reference the theme vars (which flip under [data-theme="light"]), they flip too. */
+  --app-bg: var(--bg-page);
+  --surface-1: var(--bg-card);
+  --surface-2: var(--bg-card2);
+  --surface-3: var(--bg-input);
+  --surface-soft: var(--bg-card);
+  --surface-active: var(--bg-input);
+  --ink-1: var(--fg-1);
+  --ink-2: var(--fg-2);
+  --ink-3: var(--fg-2);
+  --ink-4: var(--fg-3);
+  --ink-5: var(--fg-4);
+  --hair-1: var(--border);
+  --hair-2: var(--border);
+  --hair-3: var(--border);
+  --hair-strong: var(--border);
+  --input-bg: var(--bg-input);
+  --input-border: var(--border);
+  --pop-shadow: 0 12px 30px rgba(0,0,0,0.5);
+  --modal-shadow: 0 25px 60px rgba(0,0,0,0.7);
 }
 
 [data-theme="light"] {

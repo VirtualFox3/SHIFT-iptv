@@ -35,7 +35,7 @@ export default function Rail({ rail, titlesById, channelsById, onPlay, onOpen }:
         arrows.forEach((a) => ((a as HTMLElement).style.opacity = '0'));
       }}
     >
-      <h2 style={{ fontSize: 20, fontWeight: 700, color: '#e5e5e5', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--ink-2)', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
         {isChannel && (
           <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: '#E50914' }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#E50914', boxShadow: '0 0 5px #E50914' }} />
@@ -43,7 +43,7 @@ export default function Rail({ rail, titlesById, channelsById, onPlay, onOpen }:
           </span>
         )}
         {rail.title}
-        <span style={{ fontSize: 13, color: '#666', fontWeight: 500 }}>({items.length})</span>
+        <span style={{ fontSize: 13, color: 'var(--ink-5)', fontWeight: 500 }}>({items.length})</span>
       </h2>
       <div style={{ position: 'relative' }}>
         <button className="rail-arrow" onClick={() => scrollBy(-1)} style={arrow('left')}>
@@ -72,7 +72,7 @@ export default function Rail({ rail, titlesById, channelsById, onPlay, onOpen }:
 function arrow(side: 'left' | 'right'): React.CSSProperties {
   return {
     position: 'absolute', [side]: 0, top: 0, bottom: 0, width: 48,
-    background: 'rgba(20,20,20,0.65)', border: 0, color: '#fff', cursor: 'pointer',
+    background: 'rgba(20,20,20,0.65)', border: 0, color: 'var(--ink-1)', cursor: 'pointer',
     display: 'grid', placeItems: 'center', zIndex: 6,
     opacity: 0, transition: 'opacity 150ms',
   };

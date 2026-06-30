@@ -99,18 +99,18 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor, 
   }
 
   return (
-    <div style={{ minHeight: '100vh', paddingTop: 24, background: '#141414' }}>
+    <div style={{ minHeight: '100vh', paddingTop: 24, background: 'var(--app-bg)' }}>
       <div style={{ padding: '0 48px', marginBottom: 20, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>TV Guide</h1>
-          <p style={{ color: '#8a8a8a', fontSize: 14, marginTop: 6 }}>
+          <p style={{ color: 'var(--ink-5)', fontSize: 14, marginTop: 6 }}>
             {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · {filtered.length.toLocaleString()} channels
             {epgLoading && <span style={{ marginLeft: 10, color: accentColor, fontSize: 12 }}>● Loading guide…</span>}
           </p>
         </div>
         <input value={filter} onChange={(e) => { setFilter(e.target.value); setShown(PAGE); }}
           placeholder="Filter channels…"
-          style={{ background: '#1f1f1f', border: '1px solid #333', borderRadius: 6, padding: '10px 14px', color: '#fff', fontSize: 14, fontFamily: 'inherit', outline: 'none', width: 260 }} />
+          style={{ background: 'var(--surface-2)', border: '1px solid #333', borderRadius: 6, padding: '10px 14px', color: 'var(--ink-1)', fontSize: 14, fontFamily: 'inherit', outline: 'none', width: 260 }} />
       </div>
 
       <div style={{ overflowX: 'auto', paddingBottom: 24 }}>
@@ -215,7 +215,7 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor, 
       {shown < filtered.length && (
         <div style={{ padding: '20px 48px 40px', textAlign: 'center' }}>
           <button onClick={() => setShown((s) => s + PAGE)}
-            style={{ background: '#1f1f1f', border: '1px solid #383838', color: '#fff', borderRadius: 6, padding: '11px 26px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ background: 'var(--surface-2)', border: '1px solid var(--input-border)', color: 'var(--ink-1)', borderRadius: 6, padding: '11px 26px', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
             Load more channels ({filtered.length - shown} left)
           </button>
         </div>
