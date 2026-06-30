@@ -47,6 +47,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
   const setProgress = useStore((s) => s.setProgress);
+  const flushProgressNow = useStore((s) => s.flushProgressNow);
   const continueWatching = useStore((s) => s.continueWatching);
   const provider = useStore((s) => s.provider);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -320,6 +321,16 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  // Force the last known position to sync immediately on pause/close/switch —
+  // the periodic save below is throttled, so without this a cloud sync could
+  // miss the final few seconds before the player goes away.
+  useEffect(() => {
+    if (live) return;
+    if (!playing) flushProgressNow(item.id);
+    return () => flushProgressNow(item.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, item.id]);
 
   // Save VOD progress + trakt scrobble
   useEffect(() => {

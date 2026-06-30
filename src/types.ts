@@ -123,6 +123,7 @@ export interface Settings {
   traktRefreshToken?: string;
   traktUsername?: string;
   omdbApiKey?: string;
+  tmdbApiKey?: string;
   // Appearance
   theme: 'dark' | 'light';
   // Profile

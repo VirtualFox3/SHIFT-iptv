@@ -14,6 +14,9 @@ import { DEMO_RAILS } from './data';
 import { setOsApiKey } from './api/opensubtitles';
 import type { Channel, Title, Rail as RailType } from './types';
 
+// Flagship titles pinned to the front of the home billboard rotation, in this order.
+const FEATURED_ORDER = ['dexter', 'supernatural', 'breaking bad', 'the boys', 'game of thrones', 'stranger things', 'the last of us', 'five nights at freddy', 'fnaf'];
+
 // Split titles into movies vs series by their `seasons` label.
 function isMovie(t: Title): boolean {
   const s = (t.seasons || '').toLowerCase();
@@ -127,13 +130,20 @@ export default function App() {
   }, [titles]);
 
   // Home billboard — rotates through top ENGLISH movies AND series with artwork.
-  // Popular flagship titles (Dexter, Supernatural, etc.) are pinned to the front.
+  // Popular flagship titles (Dexter, Supernatural, etc.) are pinned to the front,
+  // in this exact order, regardless of sort-stability or catalogue quirks.
   const heroPool = useMemo<Title[]>(() => {
-    const FEATURED = /\b(dexter|supernatural|breaking bad|the boys|game of thrones|stranger things|the last of us|five nights at freddy|fnaf)\b/i;
+    const featuredRank = (t: Title) => FEATURED_ORDER.findIndex((name) => t.title.toLowerCase().includes(name));
     const withArt = enTitles.filter((t) => t.logoUrl);
     const pool = withArt.length >= 5 ? withArt : enTitles;
-    const score = (t: Title) => (FEATURED.test(t.title) ? 100 : 0) + (t.logoUrl ? 10 : 0) + (t.match || 0) / 100;
-    return [...pool].sort((a, b) => score(b) - score(a)).slice(0, 12);
+    const score = (t: Title) => {
+      const rank = featuredRank(t);
+      return (rank >= 0 ? 1000 - rank : 0) + (t.logoUrl ? 10 : 0) + (t.match || 0) / 100;
+    };
+    // Also pull in featured titles even if they lack artwork — TMDB backdrop fallback
+    // in the Billboard will fill in the horizontal art.
+    const featuredButMissing = enTitles.filter((t) => featuredRank(t) >= 0 && !pool.includes(t));
+    return [...pool, ...featuredButMissing].sort((a, b) => score(b) - score(a)).slice(0, 12);
   }, [enTitles]);
 
   const [heroIdx, setHeroIdx] = useState(0);
@@ -400,7 +410,7 @@ export default function App() {
                 channel={!homeHero ? channels[0] : null as any}
                 bbStyle={settings.bbStyle} channels={channels} titles={titles}
                 vodHero={homeHero || undefined} heroKind={homeHero && isMovie(homeHero) ? 'Film' : 'Series'}
-                onPlay={setPlaying} onOpen={setDetail} accentColor={accent} />
+                onPlay={setPlaying} onOpen={setDetail} accentColor={accent} tmdbApiKey={settings.tmdbApiKey} />
             )}
             <div style={{ paddingTop: (homeHero || channels.length > 0) ? 130 : 24 }}>
               {continueWatchingRail && (
@@ -496,7 +506,7 @@ function TitleTab({ kind, list, allList, channels, titles, titlesById, channelsB
     <>
       {hero && (
         <Billboard channel={null as any} bbStyle={settings.bbStyle} channels={channels} titles={titles}
-          vodHero={hero} heroKind={kind === 'movies' ? 'Film' : 'Series'} onPlay={onPlay} onOpen={onOpen} accentColor={accent} />
+          vodHero={hero} heroKind={kind === 'movies' ? 'Film' : 'Series'} onPlay={onPlay} onOpen={onOpen} accentColor={accent} tmdbApiKey={settings.tmdbApiKey} />
       )}
       <div style={{ paddingTop: hero ? 130 : 24 }}>
         {Toggle}

@@ -3,6 +3,7 @@ import type { Channel, Title } from '../types';
 import { SCHEDULE } from '../data';
 import { RatingsRow } from './Badges';
 import * as Icons from './Icons';
+import { fetchTmdbBackdrop } from '../api/tmdb';
 
 interface BillboardProps {
   channel: Channel;
@@ -14,10 +15,11 @@ interface BillboardProps {
   accentColor: string;
   vodHero?: Title;            // when set, render a VOD hero (Movies/Series tabs)
   heroKind?: 'Film' | 'Series';
+  tmdbApiKey?: string;
 }
 
-export default function Billboard({ channel, bbStyle, channels, titles, onPlay, onOpen, accentColor, vodHero, heroKind }: BillboardProps) {
-  if (vodHero) return <VodBillboard title={vodHero} kind={heroKind || 'Film'} bbStyle={bbStyle} posterPool={titles} onPlay={onPlay} onOpen={onOpen} accentColor={accentColor} />;
+export default function Billboard({ channel, bbStyle, channels, titles, onPlay, onOpen, accentColor, vodHero, heroKind, tmdbApiKey }: BillboardProps) {
+  if (vodHero) return <VodBillboard title={vodHero} kind={heroKind || 'Film'} bbStyle={bbStyle} posterPool={titles} onPlay={onPlay} onOpen={onOpen} accentColor={accentColor} tmdbApiKey={tmdbApiKey} />;
   if (!channel) return null;
   if (bbStyle === 'Mosaic') return <MosaicBillboard featured={channel} channels={channels} onPlay={onPlay} accentColor={accentColor} />;
   if (bbStyle === 'Centered') return <CenteredBillboard channel={channel} onPlay={onPlay} onOpen={onOpen} accentColor={accentColor} />;
@@ -26,9 +28,24 @@ export default function Billboard({ channel, bbStyle, channels, titles, onPlay, 
 }
 
 /* ── VOD billboard (Home / Movies / Series) — respects bbStyle ─────────────── */
-function VodBillboard({ title, kind, bbStyle, posterPool, onPlay, onOpen, accentColor }: { title: Title; kind: 'Film' | 'Series'; bbStyle: string; posterPool: Title[]; onPlay: any; onOpen: any; accentColor: string }) {
+function VodBillboard({ title, kind, bbStyle, posterPool, onPlay, onOpen, accentColor, tmdbApiKey }: { title: Title; kind: 'Film' | 'Series'; bbStyle: string; posterPool: Title[]; onPlay: any; onOpen: any; accentColor: string; tmdbApiKey?: string }) {
   const centered = bbStyle === 'Centered';
   const cinemaWall = bbStyle === 'Cinema Wall';
+
+  // Real horizontal (16:9) art is rare from IPTV provider list endpoints — most
+  // only supply a vertical poster. Prefer the provider's own backdrop, then fall
+  // back to TMDB's wide backdrop (like UHF), and only stretch the poster last.
+  const [tmdbBackdrop, setTmdbBackdrop] = useState<string | null>(null);
+  useEffect(() => {
+    setTmdbBackdrop(null);
+    if (title.backdropUrl || !tmdbApiKey) return;
+    let cancelled = false;
+    fetchTmdbBackdrop(title.title, title.year, kind === 'Film' ? 'movie' : 'tv', tmdbApiKey)
+      .then((url) => { if (!cancelled) setTmdbBackdrop(url); });
+    return () => { cancelled = true; };
+  }, [title.id, title.backdropUrl, tmdbApiKey, kind]);
+
+  const heroArt = title.backdropUrl || tmdbBackdrop || title.logoUrl;
 
   // Cinema Wall — a backdrop wall of movie posters behind the scrim.
   const wallPosters = React.useMemo(() => {
@@ -73,8 +90,8 @@ function VodBillboard({ title, kind, bbStyle, posterPool, onPlay, onOpen, accent
         </div>
       )}
       {/* Hero backdrop (non-cinema-wall) */}
-      {!cinemaWall && title.logoUrl && <HeroImg src={title.logoUrl} />}
-      <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${title.grad[0]} 0%, ${title.grad[1]} 100%)`, opacity: cinemaWall ? 0 : (title.logoUrl ? 0.35 : 1) }} />
+      {!cinemaWall && heroArt && <HeroImg src={heroArt} />}
+      <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${title.grad[0]} 0%, ${title.grad[1]} 100%)`, opacity: cinemaWall ? 0 : (heroArt ? 0.35 : 1) }} />
       <div style={{ position: 'absolute', inset: 0, background: cinemaWall ? 'rgba(10,10,10,0.55)' : 'linear-gradient(180deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 45%, rgba(0,0,0,0) 60%, rgba(20,20,20,0.95) 100%)' }} />
       {cinemaWall && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(20,20,20,0.4) 0%, rgba(20,20,20,0) 40%, rgba(20,20,20,0.95) 100%)' }} />}
       {!centered && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '60%', background: 'linear-gradient(90deg, rgba(0,0,0,0.78) 0%, transparent 100%)' }} />}
