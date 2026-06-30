@@ -3,6 +3,13 @@ import type { Title, Channel } from '../types';
 import { useStore } from '../store/useStore';
 import { RatingsRow } from './Badges';
 import * as Icons from './Icons';
+import { useTmdbBackdrop } from '../api/tmdb';
+
+// Distinguish movies vs series for the right TMDB search endpoint.
+function isMovieLike(t: Title): boolean {
+  const s = (t.seasons || '').toLowerCase();
+  return s === 'movie' || s === 'film' || s.includes('part') || s.includes('limited');
+}
 
 const POP_W = 348;
 const HEADER_SAFE = 78;
@@ -28,6 +35,12 @@ export default function Poster({ title, idx = 0, isTopRow, progress, onPlay, onO
   const inList = myList.includes(title.id);
   const accentColor = useStore((s) => s.settings.accentColor);
   const cardRadius = useStore((s) => s.settings.cardRadius);
+  const tmdbApiKey = useStore((s) => s.settings.tmdbApiKey);
+
+  // Most provider catalogues only supply a vertical poster — fetch TMDB's
+  // proper horizontal (16:9) backdrop so cards don't show a stretched poster.
+  const tmdbBackdrop = useTmdbBackdrop(title.title, title.year, isMovieLike(title) ? 'movie' : 'tv', tmdbApiKey, !!title.backdropUrl);
+  const art = title.backdropUrl || tmdbBackdrop || title.logoUrl;
 
   function openPreview() {
     if (!ref.current) return;
@@ -68,20 +81,24 @@ export default function Poster({ title, idx = 0, isTopRow, progress, onPlay, onO
         background: `linear-gradient(135deg, ${title.grad[0]} 0%, ${title.grad[1]} 100%)`,
         cursor: 'pointer',
       }} onClick={() => onOpen(title)}>
-        {title.logoUrl && (
-          <img src={title.logoUrl} alt="" loading="lazy"
+        {art && (
+          <img src={art} alt="" loading="lazy"
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+            onError={(e) => {
+              const img = e.currentTarget as HTMLImageElement;
+              if (art !== title.logoUrl && title.logoUrl) img.src = title.logoUrl;
+              else img.style.display = 'none';
+            }} />
         )}
         {isTopRow && (
-          <div style={{ position: 'absolute', left: -14, bottom: -38, fontWeight: 900, fontSize: 200, lineHeight: 1, color: 'transparent', WebkitTextStroke: '8px var(--ink-1)', letterSpacing: '-0.08em', userSelect: 'none' }}>
+          <div style={{ position: 'absolute', left: -14, bottom: -38, fontWeight: 900, fontSize: 200, lineHeight: 1, color: 'transparent', WebkitTextStroke: '8px #fff', letterSpacing: '-0.08em', userSelect: 'none' }}>
             {idx + 1}
           </div>
         )}
         {title.isShift && (
           <span style={{ position: 'absolute', top: 10, left: 12, color: accentColor, fontWeight: 900, fontSize: 13, letterSpacing: '0.12em' }}>SHIFT</span>
         )}
-        <div style={{ position: 'absolute', right: 14, bottom: 14, left: 14, color: 'var(--ink-1)', fontWeight: 800, fontSize: 16, textAlign: 'right', textShadow: '0 2px 6px rgba(0,0,0,0.7)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ position: 'absolute', right: 14, bottom: 14, left: 14, color: '#fff', fontWeight: 800, fontSize: 16, textAlign: 'right', textShadow: '0 2px 6px rgba(0,0,0,0.7)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {title.title}
         </div>
         {progress != null && progress > 0 && (
@@ -104,13 +121,13 @@ export default function Poster({ title, idx = 0, isTopRow, progress, onPlay, onO
         >
           {/* Hero thumbnail — trailer animation kicks in after 1s on hover */}
           <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: `linear-gradient(135deg, ${title.grad[0]} 0%, ${title.grad[1]} 100%)`, overflow: 'hidden' }}>
-            {(title.backdropUrl || title.logoUrl) && (
-              <img src={title.backdropUrl || title.logoUrl} alt=""
+            {art && (
+              <img src={art} alt=""
                 className={previewActive ? 'poster-trailer-img' : undefined}
                 style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 600ms ease' }}
                 onError={(e) => {
                   const img = e.currentTarget as HTMLImageElement;
-                  if (title.backdropUrl && img.src !== title.logoUrl && title.logoUrl) {
+                  if (art !== title.logoUrl && title.logoUrl) {
                     img.src = title.logoUrl;
                   } else {
                     img.style.display = 'none';
@@ -120,7 +137,7 @@ export default function Poster({ title, idx = 0, isTopRow, progress, onPlay, onO
             {title.isShift && (
               <span style={{ position: 'absolute', top: 10, left: 12, color: accentColor, fontWeight: 900, fontSize: 13, letterSpacing: '0.12em' }}>SHIFT</span>
             )}
-            <div style={{ position: 'absolute', right: 14, bottom: 14, left: 14, color: 'var(--ink-1)', fontWeight: 800, fontSize: 18, textAlign: 'right', textShadow: '0 2px 6px rgba(0,0,0,0.7)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ position: 'absolute', right: 14, bottom: 14, left: 14, color: '#fff', fontWeight: 800, fontSize: 18, textAlign: 'right', textShadow: '0 2px 6px rgba(0,0,0,0.7)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {title.title}
             </div>
           </div>
@@ -208,17 +225,17 @@ export function ChannelCard({ channel, onPlay, onOpen }: { channel: Channel; onP
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
         )}
         {/* Logo chip */}
-        <div style={{ position: 'absolute', top: 12, left: 12, width: 40, height: 40, borderRadius: 6, background: 'rgba(0,0,0,0.42)', border: '1px solid rgba(255,255,255,0.25)', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 15, color: 'var(--ink-1)', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: 12, left: 12, width: 40, height: 40, borderRadius: 6, background: 'rgba(0,0,0,0.42)', border: '1px solid rgba(255,255,255,0.25)', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 15, color: '#fff', overflow: 'hidden' }}>
           {channel.logoUrl ? <img src={channel.logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget.parentElement as HTMLElement).textContent = channel.logo; }} /> : channel.logo}
         </div>
         {/* LIVE badge */}
-        <span style={{ position: 'absolute', top: 12, right: 12, display: 'flex', alignItems: 'center', gap: 5, background: accentColor, color: 'var(--ink-1)', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 3 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ink-1)', animation: 'pulse 1.4s ease-in-out infinite' }} />LIVE
+        <span style={{ position: 'absolute', top: 12, right: 12, display: 'flex', alignItems: 'center', gap: 5, background: accentColor, color: '#fff', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 3 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff', animation: 'pulse 1.4s ease-in-out infinite' }} />LIVE
         </span>
         {/* Now playing strip */}
         <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '22px 12px 9px', background: 'linear-gradient(0deg, rgba(0,0,0,0.85), transparent)' }}>
           <div style={{ fontSize: 11, color: '#cfcfcf', fontWeight: 600, letterSpacing: '0.03em', marginBottom: 2 }}>{channel.name} · CH {channel.num}</div>
-          <div style={{ fontSize: 14, color: 'var(--ink-1)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{channel.now}</div>
+          <div style={{ fontSize: 14, color: '#fff', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{channel.now}</div>
         </div>
         {/* Progress */}
         <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, background: 'rgba(255,255,255,0.25)' }}>
@@ -238,9 +255,9 @@ export function ChannelCard({ channel, onPlay, onOpen }: { channel: Channel; onP
         >
           {/* Hero */}
           <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: `linear-gradient(135deg, ${channel.grad[0]} 0%, ${channel.grad[1]} 100%)` }}>
-            <div style={{ position: 'absolute', top: 12, left: 12, width: 42, height: 42, borderRadius: 6, background: 'rgba(0,0,0,0.42)', border: '1px solid rgba(255,255,255,0.25)', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 16, color: 'var(--ink-1)' }}>{channel.logo}</div>
-            <span style={{ position: 'absolute', top: 14, right: 14, display: 'flex', alignItems: 'center', gap: 5, background: accentColor, color: 'var(--ink-1)', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 3 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ink-1)' }} />LIVE
+            <div style={{ position: 'absolute', top: 12, left: 12, width: 42, height: 42, borderRadius: 6, background: 'rgba(0,0,0,0.42)', border: '1px solid rgba(255,255,255,0.25)', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 16, color: '#fff' }}>{channel.logo}</div>
+            <span style={{ position: 'absolute', top: 14, right: 14, display: 'flex', alignItems: 'center', gap: 5, background: accentColor, color: '#fff', fontWeight: 800, fontSize: 11, letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 3 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />LIVE
             </span>
             <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, background: 'rgba(255,255,255,0.25)' }}>
               <div style={{ width: `${channel.prog}%`, height: '100%', background: accentColor }} />
@@ -275,8 +292,8 @@ function IconBtn({ children, variant, style, onClick }: { children: React.ReactN
     <button onClick={onClick} style={{
       width: 34, height: 34, borderRadius: '50%',
       border: white ? '0' : '1.5px solid rgba(255,255,255,0.5)',
-      background: white ? 'var(--ink-1)' : 'rgba(42,42,42,0.6)',
-      color: white ? '#000' : 'var(--ink-1)',
+      background: white ? '#fff' : 'rgba(42,42,42,0.6)',
+      color: white ? '#000' : '#fff',
       cursor: 'pointer', display: 'grid', placeItems: 'center', transition: 'all 150ms',
       ...style,
     }}>{children}</button>

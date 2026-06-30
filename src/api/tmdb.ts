@@ -3,6 +3,8 @@
 // Free API key: register at https://www.themoviedb.org/settings/api.
 // Add your key in Settings → Integrations → TMDB API Key.
 
+import { useEffect, useState } from 'react';
+
 const IMG_BASE = 'https://image.tmdb.org/t/p/w1280';
 
 const cache = new Map<string, string | null>();
@@ -32,4 +34,23 @@ export async function fetchTmdbBackdrop(
     cache.set(cacheKey, null);
     return null;
   }
+}
+
+/** React hook wrapper — fetches once per (title, year, kind, key) and skips entirely when `skip` is true. */
+export function useTmdbBackdrop(
+  title: string,
+  year: number | undefined,
+  kind: 'movie' | 'tv',
+  apiKey: string | undefined,
+  skip: boolean,
+): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    setUrl(null);
+    if (skip || !apiKey || !title) return;
+    let cancelled = false;
+    fetchTmdbBackdrop(title, year, kind, apiKey).then((u) => { if (!cancelled) setUrl(u); });
+    return () => { cancelled = true; };
+  }, [title, year, kind, apiKey, skip]);
+  return url;
 }
