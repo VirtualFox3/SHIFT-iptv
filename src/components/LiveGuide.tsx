@@ -1,7 +1,7 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import type { Channel, Provider } from '../types';
 import { SCHEDULE } from '../data';
-import { xtreamGetShortEPG, type EPGListing } from '../api/xtream';
+import { xtreamGetFullEpg, type EPGListing } from '../api/xtream';
 
 interface LiveGuideProps {
   channels: Channel[];
@@ -11,7 +11,7 @@ interface LiveGuideProps {
   provider: Provider | null;
 }
 
-interface ScheduleEntry { t: number; dur: number; title: string; desc: string; live?: boolean; }
+interface ScheduleEntry { t: number; dur: number; title: string; desc?: string; live?: boolean; }
 
 const PAGE = 60;
 const COL_W = 240;
@@ -36,9 +36,40 @@ export default function LiveGuide({ channels: allChannels, onPlay, onOpen, accen
   const [filter, setFilter] = useState('');
   const [cat, setCat] = useState('All');
   const [shown, setShown] = useState(PAGE);
-  const [epgMap, setEpgMap] = useState<Record<string, ScheduleEntry[]>>({});
+  const [fullEpg, setFullEpg] = useState<Map<string, EPGListing[]>>(new Map());
   const [epgLoading, setEpgLoading] = useState(false);
-  const fetchedIds = useRef(new Set<string>());
+
+  // Fetch the WHOLE multi-day guide in one request — far richer than the old
+  // per-channel approach, and lets us know which channels are live right now
+  // before deciding which page of the (possibly huge) channel list to show.
+  useEffect(() => {
+    if (!provider || provider.type !== 'xtream' || !provider.serverUrl || !provider.username) {
+      setFullEpg(new Map());
+      return;
+    }
+    const auth = { serverUrl: provider.serverUrl, username: provider.username, password: provider.password || '' };
+    setEpgLoading(true);
+    xtreamGetFullEpg(auth).then((map) => { setFullEpg(map); setEpgLoading(false); });
+  }, [provider?.id]);
+
+  const scheduleFor = (ch: Channel): ScheduleEntry[] => {
+    const listings = ch.epgId ? fullEpg.get(ch.epgId) : undefined;
+    if (listings?.length) {
+      const nowTs = Date.now() / 1000;
+      return listings.map((e) => ({
+        t: tsToHour(e.start),
+        dur: (e.end - e.start) / 3600,
+        title: e.title,
+        desc: e.description,
+        live: e.start <= nowTs && e.end > nowTs,
+      })).filter((e) => e.dur > 0);
+    }
+    return SCHEDULE[ch.id] || [];
+  };
+  const isLiveNow = (ch: Channel) => {
+    const sched = scheduleFor(ch);
+    return sched.some((p) => p.live || (nowH >= p.t && nowH < p.t + p.dur));
+  };
 
   const cats = useMemo(() => {
     const count = new Map<string, number>();
@@ -49,76 +80,29 @@ export default function LiveGuide({ channels: allChannels, onPlay, onOpen, accen
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    return allChannels.filter((c) =>
+    const list = allChannels.filter((c) =>
       (cat === 'All' || c.cat === cat) &&
       (!q || c.name.toLowerCase().includes(q) || c.cat.toLowerCase().includes(q))
     );
-  }, [allChannels, filter, cat]);
-  const page = filtered.slice(0, shown);
+    // Currently-airing channels float to the top across the WHOLE filtered
+    // list (not just the loaded page) now that we have the full guide upfront.
+    return [...list].sort((a, b) => Number(isLiveNow(b)) - Number(isLiveNow(a)));
+  }, [allChannels, filter, cat, fullEpg]);
+  const channels = filtered.slice(0, shown);
 
   useEffect(() => setShown(PAGE), [filter, cat]);
 
-  const isLiveNow = (ch: Channel) => {
-    const sched = epgMap[ch.id] || SCHEDULE[ch.id] || [];
-    return sched.some((p) => p.live || (nowH >= p.t && nowH < p.t + p.dur));
-  };
-  // Channels with a currently-airing programme float to the top of the
-  // loaded page — only re-orders within what's already fetched, since
-  // pulling EPG for the whole catalogue up front isn't realistic.
-  const channels = useMemo(
-    () => [...page].sort((a, b) => Number(isLiveNow(b)) - Number(isLiveNow(a))),
-    [page, epgMap]
-  );
-
-  // Fetch EPG for visible Xtream channels
-  useEffect(() => {
-    if (!provider || provider.type !== 'xtream') return;
-    const auth = { serverUrl: provider.serverUrl!, username: provider.username!, password: provider.password! };
-
-    const toFetch = page.filter((ch) => ch.id.startsWith('xt_live_') && !fetchedIds.current.has(ch.id));
-    if (toFetch.length === 0) return;
-
-    toFetch.forEach((ch) => fetchedIds.current.add(ch.id));
-    setEpgLoading(true);
-
-    // Batch in groups of 10 to avoid flooding the provider; merge each
-    // batch's results into state in one update so rows don't reflow per-channel.
-    const BATCH = 10;
-    const batches: Channel[][] = [];
-    for (let i = 0; i < toFetch.length; i += BATCH) batches.push(toFetch.slice(i, i + BATCH));
-
-    (async () => {
-      for (const batch of batches) {
-        const results = await Promise.all(batch.map(async (ch) => {
-          const streamId = ch.id.replace('xt_live_', '');
-          const listings = await xtreamGetShortEPG(auth, streamId);
-          if (!listings.length) return null;
-          const entries: ScheduleEntry[] = listings.map((e: EPGListing) => {
-            const t = tsToHour(e.start);
-            const dur = (e.end - e.start) / 3600;
-            const nowTs = Date.now() / 1000;
-            return { t, dur, title: e.title, desc: e.description, live: e.start <= nowTs && e.end > nowTs };
-          }).filter((e: ScheduleEntry) => e.dur > 0);
-          return entries.length ? [ch.id, entries] as const : null;
-        }));
-        const fresh = results.filter(Boolean) as [string, ScheduleEntry[]][];
-        if (fresh.length) setEpgMap((prev) => ({ ...prev, ...Object.fromEntries(fresh) }));
-      }
-      setEpgLoading(false);
-    })();
-  }, [page.map((c) => c.id).join(','), provider?.id]);
-
   const timeHeaders = useMemo(() => {
-    const h = [];
-    for (let i = 0; i <= hours; i++) {
-      const hh = (start + i) % 24;
-      const pad = (n: number) => String(n).padStart(2, '0');
-      h.push({ label: `${pad(hh)}:00`, offset: i * COL_W });
-    }
-    return h;
-  }, [start]);
+    const slots = [];
+    for (let h = start; h < start + hours; h += 0.5) slots.push(h);
+    return slots;
+  }, [start, hours]);
 
   const nowOffset = Math.max(0, (nowH - start) * COL_W);
+  const fmt24h = (h: number) => {
+    const hh = Math.floor(h) % 24, mm = Math.round((h - Math.floor(h)) * 60);
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+  };
 
   if (allChannels.length === 0) {
     return (
@@ -165,9 +149,9 @@ export default function LiveGuide({ channels: allChannels, onPlay, onOpen, accen
           <div style={{ display: 'flex', position: 'sticky', top: 66, zIndex: 4 }}>
             <div style={{ width: LABEL_W, flexShrink: 0, background: 'var(--app-bg)' }} />
             <div style={{ position: 'relative', height: 38, flex: 1, background: 'var(--app-bg)', borderBottom: '1px solid var(--hair-2)' }}>
-              {timeHeaders.map((h) => (
-                <div key={h.label} style={{ position: 'absolute', left: h.offset, top: 0, height: '100%', display: 'flex', alignItems: 'center', color: 'var(--ink-5)', fontSize: 12, fontWeight: 700, borderLeft: '1px solid var(--hair-2)', paddingLeft: 10 }}>
-                  {h.label}
+              {timeHeaders.map((h, i) => (
+                <div key={h} style={{ position: 'absolute', left: (h - start) * COL_W, top: 0, height: '100%', display: 'flex', alignItems: 'center', color: 'var(--ink-5)', fontSize: 12, fontWeight: 700, borderLeft: i % 2 === 0 ? '1px solid var(--hair-2)' : 'none', paddingLeft: 10 }}>
+                  {i % 2 === 0 ? fmt24h(h) : ''}
                 </div>
               ))}
               {nowH >= start && nowH <= start + hours && (
@@ -182,7 +166,7 @@ export default function LiveGuide({ channels: allChannels, onPlay, onOpen, accen
               <div style={{ position: 'absolute', left: LABEL_W + nowOffset, top: 0, bottom: 0, width: 2, background: accentColor, zIndex: 3, pointerEvents: 'none' }} />
             )}
             {channels.map((ch) => {
-              const schedule = epgMap[ch.id] || SCHEDULE[ch.id] || [];
+              const schedule = scheduleFor(ch);
               return (
                 <div key={ch.id} style={{ display: 'flex', height: ROW_H, borderBottom: '1px solid var(--hair-1)' }}>
                   {/* channel label */}
@@ -241,7 +225,7 @@ export default function LiveGuide({ channels: allChannels, onPlay, onOpen, accen
                             onMouseLeave={(e) => { if (!isOn) e.currentTarget.style.background = 'var(--surface-2)'; }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                               {isOn && <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', color: '#fff', background: accentColor, padding: '1px 5px', borderRadius: 2 }}>LIVE</span>}
-                              <span style={{ fontSize: 11.5, color: 'var(--ink-5)' }}>{fmt24(p.t)}</span>
+                              <span style={{ fontSize: 11.5, color: 'var(--ink-5)' }}>{fmt24h(p.t)}</span>
                             </div>
                             <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink-1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.title}</div>
                           </button>
@@ -265,10 +249,4 @@ export default function LiveGuide({ channels: allChannels, onPlay, onOpen, accen
       )}
     </div>
   );
-}
-
-function fmt24(t: number): string {
-  const h = Math.floor(t) % 24;
-  const m = Math.round((t % 1) * 60);
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
