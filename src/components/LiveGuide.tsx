@@ -6,6 +6,7 @@ import { xtreamGetShortEPG, type EPGListing } from '../api/xtream';
 interface LiveGuideProps {
   channels: Channel[];
   onPlay: (ch: Channel) => void;
+  onOpen: (ch: Channel) => void;
   accentColor: string;
   provider: Provider | null;
 }
@@ -16,6 +17,7 @@ const PAGE = 60;
 const COL_W = 220;
 const ROW_H = 68;
 const LABEL_W = 220;
+const MAX_CATS = 11; // + "All"
 // Show from 1 hour before now, 7 hours total
 const EPG_WINDOW_BEFORE = 1;
 const EPG_WINDOW_HOURS = 7;
@@ -25,23 +27,36 @@ function tsToHour(ts: number): number {
   return d.getHours() + d.getMinutes() / 60;
 }
 
-export default function LiveGuide({ channels: allChannels, onPlay, accentColor, provider }: LiveGuideProps) {
+export default function LiveGuide({ channels: allChannels, onPlay, onOpen, accentColor, provider }: LiveGuideProps) {
   const now = new Date();
   const nowH = now.getHours() + now.getMinutes() / 60;
   const start = Math.max(0, Math.floor(nowH) - EPG_WINDOW_BEFORE);
   const hours = EPG_WINDOW_HOURS;
 
   const [filter, setFilter] = useState('');
+  const [cat, setCat] = useState('All');
   const [shown, setShown] = useState(PAGE);
   const [epgMap, setEpgMap] = useState<Record<string, ScheduleEntry[]>>({});
   const [epgLoading, setEpgLoading] = useState(false);
   const fetchedIds = useRef(new Set<string>());
 
+  const cats = useMemo(() => {
+    const count = new Map<string, number>();
+    allChannels.forEach((c) => count.set(c.cat || 'General', (count.get(c.cat || 'General') || 0) + 1));
+    const top = [...count.keys()].sort((a, b) => (count.get(b) || 0) - (count.get(a) || 0)).slice(0, MAX_CATS);
+    return ['All', ...top];
+  }, [allChannels]);
+
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    return q ? allChannels.filter((c) => c.name.toLowerCase().includes(q) || c.cat.toLowerCase().includes(q)) : allChannels;
-  }, [allChannels, filter]);
+    return allChannels.filter((c) =>
+      (cat === 'All' || c.cat === cat) &&
+      (!q || c.name.toLowerCase().includes(q) || c.cat.toLowerCase().includes(q))
+    );
+  }, [allChannels, filter, cat]);
   const channels = filtered.slice(0, shown);
+
+  useEffect(() => setShown(PAGE), [filter, cat]);
 
   // Fetch EPG for visible Xtream channels
   useEffect(() => {
@@ -102,17 +117,31 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor, 
 
   return (
     <div style={{ minHeight: '100vh', paddingTop: 24, background: 'var(--app-bg)' }}>
-      <div style={{ padding: '0 48px', marginBottom: 20, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, color: 'var(--ink-1)' }}>TV Guide</h1>
-          <p style={{ color: 'var(--ink-5)', fontSize: 14, marginTop: 6 }}>
-            {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · {filtered.length.toLocaleString()} channels
-            {epgLoading && <span style={{ marginLeft: 10, color: accentColor, fontSize: 12, fontWeight: 700 }}>● Loading guide…</span>}
-          </p>
+      <div style={{ padding: '0 48px 18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
+          <h1 style={{ fontSize: 30, fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: 12, color: 'var(--ink-1)' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', color: accentColor }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: accentColor }} />LIVE
+            </span>
+            TV Guide
+          </h1>
+          <input value={filter} onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter channels…"
+            style={{ background: 'var(--surface-2)', border: '1px solid var(--input-border)', borderRadius: 8, padding: '10px 14px', color: 'var(--ink-1)', fontSize: 14, fontFamily: 'inherit', outline: 'none', width: 260 }} />
         </div>
-        <input value={filter} onChange={(e) => { setFilter(e.target.value); setShown(PAGE); }}
-          placeholder="Filter channels…"
-          style={{ background: 'var(--surface-2)', border: '1px solid var(--input-border)', borderRadius: 8, padding: '10px 14px', color: 'var(--ink-1)', fontSize: 14, fontFamily: 'inherit', outline: 'none', width: 260 }} />
+        <p style={{ color: 'var(--ink-5)', fontSize: 14, margin: '0 0 16px' }}>
+          {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · {filtered.length.toLocaleString()} channels
+          {epgLoading && <span style={{ marginLeft: 10, color: accentColor, fontSize: 12, fontWeight: 700 }}>● Loading guide…</span>}
+        </p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {cats.map((c) => (
+            <button key={c} onClick={() => setCat(c)} style={{
+              padding: '7px 16px', borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              border: cat === c ? '1px solid transparent' : '1px solid var(--input-border)',
+              background: cat === c ? accentColor : 'transparent', color: cat === c ? '#fff' : 'var(--ink-3)', transition: 'all 150ms',
+            }}>{c}</button>
+          ))}
+        </div>
       </div>
 
       <div style={{ overflowX: 'auto', paddingBottom: 24, borderTop: '1px solid var(--hair-1)' }}>
@@ -150,7 +179,7 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor, 
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink-1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ch.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--ink-5)' }}>CH {ch.num}</div>
+                    <div style={{ fontSize: 11, color: 'var(--ink-5)' }}>CH {ch.num} · {ch.cat}</div>
                   </div>
                 </div>
 
@@ -180,8 +209,11 @@ export default function LiveGuide({ channels: allChannels, onPlay, accentColor, 
                       const width = right - left;
                       if (width <= 0) return null;
                       const isNow = !!p.live || (nowH >= p.t && nowH < p.t + p.dur);
+                      // Live TV can only be tuned to what's airing now — past/future
+                      // slots open the channel's info instead of jumping the stream.
+                      const handleClick = () => (isNow ? onPlay(ch) : onOpen(ch));
                       return (
-                        <button key={i} onClick={() => onPlay(ch)} title={p.desc || p.title} style={{
+                        <button key={i} onClick={handleClick} title={p.desc || p.title} style={{
                           position: 'absolute', left, width: width - 2, top: 6, bottom: 6,
                           background: isNow ? `linear-gradient(90deg, color-mix(in srgb, ${accentColor} 22%, var(--surface-2)), var(--surface-2))` : 'var(--surface-2)',
                           border: isNow ? `1px solid ${accentColor}50` : '1px solid var(--hair-1)',

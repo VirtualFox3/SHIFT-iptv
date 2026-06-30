@@ -204,13 +204,35 @@ export default function App() {
       }
       return out;
     }
-    const chs = channels.filter((c) =>
-      c.name.toLowerCase().includes(q) || (c.cat || '').toLowerCase().includes(q) || (c.now || '').toLowerCase().includes(q) || ('ch ' + c.num).includes(q)
-    ).map((c) => ({ ...c, _type: 'channel' as const }));
-    const tis = titles.filter((t) =>
-      t.title.toLowerCase().includes(q) || t.genres.join(' ').toLowerCase().includes(q)
-    ).map((t) => ({ ...t, _type: 'title' as const }));
-    return [...chs, ...tis];
+    // Relevance score: a direct name/title match always beats a match buried
+    // in a genre/category tag, regardless of whether it's a channel or a
+    // movie/series — so a "Supernatural" search surfaces the actual show
+    // before random live channels that happen to be airing something with
+    // that word in the title, or are tagged into a matching category.
+    const nameScore = (name: string) => {
+      const n = name.toLowerCase();
+      if (n === q) return 4;
+      if (n.startsWith(q)) return 3;
+      if (n.includes(q)) return 2;
+      return 0;
+    };
+    const chs = channels
+      .map((c) => {
+        const score = Math.max(nameScore(c.name), ('ch ' + c.num).includes(q) ? 2 : 0, (c.cat || '').toLowerCase().includes(q) ? 1 : 0);
+        return { item: { ...c, _type: 'channel' as const }, score };
+      })
+      .filter((r) => r.score > 0);
+    const tis = titles
+      .map((t) => {
+        const score = Math.max(nameScore(t.title), t.genres.join(' ').toLowerCase().includes(q) ? 1 : 0);
+        return { item: { ...t, _type: 'title' as const }, score };
+      })
+      .filter((r) => r.score > 0);
+    // Titles listed first in the merge so that on a tied score, the stable
+    // sort below keeps the actual show/movie ahead of a same-scoring channel.
+    return [...tis, ...chs]
+      .sort((a, b) => b.score - a.score)
+      .map((r) => r.item);
   }, [searchQuery, channels, titles]);
 
   const myListTitles = useMemo(() => myList.map((id) => titlesById[id]).filter(Boolean) as Title[], [myList, titlesById]);
@@ -381,7 +403,7 @@ export default function App() {
 
         {/* LIVE TV GUIDE */}
         {!searchOpen && !activeCategory && tab === 'live' && (
-          <LiveGuide channels={provider?.type === 'demo' ? [] : channels} onPlay={setPlaying} accentColor={accent} provider={provider} />
+          <LiveGuide channels={provider?.type === 'demo' ? [] : channels} onPlay={setPlaying} onOpen={setDetail} accentColor={accent} provider={provider} />
         )}
 
         {/* MY LIST */}
