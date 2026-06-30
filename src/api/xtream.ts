@@ -300,8 +300,17 @@ export async function xtreamGetShortEPG(
   }
 }
 
+// atob() decodes base64 to a byte-per-char binary string — fine for ASCII, but
+// EPG titles are UTF-8, so multi-byte characters (accents, non-Latin scripts)
+// get mangled into mojibake ("Pasión" → "PasiÃ³n") unless re-decoded as UTF-8.
 function safeAtob(s: string): string {
-  try { return atob(s); } catch { return s; }
+  try {
+    const binary = atob(s);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    return new TextDecoder('utf-8').decode(bytes);
+  } catch {
+    return s;
+  }
 }
 
 function gradForCat(cat: string): [string, string] {
