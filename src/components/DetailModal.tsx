@@ -38,6 +38,7 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
   const toggleMyList = useStore((s) => s.toggleMyList);
   const settings = useStore((s) => s.settings);
   const provider = useStore((s) => s.provider);
+  const mergeTraktProgress = useStore((s) => s.mergeTraktProgress);
   const inList = isTitle(item) && myList.includes(item.id);
   const accentColor = settings.accentColor;
 
@@ -61,11 +62,33 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
     const mv = item.id.match(/^xt_vod_(.+)$/);
     const sr = item.id.match(/^xt_series_(.+)$/);
     if (mv) {
-      xtreamGetVodInfo(xtAuth, mv[1]).then((info) => { if (info) setVodInfo(info); }).catch(() => {});
+      xtreamGetVodInfo(xtAuth, mv[1]).then((info) => {
+        if (!info) return;
+        setVodInfo(info);
+        // Cross-app resume (e.g. from UHF) — only takes it if Trakt's saved
+        // position is further along than what we already have stored.
+        if (info.imdbId) mergeTraktProgress({ ...(item as Title), imdbId: info.imdbId });
+      }).catch(() => {});
     } else if (sr) {
       setLoadingEps(true);
       xtreamGetSeriesInfo(xtAuth, sr[1])
-        .then((info) => { if (info) { setSeriesInfo(info); setActiveSeason(info.seasons[0]?.season ?? 0); } })
+        .then((info) => {
+          if (!info) return;
+          setSeriesInfo(info);
+          setActiveSeason(info.seasons[0]?.season ?? 0);
+          // Check every episode against Trakt's playback list in one pass —
+          // cheap (no extra network calls, the list is fetched/cached once).
+          if (info.imdbId) {
+            const seriesTitle = (item as Title).title;
+            info.seasons.forEach((s) => s.episodes.forEach((ep) => {
+              mergeTraktProgress({
+                ...(item as Title),
+                id: item.id + '_s' + ep.season + 'e' + ep.episode,
+                seriesTitle, season: ep.season, episode: ep.episode, imdbId: info.imdbId,
+              });
+            }));
+          }
+        })
         .catch(() => {})
         .finally(() => setLoadingEps(false));
     }
@@ -108,6 +131,10 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
       ...item,
       id: item.id + '_s' + ep.season + 'e' + ep.episode,
       title: `${item.title} · S${ep.season} E${ep.episode}`,
+      seriesTitle: item.title,
+      season: ep.season,
+      episode: ep.episode,
+      imdbId: seriesInfo?.imdbId || item.imdbId,
       streamUrl: ep.playUrl,
       logoUrl: ep.still || item.logoUrl,
     } as Title;
@@ -116,6 +143,10 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
       ...item,
       id: item.id + '_s' + nextEp.season + 'e' + nextEp.episode,
       title: `${item.title} · S${nextEp.season} E${nextEp.episode}`,
+      seriesTitle: item.title,
+      season: nextEp.season,
+      episode: nextEp.episode,
+      imdbId: seriesInfo?.imdbId || item.imdbId,
       streamUrl: nextEp.playUrl,
       logoUrl: nextEp.still || item.logoUrl,
     } as Title : undefined;
@@ -163,7 +194,7 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
               {isTitle(item) ? item.title : item.now}
             </h2>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <button onClick={() => onPlay(item)} style={{ background: '#fff', border: 0, borderRadius: 6, padding: '10px 22px', color: '#000', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'inherit', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
+              <button onClick={() => onPlay(isTitle(item) && vodInfo?.imdbId ? { ...item, imdbId: vodInfo.imdbId } as Title : item)} style={{ background: '#fff', border: 0, borderRadius: 6, padding: '10px 22px', color: '#000', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'inherit', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
                 <Icons.Play size={18} color="#000" />{isTitle(item) ? 'Play' : 'Watch Live'}
               </button>
               {isTitle(item) && (

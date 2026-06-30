@@ -1,7 +1,44 @@
 // Trakt.tv API v2 — OAuth Device Flow (no redirect URI needed)
+//
+// Trakt is the shared layer that lets watch progress cross between SHIFT and
+// any other Trakt-connected player (e.g. UHF) — apps don't talk to each
+// other directly, they both read/write the same Trakt account, via the
+// scrobble (start/pause/stop) and sync/playback endpoints below.
+import type { Title } from '../types';
+
 const BASE = 'https://api.trakt.tv';
 // Public client ID for device auth — works without a backend
 const CLIENT_ID = 'b4f7ed8323521f2e0f3b8e53e85bd1dc0de58a62ac7d9ad4a2e82d0e88591cf0';
+
+function authHeaders(accessToken: string) {
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${accessToken}`,
+    'trakt-api-version': '2',
+    'trakt-api-key': CLIENT_ID,
+  };
+}
+
+// Trakt scrobbling needs a different payload shape for a movie vs a TV
+// episode — sending everything as `movie` (the old behavior) silently
+// fails to scrobble actual episodes, since Trakt has no movie by that name.
+function traktItemPayload(item: Title, progress: number) {
+  const base: any = { progress, app_version: '1.0.0' };
+  if (item.season != null && item.episode != null) {
+    base.show = {
+      title: item.seriesTitle || item.title,
+      ids: item.imdbId ? { imdb: item.imdbId } : undefined,
+    };
+    base.episode = { season: item.season, number: item.episode };
+  } else {
+    base.movie = {
+      title: item.title,
+      year: item.year,
+      ids: item.imdbId ? { imdb: item.imdbId } : undefined,
+    };
+  }
+  return base;
+}
 
 export interface TraktDeviceCode {
   device_code: string;
@@ -52,48 +89,73 @@ export async function traktGetProfile(accessToken: string): Promise<{ username: 
   return { username: data.username, name: data.name };
 }
 
-export async function traktScrobbleStart(
-  accessToken: string,
-  title: string,
-  year: number,
-  progress: number
-): Promise<void> {
+// Call once when playback begins (or resumes after a pause) — NOT on a
+// periodic timer. Trakt treats repeated /start calls as "still watching"
+// pings, but /pause + /stop are what other apps (UHF included) read to know
+// where you left off.
+export async function traktScrobbleStart(accessToken: string, item: Title, progress: number): Promise<void> {
   await fetch(`${BASE}/scrobble/start`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-      'trakt-api-version': '2',
-      'trakt-api-key': CLIENT_ID,
-    },
-    body: JSON.stringify({
-      movie: { title, year },
-      progress,
-      app_version: '1.0.0',
-    }),
-  });
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(traktItemPayload(item, progress)),
+  }).catch(() => {});
 }
 
-export async function traktScrobbleStop(
-  accessToken: string,
-  title: string,
-  year: number,
-  progress: number
-): Promise<void> {
+export async function traktScrobblePause(accessToken: string, item: Title, progress: number): Promise<void> {
+  await fetch(`${BASE}/scrobble/pause`, {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(traktItemPayload(item, progress)),
+  }).catch(() => {});
+}
+
+// Stop also marks watched once progress crosses Trakt's own threshold (~80%).
+export async function traktScrobbleStop(accessToken: string, item: Title, progress: number): Promise<void> {
   await fetch(`${BASE}/scrobble/stop`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-      'trakt-api-version': '2',
-      'trakt-api-key': CLIENT_ID,
-    },
-    body: JSON.stringify({
-      movie: { title, year },
-      progress,
-      app_version: '1.0.0',
-    }),
-  });
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(traktItemPayload(item, progress)),
+  }).catch(() => {});
+}
+
+export interface TraktPlaybackItem {
+  progress: number;       // 0–100
+  pausedAt: string;
+  type: 'movie' | 'episode';
+  title: string;
+  year?: number;
+  season?: number;
+  episode?: number;
+  imdbId?: string;
+}
+
+/** Every in-progress (paused) item on this Trakt account — including ones
+ *  paused from a different app, like UHF. This is the actual cross-app sync. */
+export async function traktGetPlaybackProgress(accessToken: string): Promise<TraktPlaybackItem[]> {
+  try {
+    const res = await fetch(`${BASE}/sync/playback`, { headers: authHeaders(accessToken) });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data as any[]).map((d): TraktPlaybackItem | null => {
+      if (d.type === 'episode' && d.show && d.episode) {
+        return {
+          progress: d.progress, pausedAt: d.paused_at, type: 'episode',
+          title: d.show.title, year: d.show.year,
+          season: d.episode.season, episode: d.episode.number,
+          imdbId: d.show.ids?.imdb,
+        };
+      }
+      if (d.type === 'movie' && d.movie) {
+        return {
+          progress: d.progress, pausedAt: d.paused_at, type: 'movie',
+          title: d.movie.title, year: d.movie.year, imdbId: d.movie.ids?.imdb,
+        };
+      }
+      return null;
+    }).filter(Boolean) as TraktPlaybackItem[];
+  } catch {
+    return [];
+  }
 }
 
 export async function traktMarkWatched(

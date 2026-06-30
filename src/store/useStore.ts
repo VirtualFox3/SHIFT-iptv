@@ -5,6 +5,7 @@ import { DEMO_CHANNELS, DEMO_TITLES } from '../data';
 import { fetchM3U } from '../api/m3u';
 import { xtreamGetLive, xtreamGetVOD, xtreamGetSeries } from '../api/xtream';
 import { accountKeyFor, pullProgress, schedulePush, flushProgress } from '../api/sync';
+import { traktGetPlaybackProgress, type TraktPlaybackItem } from '../api/trakt';
 
 interface AppStore {
   // Auth
@@ -39,6 +40,11 @@ interface AppStore {
   setProgress: (id: string, pct: number) => void;
   flushProgressNow: (id: string) => void;
   clearHistory: () => void;
+
+  // Trakt cross-app sync (e.g. with UHF) — both apps scrobble to the same
+  // Trakt account, so this pulls back whatever the OTHER app left paused.
+  traktPlaybackCache: TraktPlaybackItem[] | null;
+  mergeTraktProgress: (item: Title) => Promise<void>;
 
   // Settings
   settings: Settings;
@@ -81,7 +87,7 @@ export const useStore = create<AppStore>()(
     (set, get) => ({
       provider: null,
       setProvider: (p) => {
-        if (!p) { set({ provider: null, channels: [], titles: [], accountKey: null }); return; }
+        if (!p) { set({ provider: null, channels: [], titles: [], accountKey: null, traktPlaybackCache: null }); return; }
         // Demo providers load the built-in catalogue.
         if (p.type === 'demo') {
           set({ provider: p, channels: DEMO_CHANNELS, titles: DEMO_TITLES });
@@ -186,6 +192,36 @@ export const useStore = create<AppStore>()(
         if (key && pct != null && at) flushProgress(key, id, pct, at);
       },
       clearHistory: () => set({ continueWatching: {}, watchedAt: {} }),
+
+      traktPlaybackCache: null,
+      mergeTraktProgress: async (item) => {
+        const token = get().settings.traktAccessToken;
+        if (!token) return;
+        let cache = get().traktPlaybackCache;
+        if (!cache) {
+          cache = await traktGetPlaybackProgress(token);
+          set({ traktPlaybackCache: cache });
+        }
+        const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+        const match = cache.find((p) => {
+          if (item.season != null && item.episode != null) {
+            if (p.type !== 'episode' || p.season !== item.season || p.episode !== item.episode) return false;
+            return (item.imdbId && p.imdbId === item.imdbId) || norm(p.title) === norm(item.seriesTitle || item.title);
+          }
+          if (p.type !== 'movie') return false;
+          return (item.imdbId && p.imdbId === item.imdbId) || (norm(p.title) === norm(item.title) && (!p.year || !item.year || p.year === item.year));
+        });
+        if (!match) return;
+        const at = Date.parse(match.pausedAt) || Date.now();
+        const existing = get().continueWatching[item.id] || 0;
+        // Only take it if Trakt's record is actually ahead of what we already have.
+        if (match.progress > existing) {
+          set((s) => ({
+            continueWatching: { ...s.continueWatching, [item.id]: Math.round(match.progress) },
+            watchedAt: { ...s.watchedAt, [item.id]: at },
+          }));
+        }
+      },
 
       settings: DEFAULT_SETTINGS,
       updateSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),

@@ -181,6 +181,7 @@ export interface SeriesInfo {
   genre?: string;
   cover?: string;
   backdrop?: string;
+  imdbId?: string;
   seasons: { season: number; episodes: Episode[] }[];
 }
 
@@ -231,6 +232,7 @@ export async function xtreamGetSeriesInfo(auth: XtreamAuth, seriesId: string | n
       genre: info.genre,
       cover: info.cover,
       backdrop: Array.isArray(info.backdrop_path) ? info.backdrop_path[0] : info.backdrop_path,
+      imdbId: imdbId || undefined,
       seasons: enrichedSeasons,
     };
   } catch {

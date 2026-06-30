@@ -54,6 +54,9 @@ export interface Title {
   traktId?: number;
   imdbId?: string;
   tmdbId?: number;
+  season?: number;        // set on a playable episode item (for Trakt episode scrobbling)
+  episode?: number;
+  seriesTitle?: string;   // parent series title, when this Title is one episode
   logoUrl?: string;    // poster / cover image
   backdropUrl?: string;    // wide/landscape backdrop image
 }
