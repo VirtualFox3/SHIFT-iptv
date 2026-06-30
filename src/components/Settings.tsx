@@ -448,6 +448,7 @@ function OpenSubtitlesSection({ settings, updateSettings }: { settings: Settings
 
 function TraktSection({ settings, updateSettings }: { settings: SettingsType; updateSettings: any }) {
   const [step, setStep] = useState<'idle' | 'polling' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
   const [code, setCode] = useState<{ user_code: string; verification_url: string; device_code: string; interval: number } | null>(null);
   const [copied, setCopied] = useState(false);
   const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
@@ -469,9 +470,16 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
             updateSettings({ traktAccessToken: tokens.access_token, traktRefreshToken: tokens.refresh_token, traktUsername: profile.username });
             setStep('idle'); setCode(null);
           }
-        } catch { clearInterval(pollRef.current!); setStep('error'); }
+        } catch (e: any) {
+          clearInterval(pollRef.current!);
+          setErrorMsg(e?.message || 'Authentication failed.');
+          setStep('error');
+        }
       }, (data.interval + 1) * 1000);
-    } catch { setStep('error'); }
+    } catch (e: any) {
+      setErrorMsg(e?.message || 'Authentication failed.');
+      setStep('error');
+    }
   }
 
   function logout() {
@@ -514,7 +522,7 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
       ) : (
         <div style={{ padding: 20 }}>
           <p style={{ fontSize: 13.5, color: 'var(--ink-5)', margin: '0 0 16px' }}>Connect Trakt to sync your watch history and get personalized ratings.</p>
-          {step === 'error' && <p style={{ color: '#E50914', fontSize: 13, marginBottom: 12 }}>Authentication failed. Try again.</p>}
+          {step === 'error' && <p style={{ color: '#E50914', fontSize: 13, marginBottom: 12 }}>{errorMsg || 'Authentication failed.'} Try again.</p>}
           <button onClick={startLogin} style={primaryBtn}>Connect Trakt</button>
         </div>
       )}

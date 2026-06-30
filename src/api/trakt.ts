@@ -61,7 +61,7 @@ export async function traktGetDeviceCode(): Promise<TraktDeviceCode> {
     headers: { 'Content-Type': 'application/json', 'trakt-api-version': '2', 'trakt-api-key': CLIENT_ID },
     body: JSON.stringify({ client_id: CLIENT_ID }),
   });
-  if (!res.ok) throw new Error('Failed to get device code');
+  if (!res.ok) throw new Error(`Failed to get device code (${res.status}) — the app's Trakt Client ID may be invalid`);
   return res.json();
 }
 
@@ -75,7 +75,11 @@ export async function traktPollToken(deviceCode: string): Promise<TraktTokens | 
   });
   if (res.status === 400) return null; // pending
   if (res.status === 200) return res.json();
-  throw new Error('Token poll error: ' + res.status);
+  // Surface the real reason (e.g. our server missing TRAKT_CLIENT_SECRET)
+  // instead of a bare status code — this is what actually fails silently.
+  let detail = '';
+  try { detail = (await res.json())?.error || ''; } catch {}
+  throw new Error(detail || `Token exchange failed (${res.status})`);
 }
 
 export async function traktGetProfile(accessToken: string): Promise<{ username: string; name: string }> {
