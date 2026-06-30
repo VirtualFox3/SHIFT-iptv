@@ -66,10 +66,12 @@ export async function traktGetDeviceCode(): Promise<TraktDeviceCode> {
 }
 
 export async function traktPollToken(deviceCode: string): Promise<TraktTokens | null> {
-  const res = await fetch(`${BASE}/oauth/device/token`, {
+  // Routed through our own serverless function — the token exchange needs
+  // client_secret, which can't safely live in client-side code.
+  const res = await fetch('/api/trakt-token', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'trakt-api-version': '2', 'trakt-api-key': CLIENT_ID },
-    body: JSON.stringify({ code: deviceCode, client_id: CLIENT_ID, client_secret: '' }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ device_code: deviceCode, client_id: CLIENT_ID }),
   });
   if (res.status === 400) return null; // pending
   if (res.status === 200) return res.json();

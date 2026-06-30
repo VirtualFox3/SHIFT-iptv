@@ -159,8 +159,10 @@ export default function Header({
         {/* Account menu */}
         <div style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => { setMenuOpen((o) => !o); setCatOpen(false); }}>
-            <div style={{ width: 32, height: 32, borderRadius: 4, background: provider.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14 }}>
-              {provider.letter}
+            <div style={{ width: 32, height: 32, borderRadius: 4, background: provider.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, overflow: 'hidden' }}>
+              {provider.profileImage
+                ? <img src={provider.profileImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : provider.letter}
             </div>
             <span style={{ display: 'inline-flex', transform: menuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }}><Icons.CaretDown size={13} /></span>
           </div>
