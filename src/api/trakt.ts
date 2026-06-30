@@ -7,8 +7,9 @@
 import type { Title } from '../types';
 
 const BASE = 'https://api.trakt.tv';
-// Public client ID for device auth — works without a backend
-const CLIENT_ID = 'b4f7ed8323521f2e0f3b8e53e85bd1dc0de58a62ac7d9ad4a2e82d0e88591cf0';
+// Client ID for the registered Trakt application (public — safe to ship in
+// client code). Its paired secret lives server-side only, as TRAKT_CLIENT_SECRET.
+const CLIENT_ID = '3bd42437342c81c44b76f43553637df357251e3ee3669080e6fcb8fec6093cf0';
 
 function authHeaders(accessToken: string) {
   return {
