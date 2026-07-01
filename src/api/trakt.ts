@@ -73,13 +73,14 @@ export async function traktGetDeviceCode(): Promise<TraktDeviceCode> {
   return res.json();
 }
 
-export async function traktPollToken(deviceCode: string): Promise<TraktTokens | null> {
-  // Routed through our own serverless function — the token exchange needs
-  // client_secret, which can't safely live in client-side code.
+export async function traktPollToken(deviceCode: string, clientSecret?: string): Promise<TraktTokens | null> {
+  // Routed through our serverless function — the token exchange needs
+  // client_secret. Prefer the server env var; otherwise pass a user-supplied
+  // secret (from Settings, stored only in this browser).
   const res = await fetch('/api/trakt-token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ device_code: deviceCode, client_id: CLIENT_ID }),
+    body: JSON.stringify({ device_code: deviceCode, client_id: CLIENT_ID, client_secret: clientSecret || undefined }),
   });
   if (res.status === 400) return null; // still pending — keep polling
   if (res.status === 200) return res.json();

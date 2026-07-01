@@ -125,6 +125,7 @@ export interface Settings {
   traktAccessToken?: string;
   traktRefreshToken?: string;
   traktUsername?: string;
+  traktClientSecret?: string;   // optional: user-supplied Trakt app secret (browser-only)
   omdbApiKey?: string;
   tmdbApiKey?: string;
   // Appearance
