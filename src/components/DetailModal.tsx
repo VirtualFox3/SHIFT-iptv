@@ -3,6 +3,7 @@ import type { Channel, Title } from '../types';
 import { useStore } from '../store/useStore';
 import { xtreamGetVodInfo, xtreamGetSeriesInfo, type VodInfo, type SeriesInfo, type Episode } from '../api/xtream';
 import { traktFetchRating } from '../api/trakt';
+import { useTmdbBackdrop } from '../api/tmdb';
 import * as Icons from './Icons';
 
 interface DetailModalProps {
@@ -37,6 +38,7 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
   const toggleMyList = useStore((s) => s.toggleMyList);
   const settings = useStore((s) => s.settings);
   const provider = useStore((s) => s.provider);
+  const mergeTraktProgress = useStore((s) => s.mergeTraktProgress);
   const inList = isTitle(item) && myList.includes(item.id);
   const accentColor = settings.accentColor;
 
@@ -60,11 +62,33 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
     const mv = item.id.match(/^xt_vod_(.+)$/);
     const sr = item.id.match(/^xt_series_(.+)$/);
     if (mv) {
-      xtreamGetVodInfo(xtAuth, mv[1]).then((info) => { if (info) setVodInfo(info); }).catch(() => {});
+      xtreamGetVodInfo(xtAuth, mv[1]).then((info) => {
+        if (!info) return;
+        setVodInfo(info);
+        // Cross-app resume (e.g. from UHF) — only takes it if Trakt's saved
+        // position is further along than what we already have stored.
+        if (info.imdbId) mergeTraktProgress({ ...(item as Title), imdbId: info.imdbId });
+      }).catch(() => {});
     } else if (sr) {
       setLoadingEps(true);
       xtreamGetSeriesInfo(xtAuth, sr[1])
-        .then((info) => { if (info) { setSeriesInfo(info); setActiveSeason(info.seasons[0]?.season ?? 0); } })
+        .then((info) => {
+          if (!info) return;
+          setSeriesInfo(info);
+          setActiveSeason(info.seasons[0]?.season ?? 0);
+          // Check every episode against Trakt's playback list in one pass —
+          // cheap (no extra network calls, the list is fetched/cached once).
+          if (info.imdbId) {
+            const seriesTitle = (item as Title).title;
+            info.seasons.forEach((s) => s.episodes.forEach((ep) => {
+              mergeTraktProgress({
+                ...(item as Title),
+                id: item.id + '_s' + ep.season + 'e' + ep.episode,
+                seriesTitle, season: ep.season, episode: ep.episode, imdbId: info.imdbId,
+              });
+            }));
+          }
+        })
         .catch(() => {})
         .finally(() => setLoadingEps(false));
     }
@@ -85,7 +109,15 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
 
   const cast = vodInfo?.cast || seriesInfo?.cast;
   const director = vodInfo?.director || seriesInfo?.director;
-  const heroImg = isTitle(item) ? (vodInfo?.backdrop || vodInfo?.cover || seriesInfo?.backdrop || seriesInfo?.cover || item.logoUrl) : undefined;
+  const providerHero = isTitle(item) ? (vodInfo?.backdrop || vodInfo?.cover || seriesInfo?.backdrop || seriesInfo?.cover || (item as Title).backdropUrl) : undefined;
+  const tmdbHero = useTmdbBackdrop(
+    isTitle(item) ? item.title : '',
+    isTitle(item) ? item.year : undefined,
+    isTitle(item) && isMovie(item as Title) ? 'movie' : 'tv',
+    settings.tmdbApiKey,
+    !!providerHero,
+  );
+  const heroImg = isTitle(item) ? (providerHero || tmdbHero || item.logoUrl) : undefined;
   const synopsis = isTitle(item) ? (vodInfo?.plot || seriesInfo?.plot || item.synopsis) : (item as Channel).desc;
   const seasonObj = seriesInfo?.seasons.find((s) => s.season === activeSeason) || seriesInfo?.seasons[0];
 
@@ -99,6 +131,10 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
       ...item,
       id: item.id + '_s' + ep.season + 'e' + ep.episode,
       title: `${item.title} · S${ep.season} E${ep.episode}`,
+      seriesTitle: item.title,
+      season: ep.season,
+      episode: ep.episode,
+      imdbId: seriesInfo?.imdbId || item.imdbId,
       streamUrl: ep.playUrl,
       logoUrl: ep.still || item.logoUrl,
     } as Title;
@@ -107,6 +143,10 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
       ...item,
       id: item.id + '_s' + nextEp.season + 'e' + nextEp.episode,
       title: `${item.title} · S${nextEp.season} E${nextEp.episode}`,
+      seriesTitle: item.title,
+      season: nextEp.season,
+      episode: nextEp.episode,
+      imdbId: seriesInfo?.imdbId || item.imdbId,
       streamUrl: nextEp.playUrl,
       logoUrl: nextEp.still || item.logoUrl,
     } as Title : undefined;
@@ -140,11 +180,11 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
             <div style={{ position: 'absolute', top: 18, left: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 48, height: 48, borderRadius: 8, background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 18 }}>{(item as Channel).logo}</div>
               <div>
-                <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--ink-1)' }}>{(item as Channel).name}</div>
+                <div style={{ fontWeight: 800, fontSize: 16, color: '#fff' }}>{(item as Channel).name}</div>
                 <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>CH {(item as Channel).num}</div>
               </div>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: accentColor, color: 'var(--ink-1)', fontWeight: 800, fontSize: 11, padding: '3px 8px', borderRadius: 3 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--ink-1)' }} />LIVE
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: accentColor, color: '#fff', fontWeight: 800, fontSize: 11, padding: '3px 8px', borderRadius: 3 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />LIVE
               </span>
             </div>
           )}
@@ -154,7 +194,7 @@ export default function DetailModal({ item, onClose, onPlay }: DetailModalProps)
               {isTitle(item) ? item.title : item.now}
             </h2>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <button onClick={() => onPlay(item)} style={{ background: '#fff', border: 0, borderRadius: 6, padding: '10px 22px', color: '#000', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'inherit', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
+              <button onClick={() => onPlay(isTitle(item) && vodInfo?.imdbId ? { ...item, imdbId: vodInfo.imdbId } as Title : item)} style={{ background: '#fff', border: 0, borderRadius: 6, padding: '10px 22px', color: '#000', fontWeight: 700, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'inherit', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
                 <Icons.Play size={18} color="#000" />{isTitle(item) ? 'Play' : 'Watch Live'}
               </button>
               {isTitle(item) && (

@@ -322,7 +322,64 @@ function IntegrationsPane({ settings, updateSettings }: { settings: SettingsType
     <>
       <OpenSubtitlesSection settings={settings} updateSettings={updateSettings} />
       <TraktSection settings={settings} updateSettings={updateSettings} />
+      <TmdbSection settings={settings} updateSettings={updateSettings} />
     </>
+  );
+}
+
+function TmdbIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="5" fill="#01B4E4"/>
+      <text x="16" y="21" textAnchor="middle" fill="white" fontSize="11" fontWeight="900" fontFamily="Inter,sans-serif">TMDB</text>
+    </svg>
+  );
+}
+
+// TMDB — supplies proper horizontal (16:9) backdrop art for the home billboard
+// when the provider's own catalogue only has a vertical poster (like UHF).
+function TmdbSection({ settings, updateSettings }: { settings: SettingsType; updateSettings: any }) {
+  const [key, setKey] = useState(settings.tmdbApiKey || '');
+  const [showForm, setShowForm] = useState(false);
+  const saved = !!settings.tmdbApiKey;
+
+  function save() {
+    updateSettings({ tmdbApiKey: key.trim() || undefined });
+    setShowForm(false);
+  }
+  function clear() {
+    updateSettings({ tmdbApiKey: undefined });
+    setKey('');
+  }
+
+  return (
+    <Card title={<span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><TmdbIcon />The Movie Database</span>}>
+      <div style={{ padding: 20 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: saved ? '#46D369' : '#8a8a8a', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: saved ? '#46D369' : '#555' }} />
+          {saved ? 'Connected' : 'Not connected'}
+        </div>
+        <p style={{ fontSize: 13, color: '#8a8a8a', margin: '0 0 14px', lineHeight: 1.5 }}>
+          Fetches proper widescreen hero art for movies & series whenever your provider doesn't supply one — free API key from{' '}
+          <button onClick={() => window.open('https://www.themoviedb.org/settings/api', '_blank', 'noopener')} style={{ background: 'transparent', border: 0, color: 'var(--accent,#E50914)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, padding: 0, textDecoration: 'underline' }}>themoviedb.org → API</button>.
+        </p>
+
+        {saved && !showForm ? (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setShowForm(true)} style={outlineBtn}>Change key</button>
+            <button onClick={clear} style={outlineBtn}>Remove</button>
+          </div>
+        ) : showForm || !saved ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 340 }}>
+            <input style={inp} placeholder="TMDB API key (v3 auth)" value={key} onChange={(e) => setKey(e.target.value)} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={save} style={primaryBtn}>Save</button>
+              {showForm && <button onClick={() => { setShowForm(false); setKey(settings.tmdbApiKey || ''); }} style={outlineBtn}>Cancel</button>}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </Card>
   );
 }
 
@@ -391,6 +448,7 @@ function OpenSubtitlesSection({ settings, updateSettings }: { settings: Settings
 
 function TraktSection({ settings, updateSettings }: { settings: SettingsType; updateSettings: any }) {
   const [step, setStep] = useState<'idle' | 'polling' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
   const [code, setCode] = useState<{ user_code: string; verification_url: string; device_code: string; interval: number } | null>(null);
   const [copied, setCopied] = useState(false);
   const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
@@ -412,9 +470,16 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
             updateSettings({ traktAccessToken: tokens.access_token, traktRefreshToken: tokens.refresh_token, traktUsername: profile.username });
             setStep('idle'); setCode(null);
           }
-        } catch { clearInterval(pollRef.current!); setStep('error'); }
+        } catch (e: any) {
+          clearInterval(pollRef.current!);
+          setErrorMsg(e?.message || 'Authentication failed.');
+          setStep('error');
+        }
       }, (data.interval + 1) * 1000);
-    } catch { setStep('error'); }
+    } catch (e: any) {
+      setErrorMsg(e?.message || 'Authentication failed.');
+      setStep('error');
+    }
   }
 
   function logout() {
@@ -457,7 +522,7 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
       ) : (
         <div style={{ padding: 20 }}>
           <p style={{ fontSize: 13.5, color: 'var(--ink-5)', margin: '0 0 16px' }}>Connect Trakt to sync your watch history and get personalized ratings.</p>
-          {step === 'error' && <p style={{ color: '#E50914', fontSize: 13, marginBottom: 12 }}>Authentication failed. Try again.</p>}
+          {step === 'error' && <p style={{ color: '#E50914', fontSize: 13, marginBottom: 12 }}>{errorMsg || 'Authentication failed.'} Try again.</p>}
           <button onClick={startLogin} style={primaryBtn}>Connect Trakt</button>
         </div>
       )}

@@ -1,5 +1,6 @@
 import type { Channel } from '../types';
 import { proxify } from './proxy';
+import { cleanChannelName } from './xtream';
 
 // Parses M3U/M3U8 playlists (IPTV format with #EXTINF attributes)
 export function parseM3U(text: string): Channel[] {
@@ -14,7 +15,7 @@ export function parseM3U(text: string): Channel[] {
     if (!urlLine || urlLine.startsWith('#')) continue;
 
     const name = line.replace(/^#EXTINF:[^,]*,/, '').trim() || 'Unknown';
-    const tvgName = extractAttr(line, 'tvg-name') || name;
+    const tvgName = cleanChannelName(extractAttr(line, 'tvg-name') || name);
     const groupTitle = extractAttr(line, 'group-title') || 'General';
     const tvgLogo = extractAttr(line, 'tvg-logo') || '';
     const tvgId = extractAttr(line, 'tvg-id') || '';

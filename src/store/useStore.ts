@@ -4,6 +4,8 @@ import type { Provider, Channel, Title, Settings } from '../types';
 import { DEMO_CHANNELS, DEMO_TITLES } from '../data';
 import { fetchM3U } from '../api/m3u';
 import { xtreamGetLive, xtreamGetVOD, xtreamGetSeries } from '../api/xtream';
+import { accountKeyFor, pullProgress, schedulePush, flushProgress } from '../api/sync';
+import { traktGetPlaybackProgress, type TraktPlaybackItem } from '../api/trakt';
 
 interface AppStore {
   // Auth
@@ -30,11 +32,19 @@ interface AppStore {
   myList: string[];
   toggleMyList: (id: string) => void;
 
-  // Continue watching
+  // Continue watching — synced across devices logged into the same provider
   continueWatching: Record<string, number>;
   watchedAt: Record<string, number>;  // title id → last-watched timestamp (ms)
+  accountKey: string | null;
+  syncAccount: (p: Provider) => Promise<void>;
   setProgress: (id: string, pct: number) => void;
+  flushProgressNow: (id: string) => void;
   clearHistory: () => void;
+
+  // Trakt cross-app sync (e.g. with UHF) — both apps scrobble to the same
+  // Trakt account, so this pulls back whatever the OTHER app left paused.
+  traktPlaybackCache: TraktPlaybackItem[] | null;
+  mergeTraktProgress: (item: Title) => Promise<void>;
 
   // Settings
   settings: Settings;
@@ -77,7 +87,7 @@ export const useStore = create<AppStore>()(
     (set, get) => ({
       provider: null,
       setProvider: (p) => {
-        if (!p) { set({ provider: null, channels: [], titles: [] }); return; }
+        if (!p) { set({ provider: null, channels: [], titles: [], accountKey: null, traktPlaybackCache: null }); return; }
         // Demo providers load the built-in catalogue.
         if (p.type === 'demo') {
           set({ provider: p, channels: DEMO_CHANNELS, titles: DEMO_TITLES });
@@ -87,6 +97,7 @@ export const useStore = create<AppStore>()(
         }
         // Remember it.
         get().saveProvider(p);
+        get().syncAccount(p);
       },
 
       savedProviders: [],
@@ -104,6 +115,7 @@ export const useStore = create<AppStore>()(
         // so a slow/failed re-fetch never bounces them back to the login screen.
         set({ reconnecting: true, loadFailed: false, provider: p });
         get().saveProvider(p);
+        get().syncAccount(p);
         // Retry a few times: the provider's single connection is often briefly
         // busy (open on another device), so a transient failure shouldn't strand
         // the user on an empty screen needing a manual page refresh.
@@ -144,11 +156,72 @@ export const useStore = create<AppStore>()(
 
       continueWatching: {},
       watchedAt: {},
-      setProgress: (id, pct) => set((s) => ({
-        continueWatching: { ...s.continueWatching, [id]: pct },
-        watchedAt: { ...s.watchedAt, [id]: Date.now() },
-      })),
+      accountKey: null,
+      syncAccount: async (p) => {
+        const key = await accountKeyFor(p);
+        set({ accountKey: key });
+        if (!key) return;
+        const remote = await pullProgress(key);
+        if (!remote.length) return;
+        set((s) => {
+          const continueWatching = { ...s.continueWatching };
+          const watchedAt = { ...s.watchedAt };
+          for (const r of remote) {
+            // Whichever device touched it more recently wins.
+            if (!watchedAt[r.titleId] || r.updatedAt > watchedAt[r.titleId]) {
+              continueWatching[r.titleId] = r.pct;
+              watchedAt[r.titleId] = r.updatedAt;
+            }
+          }
+          return { continueWatching, watchedAt };
+        });
+      },
+      setProgress: (id, pct) => {
+        const now = Date.now();
+        set((s) => ({
+          continueWatching: { ...s.continueWatching, [id]: pct },
+          watchedAt: { ...s.watchedAt, [id]: now },
+        }));
+        const key = get().accountKey;
+        if (key) schedulePush(key, id, pct, now);
+      },
+      flushProgressNow: (id) => {
+        const key = get().accountKey;
+        const pct = get().continueWatching[id];
+        const at = get().watchedAt[id];
+        if (key && pct != null && at) flushProgress(key, id, pct, at);
+      },
       clearHistory: () => set({ continueWatching: {}, watchedAt: {} }),
+
+      traktPlaybackCache: null,
+      mergeTraktProgress: async (item) => {
+        const token = get().settings.traktAccessToken;
+        if (!token) return;
+        let cache = get().traktPlaybackCache;
+        if (!cache) {
+          cache = await traktGetPlaybackProgress(token);
+          set({ traktPlaybackCache: cache });
+        }
+        const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+        const match = cache.find((p) => {
+          if (item.season != null && item.episode != null) {
+            if (p.type !== 'episode' || p.season !== item.season || p.episode !== item.episode) return false;
+            return (item.imdbId && p.imdbId === item.imdbId) || norm(p.title) === norm(item.seriesTitle || item.title);
+          }
+          if (p.type !== 'movie') return false;
+          return (item.imdbId && p.imdbId === item.imdbId) || (norm(p.title) === norm(item.title) && (!p.year || !item.year || p.year === item.year));
+        });
+        if (!match) return;
+        const at = Date.parse(match.pausedAt) || Date.now();
+        const existing = get().continueWatching[item.id] || 0;
+        // Only take it if Trakt's record is actually ahead of what we already have.
+        if (match.progress > existing) {
+          set((s) => ({
+            continueWatching: { ...s.continueWatching, [item.id]: Math.round(match.progress) },
+            watchedAt: { ...s.watchedAt, [item.id]: at },
+          }));
+        }
+      },
 
       settings: DEFAULT_SETTINGS,
       updateSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),

@@ -6,6 +6,16 @@ import { proxify } from './proxy';
 
 interface XtreamAuth { serverUrl: string; username: string; password: string; }
 
+// Some providers use runs of "#"/"="/"*"/"-" as decorative separators in
+// channel names — e.g. "###### RELAX 4K ######". Strip those, keep real text.
+export function cleanChannelName(raw: string): string {
+  return raw
+    .replace(/[#=*~]{2,}/g, ' ')
+    .replace(/(^|\s)-{2,}(\s|$)/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim() || raw.trim();
+}
+
 // `extra` MUST be included before proxifying — otherwise on the deployed site
 // it lands outside the encoded ?url= param and the server ignores it.
 function api(auth: XtreamAuth, action: string, extra = '') {
@@ -33,11 +43,13 @@ export async function xtreamGetLive(auth: XtreamAuth): Promise<Channel[]> {
     const base = auth.serverUrl.replace(/\/$/, '');
 
     // Load EVERY channel (no cap).
-    return data.map((ch, i) => ({
+    return data.map((ch, i) => {
+      const name = cleanChannelName(ch.name || 'Channel ' + i);
+      return {
       id: 'xt_live_' + (ch.stream_id || i),
       num: ch.num || i + 1,
-      name: ch.name || 'Channel ' + i,
-      logo: (ch.name || 'C').slice(0, 2).toUpperCase(),
+      name,
+      logo: name.slice(0, 2).toUpperCase(),
       cat: ch.category_name || 'General',
       grad: gradForCat(ch.category_name || ''),
       now: 'Live',
@@ -45,12 +57,13 @@ export async function xtreamGetLive(auth: XtreamAuth): Promise<Channel[]> {
       prog: 0,
       rating: 'TV-G',
       viewers: '—',
-      desc: ch.name || '',
+      desc: name,
       // .m3u8 is the HLS-playlist form — playable by HLS.js in the browser.
       streamUrl: `${base}/live/${auth.username}/${auth.password}/${ch.stream_id}.m3u8`,
       logoUrl: ch.stream_icon || '',
       epgId: ch.epg_channel_id || '',
-    }));
+      };
+    });
   } catch {
     return [];
   }
@@ -168,6 +181,7 @@ export interface SeriesInfo {
   genre?: string;
   cover?: string;
   backdrop?: string;
+  imdbId?: string;
   seasons: { season: number; episodes: Episode[] }[];
 }
 
@@ -218,6 +232,7 @@ export async function xtreamGetSeriesInfo(auth: XtreamAuth, seriesId: string | n
       genre: info.genre,
       cover: info.cover,
       backdrop: Array.isArray(info.backdrop_path) ? info.backdrop_path[0] : info.backdrop_path,
+      imdbId: imdbId || undefined,
       seasons: enrichedSeasons,
     };
   } catch {
@@ -265,30 +280,45 @@ export interface EPGListing {
   end: number;   // unix timestamp
 }
 
-/** Fetch short EPG for a single live stream (titles/descriptions are base64-encoded in the API). */
-export async function xtreamGetShortEPG(
-  auth: XtreamAuth,
-  streamId: string | number,
-  limit = 8,
-): Promise<EPGListing[]> {
+/** Full multi-day EPG for EVERY channel in one request, keyed by the provider's
+ *  epg_channel_id (same id stored on Channel.epgId). Far richer than
+ *  get_short_epg's ~8-listings-per-channel cap, and only one HTTP round trip
+ *  instead of one per channel. Standard Xtream endpoint: xmltv.php. */
+export async function xtreamGetFullEpg(auth: XtreamAuth): Promise<Map<string, EPGListing[]>> {
+  const map = new Map<string, EPGListing[]>();
   try {
-    const res = await fetch(api(auth, 'get_short_epg', `&stream_id=${streamId}&limit=${limit}`));
-    if (!res.ok) return [];
-    const data = await res.json();
-    const listings: any[] = data.epg_listings || [];
-    return listings.map((e) => ({
-      title: safeAtob(e.title || ''),
-      description: safeAtob(e.description || ''),
-      start: Number(e.start_timestamp),
-      end: Number(e.stop_timestamp),
-    }));
-  } catch {
-    return [];
-  }
+    const base = auth.serverUrl.replace(/\/$/, '');
+    const url = proxify(`${base}/xmltv.php?username=${encodeURIComponent(auth.username)}&password=${encodeURIComponent(auth.password)}`);
+    const res = await fetch(url);
+    if (!res.ok) return map;
+    const text = await res.text();
+    const doc = new DOMParser().parseFromString(text, 'text/xml');
+    const nodes = doc.getElementsByTagName('programme');
+    for (let i = 0; i < nodes.length; i++) {
+      const el = nodes[i];
+      const chId = el.getAttribute('channel') || '';
+      const start = parseXmltvDate(el.getAttribute('start') || '');
+      const end = parseXmltvDate(el.getAttribute('stop') || '');
+      if (!chId || !start || !end) continue;
+      const title = el.getElementsByTagName('title')[0]?.textContent?.trim() || '';
+      if (!title) continue;
+      const description = el.getElementsByTagName('desc')[0]?.textContent?.trim() || '';
+      const arr = map.get(chId) || [];
+      arr.push({ title, description, start, end });
+      map.set(chId, arr);
+    }
+  } catch { /* leave map empty — caller falls back gracefully */ }
+  return map;
 }
 
-function safeAtob(s: string): string {
-  try { return atob(s); } catch { return s; }
+// XMLTV datetime: "20260630180000 +0000" → unix seconds.
+function parseXmltvDate(s: string): number {
+  const m = s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\s*([+-]\d{2})?(\d{2})?/);
+  if (!m) return 0;
+  const [, y, mo, d, h, mi, se, tzh, tzm] = m;
+  const tz = tzh ? `${tzh}:${tzm || '00'}` : 'Z';
+  const t = Date.parse(`${y}-${mo}-${d}T${h}:${mi}:${se}${tz}`);
+  return isNaN(t) ? 0 : Math.floor(t / 1000);
 }
 
 function gradForCat(cat: string): [string, string] {

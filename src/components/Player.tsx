@@ -6,7 +6,7 @@ import { type SubCue } from '../api/opensubtitles';
 import { findSubtitles, loadSubtitleCues, cleanSubtitleQuery, extractEpisode, type SubResult } from '../api/subtitles';
 import { xtreamGetVodInfo } from '../api/xtream';
 import { deproxify, streamSrc, proxify } from '../api/proxy';
-import { traktScrobbleStart, traktScrobbleStop } from '../api/trakt';
+import { traktScrobbleStart, traktScrobblePause, traktScrobbleStop } from '../api/trakt';
 import * as Icons from './Icons';
 
 interface PlayerProps {
@@ -47,6 +47,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
   const setProgress = useStore((s) => s.setProgress);
+  const flushProgressNow = useStore((s) => s.flushProgressNow);
   const continueWatching = useStore((s) => s.continueWatching);
   const provider = useStore((s) => s.provider);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -54,7 +55,8 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const hlsRef = useRef<Hls | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scrobbleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const traktStartedRef = useRef(false);
+  const progressRef = useRef({ currentTime: 0, duration: 0 });
 
   const live = isChannel(item);
   const [chIdx, setChIdx] = useState(() => {
@@ -321,19 +323,22 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  // Save VOD progress + trakt scrobble
+  // Force the last known position to sync immediately on pause/close/switch —
+  // the periodic save below is throttled, so without this a cloud sync could
+  // miss the final few seconds before the player goes away.
+  useEffect(() => {
+    if (live) return;
+    if (!playing) flushProgressNow(item.id);
+    return () => flushProgressNow(item.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, item.id]);
+
+  // Save VOD progress
   useEffect(() => {
     if (live || !duration) return;
     const pct = Math.round((currentTime / duration) * 100);
     setProgress(item.id, pct);
-
-    // Trakt periodic scrobble
-    if (settings.traktAccessToken && playing) {
-      clearTimeout(scrobbleTimer.current!);
-      scrobbleTimer.current = setTimeout(() => {
-        traktScrobbleStart(settings.traktAccessToken!, (item as Title).title, (item as Title).year, pct).catch(() => {});
-      }, 5000);
-    }
+    progressRef.current = { currentTime, duration };
 
     // Subtitle cue matching
     if (subCues.length) {
@@ -342,13 +347,33 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
     }
   }, [currentTime]);
 
-  // Cleanup trakt on unmount
+  // Trakt scrobbling — fires on real play/pause transitions (Trakt's actual
+  // contract), not a polling timer. This is what makes progress visible to
+  // any other Trakt-connected app (e.g. UHF): they read the same account's
+  // scrobble/pause state via sync/playback.
+  useEffect(() => {
+    const token = settings.traktAccessToken;
+    if (live || !token) return;
+    const { currentTime: ct, duration: dur } = progressRef.current;
+    const pct = dur ? Math.round((ct / dur) * 100) : 0;
+    if (playing) {
+      traktScrobbleStart(token, item as Title, pct);
+      traktStartedRef.current = true;
+    } else if (traktStartedRef.current) {
+      traktScrobblePause(token, item as Title, pct);
+    }
+  }, [playing]);
+
+  // Stop scrobbling on close/unmount — read from the ref (not component state)
+  // so the final position is accurate even though the cleanup's closure is
+  // fixed at mount time.
   useEffect(() => {
     return () => {
-      if (settings.traktAccessToken && !live && duration) {
-        const pct = Math.round((currentTime / duration) * 100);
-        traktScrobbleStop(settings.traktAccessToken, (item as Title).title, (item as Title).year, pct).catch(() => {});
-      }
+      const token = settings.traktAccessToken;
+      if (live || !token || !traktStartedRef.current) return;
+      const { currentTime: ct, duration: dur } = progressRef.current;
+      const pct = dur ? Math.round((ct / dur) * 100) : 0;
+      traktScrobbleStop(token, item as Title, pct);
     };
   }, []);
 

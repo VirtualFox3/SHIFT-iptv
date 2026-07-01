@@ -15,6 +15,9 @@ import { DEMO_RAILS } from './data';
 import { setOsApiKey } from './api/opensubtitles';
 import type { Channel, Title, Rail as RailType } from './types';
 
+// Flagship titles pinned to the front of the home billboard rotation, in this order.
+const FEATURED_ORDER = ['dexter', 'supernatural', 'breaking bad', 'the boys', 'game of thrones', 'stranger things', 'the last of us', 'five nights at freddy', 'fnaf'];
+
 // Split titles into movies vs series by their `seasons` label.
 function isMovie(t: Title): boolean {
   const s = (t.seasons || '').toLowerCase();
@@ -132,13 +135,20 @@ export default function App() {
   }, [titles]);
 
   // Home billboard — rotates through top ENGLISH movies AND series with artwork.
-  // Popular flagship titles (Dexter, Supernatural, etc.) are pinned to the front.
+  // Popular flagship titles (Dexter, Supernatural, etc.) are pinned to the front,
+  // in this exact order, regardless of sort-stability or catalogue quirks.
   const heroPool = useMemo<Title[]>(() => {
-    const FEATURED = /\b(dexter|supernatural|breaking bad|the boys|game of thrones|stranger things|the last of us|five nights at freddy|fnaf)\b/i;
+    const featuredRank = (t: Title) => FEATURED_ORDER.findIndex((name) => t.title.toLowerCase().includes(name));
     const withArt = enTitles.filter((t) => t.logoUrl);
     const pool = withArt.length >= 5 ? withArt : enTitles;
-    const score = (t: Title) => (FEATURED.test(t.title) ? 100 : 0) + (t.logoUrl ? 10 : 0) + (t.match || 0) / 100;
-    return [...pool].sort((a, b) => score(b) - score(a)).slice(0, 12);
+    const score = (t: Title) => {
+      const rank = featuredRank(t);
+      return (rank >= 0 ? 1000 - rank : 0) + (t.logoUrl ? 10 : 0) + (t.match || 0) / 100;
+    };
+    // Also pull in featured titles even if they lack artwork — TMDB backdrop fallback
+    // in the Billboard will fill in the horizontal art.
+    const featuredButMissing = enTitles.filter((t) => featuredRank(t) >= 0 && !pool.includes(t));
+    return [...pool, ...featuredButMissing].sort((a, b) => score(b) - score(a)).slice(0, 12);
   }, [enTitles]);
 
   const [heroIdx, setHeroIdx] = useState(0);
@@ -194,13 +204,35 @@ export default function App() {
       }
       return out;
     }
-    const chs = channels.filter((c) =>
-      c.name.toLowerCase().includes(q) || (c.cat || '').toLowerCase().includes(q) || (c.now || '').toLowerCase().includes(q) || ('ch ' + c.num).includes(q)
-    ).map((c) => ({ ...c, _type: 'channel' as const }));
-    const tis = titles.filter((t) =>
-      t.title.toLowerCase().includes(q) || t.genres.join(' ').toLowerCase().includes(q)
-    ).map((t) => ({ ...t, _type: 'title' as const }));
-    return [...chs, ...tis];
+    // Relevance score: a direct name/title match always beats a match buried
+    // in a genre/category tag, regardless of whether it's a channel or a
+    // movie/series — so a "Supernatural" search surfaces the actual show
+    // before random live channels that happen to be airing something with
+    // that word in the title, or are tagged into a matching category.
+    const nameScore = (name: string) => {
+      const n = name.toLowerCase();
+      if (n === q) return 4;
+      if (n.startsWith(q)) return 3;
+      if (n.includes(q)) return 2;
+      return 0;
+    };
+    const chs = channels
+      .map((c) => {
+        const score = Math.max(nameScore(c.name), ('ch ' + c.num).includes(q) ? 2 : 0, (c.cat || '').toLowerCase().includes(q) ? 1 : 0);
+        return { item: { ...c, _type: 'channel' as const }, score };
+      })
+      .filter((r) => r.score > 0);
+    const tis = titles
+      .map((t) => {
+        const score = Math.max(nameScore(t.title), t.genres.join(' ').toLowerCase().includes(q) ? 1 : 0);
+        return { item: { ...t, _type: 'title' as const }, score };
+      })
+      .filter((r) => r.score > 0);
+    // Titles listed first in the merge so that on a tied score, the stable
+    // sort below keeps the actual show/movie ahead of a same-scoring channel.
+    return [...tis, ...chs]
+      .sort((a, b) => b.score - a.score)
+      .map((r) => r.item);
   }, [searchQuery, channels, titles]);
 
   const myListTitles = useMemo(() => myList.map((id) => titlesById[id]).filter(Boolean) as Title[], [myList, titlesById]);
@@ -371,7 +403,7 @@ export default function App() {
 
         {/* LIVE TV GUIDE */}
         {!searchOpen && !activeCategory && tab === 'live' && (
-          <LiveGuide channels={provider?.type === 'demo' ? [] : channels} onPlay={setPlaying} accentColor={accent} provider={provider} />
+          <LiveGuide channels={provider?.type === 'demo' ? [] : channels} onPlay={setPlaying} onOpen={setDetail} accentColor={accent} provider={provider} />
         )}
 
         {/* MY LIST */}
@@ -406,7 +438,7 @@ export default function App() {
                 channel={!homeHero ? channels[0] : null as any}
                 bbStyle={settings.bbStyle} channels={channels} titles={titles}
                 vodHero={homeHero || undefined} heroKind={homeHero && isMovie(homeHero) ? 'Film' : 'Series'}
-                onPlay={setPlaying} onOpen={setDetail} accentColor={accent} />
+                onPlay={setPlaying} onOpen={setDetail} accentColor={accent} tmdbApiKey={settings.tmdbApiKey} />
             )}
             <div style={{ paddingTop: (homeHero || channels.length > 0) ? 130 : 24 }}>
               {continueWatchingRail && (
@@ -502,7 +534,7 @@ function TitleTab({ kind, list, allList, channels, titles, titlesById, channelsB
     <>
       {hero && (
         <Billboard channel={null as any} bbStyle={settings.bbStyle} channels={channels} titles={titles}
-          vodHero={hero} heroKind={kind === 'movies' ? 'Film' : 'Series'} onPlay={onPlay} onOpen={onOpen} accentColor={accent} />
+          vodHero={hero} heroKind={kind === 'movies' ? 'Film' : 'Series'} onPlay={onPlay} onOpen={onOpen} accentColor={accent} tmdbApiKey={settings.tmdbApiKey} />
       )}
       <div style={{ paddingTop: hero ? 130 : 24 }}>
         {Toggle}
