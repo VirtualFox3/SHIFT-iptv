@@ -17,8 +17,8 @@ export default async function handler(req: any, res: any): Promise<void> {
   let payload: any;
   try { payload = JSON.parse(body); } catch { res.statusCode = 400; res.end('Bad JSON'); return; }
 
-  const { device_code, client_id, client_secret } = payload || {};
-  if (!device_code || !client_id) { res.statusCode = 400; res.end('Missing device_code/client_id'); return; }
+  const { device_code, code, redirect_uri, client_id, client_secret } = payload || {};
+  if (!client_id || (!device_code && !code)) { res.statusCode = 400; res.end('Missing client_id and device_code/code'); return; }
 
   // Prefer the server env var; fall back to a secret the user supplied in-app
   // (stored only in their browser) so Trakt works without Vercel env config.
@@ -30,11 +30,18 @@ export default async function handler(req: any, res: any): Promise<void> {
     return;
   }
 
-  const r = await fetch('https://api.trakt.tv/oauth/device/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code: device_code, client_id, client_secret: secret }),
-  });
+  // Two flows share this endpoint:
+  //  - Redirect "Sign in with Trakt" (authorization_code) — no PIN.
+  //  - Device code (fallback) — /oauth/device/token.
+  const r = code
+    ? await fetch('https://api.trakt.tv/oauth/token', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, client_id, client_secret: secret, redirect_uri, grant_type: 'authorization_code' }),
+      })
+    : await fetch('https://api.trakt.tv/oauth/device/token', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: device_code, client_id, client_secret: secret }),
+      });
 
   res.statusCode = r.status;
   res.setHeader('content-type', 'application/json');

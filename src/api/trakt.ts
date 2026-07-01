@@ -63,6 +63,25 @@ export interface TraktTokens {
   token_type: string;
 }
 
+// ── "Sign in with Trakt" redirect flow (authorization_code — no PIN) ──
+// The redirect_uri must be registered in the Trakt app settings.
+export function traktAuthorizeUrl(redirectUri: string): string {
+  const p = new URLSearchParams({ response_type: 'code', client_id: CLIENT_ID, redirect_uri: redirectUri });
+  return `https://trakt.tv/oauth/authorize?${p.toString()}`;
+}
+
+// Exchange the ?code from the redirect for tokens (server holds/receives secret).
+export async function traktExchangeCode(code: string, redirectUri: string, clientSecret?: string): Promise<TraktTokens | null> {
+  const res = await fetch('/api/trakt-token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, redirect_uri: redirectUri, client_id: CLIENT_ID, client_secret: clientSecret || undefined }),
+  });
+  if (res.status === 200) return res.json();
+  const j = await res.json().catch(() => ({}));
+  throw new Error(j.error_description || j.error || `Trakt sign-in failed (${res.status})`);
+}
+
 export async function traktGetDeviceCode(): Promise<TraktDeviceCode> {
   const res = await fetch(`${BASE}/oauth/device/code`, {
     method: 'POST',

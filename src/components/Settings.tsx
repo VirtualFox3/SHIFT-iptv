@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
 import type { Settings as SettingsType } from '../types';
 import { osLogin, osLogout, setOsApiKey } from '../api/opensubtitles';
-import { traktGetDeviceCode, traktPollToken, traktGetProfile } from '../api/trakt';
+import { traktGetDeviceCode, traktPollToken, traktGetProfile, traktAuthorizeUrl } from '../api/trakt';
 import * as Icons from './Icons';
 
 function OpenSubtitlesIcon() {
@@ -533,7 +533,8 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
           <p style={{ fontSize: 11.5, color: 'var(--ink-5)', margin: '0 0 14px', lineHeight: 1.45 }}>
             Paste your Trakt app's Client Secret here (kept only in this browser) — needed once to authorize. It's the secret paired with the app's Client ID.
           </p>
-          <button onClick={startLogin} style={primaryBtn}>Connect Trakt</button>
+          <button onClick={() => { window.location.href = traktAuthorizeUrl(window.location.origin); }} style={primaryBtn}>Sign in with Trakt</button>
+          <button onClick={startLogin} style={{ ...outlineBtn, marginLeft: 10 }}>Use a code instead</button>
         </div>
       )}
     </Card>
