@@ -101,6 +101,7 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const [activeSub, setActiveSub] = useState<string | null>(null);
   const [subCues, setSubCues] = useState<SubCue[]>([]);
   const [currentCue, setCurrentCue] = useState<string>('');
+  const pipTrackRef = useRef<TextTrack | null>(null);
   const [loadingSubs, setLoadingSubs] = useState(false);
   const [loadingSubId, setLoadingSubId] = useState<string | null>(null);
   const [subLoadError, setSubLoadError] = useState<string | null>(null);
@@ -436,6 +437,28 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
       setLoadingSubId(null);
     }
   }
+
+  // Picture-in-Picture only shows the native <video> surface — our subtitle
+  // overlay is a separate DOM element layered on top, so it's invisible in
+  // the PiP window. Mirror the loaded cues into a real TextTrack (kept
+  // hidden during normal playback so it doesn't double-render alongside the
+  // overlay) and only switch it to "showing" while actually in PiP.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (pipTrackRef.current) pipTrackRef.current.mode = 'disabled';
+    if (!subCues.length) { pipTrackRef.current = null; return; }
+    const track = video.addTextTrack('subtitles', 'PiP subtitles', settings.subLang?.slice(0, 2).toLowerCase() || 'en');
+    subCues.forEach((c) => {
+      try { track.addCue(new VTTCue(c.start, c.end, c.text)); } catch {}
+    });
+    track.mode = pip ? 'showing' : 'hidden';
+    pipTrackRef.current = track;
+  }, [subCues]);
+
+  useEffect(() => {
+    if (pipTrackRef.current) pipTrackRef.current.mode = pip ? 'showing' : 'hidden';
+  }, [pip]);
 
   function togglePlay() {
     const v = videoRef.current;
