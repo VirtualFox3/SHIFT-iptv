@@ -91,9 +91,10 @@ export async function traktPollToken(deviceCode: string): Promise<TraktTokens | 
 }
 
 export async function traktGetProfile(accessToken: string): Promise<{ username: string; name: string }> {
-  const res = isLocal()
-    ? await fetch(`${BASE}/users/me`, { headers: { Authorization: `Bearer ${accessToken}`, 'trakt-api-version': '2', 'trakt-api-key': CLIENT_ID } })
-    : await fetch(`/api/trakt?action=profile&token=${encodeURIComponent(accessToken)}`);
+  // Direct to Trakt — reads with a bearer token need no client_secret.
+  const res = await fetch(`${BASE}/users/me`, {
+    headers: { Authorization: `Bearer ${accessToken}`, 'trakt-api-version': '2', 'trakt-api-key': CLIENT_ID },
+  });
   if (!res.ok) throw new Error('Failed to fetch profile');
   const data = await res.json();
   return { username: data.username, name: data.name };
