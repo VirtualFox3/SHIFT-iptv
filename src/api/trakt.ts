@@ -1,7 +1,15 @@
-// Trakt.tv API v2 — OAuth Device Flow (no redirect URI needed)
+// Trakt.tv API v2 — OAuth Device Flow.
 const BASE = 'https://api.trakt.tv';
-// Public client ID for device auth — works without a backend
+// Public client ID for public reads (search/ratings/scrobble). The device-flow
+// TOKEN exchange needs a client_secret and MUST go server-side — see api/trakt.ts.
 const CLIENT_ID = 'b4f7ed8323521f2e0f3b8e53e85bd1dc0de58a62ac7d9ad4a2e82d0e88591cf0';
+
+// On the deployed site, the connect flow goes through our server (which holds the
+// secret). On localhost there's no serverless function, so we hit Trakt directly.
+function isLocal(): boolean {
+  if (typeof location === 'undefined') return true;
+  return location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+}
 
 export interface TraktDeviceCode {
   device_code: string;
@@ -19,34 +27,32 @@ export interface TraktTokens {
 }
 
 export async function traktGetDeviceCode(): Promise<TraktDeviceCode> {
-  const res = await fetch(`${BASE}/oauth/device/code`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'trakt-api-version': '2', 'trakt-api-key': CLIENT_ID },
-    body: JSON.stringify({ client_id: CLIENT_ID }),
-  });
+  const res = isLocal()
+    ? await fetch(`${BASE}/oauth/device/code`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'trakt-api-version': '2', 'trakt-api-key': CLIENT_ID }, body: JSON.stringify({ client_id: CLIENT_ID }) })
+    : await fetch(`/api/trakt?action=code`, { method: 'POST' });
   if (!res.ok) throw new Error('Failed to get device code');
   return res.json();
 }
 
 export async function traktPollToken(deviceCode: string): Promise<TraktTokens | null> {
-  const res = await fetch(`${BASE}/oauth/device/token`, {
+  const res = await fetch(`/api/trakt?action=token`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'trakt-api-version': '2', 'trakt-api-key': CLIENT_ID },
-    body: JSON.stringify({ code: deviceCode, client_id: CLIENT_ID, client_secret: '' }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: deviceCode }),
   });
-  if (res.status === 400) return null; // pending
+  if (res.status === 400) return null; // still pending — keep polling
   if (res.status === 200) return res.json();
+  if (res.status === 501) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error(j.error_description || 'Trakt is not set up on this deployment.');
+  }
   throw new Error('Token poll error: ' + res.status);
 }
 
 export async function traktGetProfile(accessToken: string): Promise<{ username: string; name: string }> {
-  const res = await fetch(`${BASE}/users/me`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'trakt-api-version': '2',
-      'trakt-api-key': CLIENT_ID,
-    },
-  });
+  const res = isLocal()
+    ? await fetch(`${BASE}/users/me`, { headers: { Authorization: `Bearer ${accessToken}`, 'trakt-api-version': '2', 'trakt-api-key': CLIENT_ID } })
+    : await fetch(`/api/trakt?action=profile&token=${encodeURIComponent(accessToken)}`);
   if (!res.ok) throw new Error('Failed to fetch profile');
   const data = await res.json();
   return { username: data.username, name: data.name };
