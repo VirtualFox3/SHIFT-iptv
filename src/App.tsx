@@ -13,6 +13,7 @@ import TweaksPanel from './components/TweaksPanel';
 import Poster, { ChannelCard } from './components/Poster';
 import { DEMO_RAILS } from './data';
 import { setOsApiKey } from './api/opensubtitles';
+import { traktExchangeCode, traktGetProfile } from './api/trakt';
 import type { Channel, Title, Rail as RailType } from './types';
 
 // Flagship titles pinned to the front of the home billboard rotation, in this order.
@@ -116,8 +117,31 @@ export default function App() {
   const reconnecting = useStore((s) => s.reconnecting);
   const loadFailed = useStore((s) => s.loadFailed);
 
+  const updateSettings = useStore((s) => s.updateSettings);
+
   // Keep the OpenSubtitles API key in sync with settings.
   useEffect(() => { setOsApiKey(settings.openSubtitlesApiKey); }, [settings.openSubtitlesApiKey]);
+
+  // "Sign in with Trakt" redirect callback — Trakt sends us back to the app with
+  // ?code=…; exchange it for tokens, store, then clean the URL.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (!code || settings.traktAccessToken) return;
+    (async () => {
+      try {
+        const tokens = await traktExchangeCode(code, window.location.origin, settings.traktClientSecret);
+        if (tokens) {
+          const profile = await traktGetProfile(tokens.access_token);
+          updateSettings({ traktAccessToken: tokens.access_token, traktRefreshToken: tokens.refresh_token, traktUsername: profile.username });
+        }
+      } catch (e) { /* surfaced when the user reopens Settings */ }
+      finally {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // On load: if a provider was persisted but its content is empty, re-fetch it.
   useEffect(() => {

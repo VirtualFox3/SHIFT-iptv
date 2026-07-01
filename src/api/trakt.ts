@@ -41,6 +41,13 @@ function traktItemPayload(item: Title, progress: number) {
   return base;
 }
 
+// On the deployed site, the connect flow goes through our server (which holds the
+// secret). On localhost there's no serverless function, so we hit Trakt directly.
+function isLocal(): boolean {
+  if (typeof location === 'undefined') return true;
+  return location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+}
+
 export interface TraktDeviceCode {
   device_code: string;
   user_code: string;
@@ -56,6 +63,25 @@ export interface TraktTokens {
   token_type: string;
 }
 
+// ── "Sign in with Trakt" redirect flow (authorization_code — no PIN) ──
+// The redirect_uri must be registered in the Trakt app settings.
+export function traktAuthorizeUrl(redirectUri: string): string {
+  const p = new URLSearchParams({ response_type: 'code', client_id: CLIENT_ID, redirect_uri: redirectUri });
+  return `https://trakt.tv/oauth/authorize?${p.toString()}`;
+}
+
+// Exchange the ?code from the redirect for tokens (server holds/receives secret).
+export async function traktExchangeCode(code: string, redirectUri: string, clientSecret?: string): Promise<TraktTokens | null> {
+  const res = await fetch('/api/trakt-token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, redirect_uri: redirectUri, client_id: CLIENT_ID, client_secret: clientSecret || undefined }),
+  });
+  if (res.status === 200) return res.json();
+  const j = await res.json().catch(() => ({}));
+  throw new Error(j.error_description || j.error || `Trakt sign-in failed (${res.status})`);
+}
+
 export async function traktGetDeviceCode(): Promise<TraktDeviceCode> {
   const res = await fetch(`${BASE}/oauth/device/code`, {
     method: 'POST',
@@ -66,15 +92,16 @@ export async function traktGetDeviceCode(): Promise<TraktDeviceCode> {
   return res.json();
 }
 
-export async function traktPollToken(deviceCode: string): Promise<TraktTokens | null> {
-  // Routed through our own serverless function — the token exchange needs
-  // client_secret, which can't safely live in client-side code.
+export async function traktPollToken(deviceCode: string, clientSecret?: string): Promise<TraktTokens | null> {
+  // Routed through our serverless function — the token exchange needs
+  // client_secret. Prefer the server env var; otherwise pass a user-supplied
+  // secret (from Settings, stored only in this browser).
   const res = await fetch('/api/trakt-token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ device_code: deviceCode, client_id: CLIENT_ID }),
+    body: JSON.stringify({ device_code: deviceCode, client_id: CLIENT_ID, client_secret: clientSecret || undefined }),
   });
-  if (res.status === 400) return null; // pending
+  if (res.status === 400) return null; // still pending — keep polling
   if (res.status === 200) return res.json();
   // Surface the real reason (e.g. our server missing TRAKT_CLIENT_SECRET)
   // instead of a bare status code — this is what actually fails silently.
@@ -84,12 +111,9 @@ export async function traktPollToken(deviceCode: string): Promise<TraktTokens | 
 }
 
 export async function traktGetProfile(accessToken: string): Promise<{ username: string; name: string }> {
+  // Direct to Trakt — reads with a bearer token need no client_secret.
   const res = await fetch(`${BASE}/users/me`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'trakt-api-version': '2',
-      'trakt-api-key': CLIENT_ID,
-    },
+    headers: { Authorization: `Bearer ${accessToken}`, 'trakt-api-version': '2', 'trakt-api-key': CLIENT_ID },
   });
   if (!res.ok) throw new Error('Failed to fetch profile');
   const data = await res.json();

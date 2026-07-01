@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
 import type { Settings as SettingsType } from '../types';
 import { osLogin, osLogout, setOsApiKey } from '../api/opensubtitles';
-import { traktGetDeviceCode, traktPollToken, traktGetProfile } from '../api/trakt';
+import { traktGetDeviceCode, traktPollToken, traktGetProfile, traktAuthorizeUrl } from '../api/trakt';
 import * as Icons from './Icons';
 
 function OpenSubtitlesIcon() {
@@ -463,7 +463,7 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
       window.open(data.verification_url || 'https://trakt.tv/activate', '_blank', 'noopener');
       pollRef.current = setInterval(async () => {
         try {
-          const tokens = await traktPollToken(data.device_code);
+          const tokens = await traktPollToken(data.device_code, settings.traktClientSecret);
           if (tokens) {
             clearInterval(pollRef.current!);
             const profile = await traktGetProfile(tokens.access_token);
@@ -523,7 +523,18 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
         <div style={{ padding: 20 }}>
           <p style={{ fontSize: 13.5, color: 'var(--ink-5)', margin: '0 0 16px' }}>Connect Trakt to sync your watch history and get personalized ratings.</p>
           {step === 'error' && <p style={{ color: '#E50914', fontSize: 13, marginBottom: 12 }}>{errorMsg || 'Authentication failed.'} Try again.</p>}
-          <button onClick={startLogin} style={primaryBtn}>Connect Trakt</button>
+          <input
+            type="password"
+            placeholder="Trakt Client Secret (from trakt.tv/oauth/applications)"
+            defaultValue={settings.traktClientSecret || ''}
+            onChange={(e) => updateSettings({ traktClientSecret: e.target.value.trim() || undefined })}
+            style={{ width: '100%', maxWidth: 420, boxSizing: 'border-box', padding: '10px 12px', marginBottom: 12, borderRadius: 6, border: '1px solid var(--input-border)', background: 'var(--input-bg)', color: 'var(--ink-1)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+          />
+          <p style={{ fontSize: 11.5, color: 'var(--ink-5)', margin: '0 0 14px', lineHeight: 1.45 }}>
+            Paste your Trakt app's Client Secret here (kept only in this browser) — needed once to authorize. It's the secret paired with the app's Client ID.
+          </p>
+          <button onClick={() => { window.location.href = traktAuthorizeUrl(window.location.origin); }} style={primaryBtn}>Sign in with Trakt</button>
+          <button onClick={startLogin} style={{ ...outlineBtn, marginLeft: 10 }}>Use a code instead</button>
         </div>
       )}
     </Card>
