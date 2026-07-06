@@ -5,7 +5,7 @@ import { DEMO_CHANNELS, DEMO_TITLES } from '../data';
 import { fetchM3U } from '../api/m3u';
 import { xtreamGetLive, xtreamGetVOD, xtreamGetSeries } from '../api/xtream';
 import { accountKeyFor, pullProgress, schedulePush, flushProgress } from '../api/sync';
-import { traktGetPlaybackProgress, type TraktPlaybackItem } from '../api/trakt';
+import { traktGetPlaybackProgress, traktRefreshTokens, traktExpiryMs, type TraktPlaybackItem } from '../api/trakt';
 
 interface AppStore {
   // Auth
@@ -44,6 +44,9 @@ interface AppStore {
   // Trakt cross-app sync (e.g. with UHF) — both apps scrobble to the same
   // Trakt account, so this pulls back whatever the OTHER app left paused.
   traktPlaybackCache: TraktPlaybackItem[] | null;
+  traktSyncing: boolean;
+  ensureTraktToken: () => Promise<string | null>;
+  syncTraktPlayback: (force?: boolean) => Promise<void>;
   mergeTraktProgress: (item: Title) => Promise<void>;
 
   // Settings
@@ -81,6 +84,10 @@ const DEFAULT_SETTINGS: Settings = {
   cardRadius: 4,
   theme: 'dark',
 };
+
+// Single in-flight refresh shared by all callers — scrobble + sync firing
+// together must not burn the same refresh_token twice (Trakt rotates it).
+let traktRefreshInflight: Promise<string | null> | null = null;
 
 export const useStore = create<AppStore>()(
   persist(
@@ -194,8 +201,103 @@ export const useStore = create<AppStore>()(
       clearHistory: () => set({ continueWatching: {}, watchedAt: {} }),
 
       traktPlaybackCache: null,
+      traktSyncing: false,
+
+      // Returns a valid access token, transparently refreshing an expired one.
+      // Every Trakt call should go through this — a token that silently expired
+      // is exactly what makes the integration look "connected but dead".
+      ensureTraktToken: async () => {
+        const s = get().settings;
+        if (!s.traktAccessToken) return null;
+        // No recorded expiry (legacy session) or still comfortably valid → use as-is.
+        if (!s.traktExpiresAt || Date.now() < s.traktExpiresAt - 60_000) return s.traktAccessToken;
+        if (!s.traktRefreshToken) return s.traktAccessToken;
+        if (!traktRefreshInflight) {
+          traktRefreshInflight = (async () => {
+            try {
+              const t = await traktRefreshTokens(s.traktRefreshToken!, s.traktRedirectUri, s.traktClientSecret);
+              get().updateSettings({
+                traktAccessToken: t.access_token,
+                traktRefreshToken: t.refresh_token,
+                traktExpiresAt: traktExpiryMs(t),
+                traktAuthError: undefined,
+              });
+              return t.access_token;
+            } catch {
+              // Refresh rejected → the session is dead; reflect that honestly
+              // instead of showing "connected" while every call 401s.
+              get().updateSettings({
+                traktAccessToken: undefined, traktRefreshToken: undefined,
+                traktExpiresAt: undefined, traktUsername: undefined,
+                traktAuthError: 'Your Trakt session expired — reconnect below.',
+              });
+              return null;
+            } finally {
+              traktRefreshInflight = null;
+            }
+          })();
+        }
+        return traktRefreshInflight;
+      },
+
+      // Pull the whole /sync/playback list from Trakt and fold it into
+      // Continue Watching — movies match catalogue titles, episodes map onto
+      // the same `<seriesId>_sNeM` ids the player saves progress under. This
+      // is what carries watch positions in from other Trakt apps (UHF etc.).
+      syncTraktPlayback: async (force = false) => {
+        const s = get();
+        if (s.traktSyncing) return;
+        const last = s.settings.traktLastSync || 0;
+        if (!force && Date.now() - last < 60_000) return;  // don't hammer on every focus
+        const token = await s.ensureTraktToken();
+        if (!token) return;
+        set({ traktSyncing: true });
+        try {
+          const items = await traktGetPlaybackProgress(token);
+          set({ traktPlaybackCache: items });
+          const titles = get().titles;
+          if (items.length && titles.length) {
+            const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+            const isMovie = (t: Title) => /movie|film|part|limited/i.test(t.seasons || '');
+            const movieByImdb = new Map<string, Title>(); const movieByName = new Map<string, Title>();
+            const seriesByImdb = new Map<string, Title>(); const seriesByName = new Map<string, Title>();
+            for (const t of titles) {
+              const [byImdb, byName] = isMovie(t) ? [movieByImdb, movieByName] : [seriesByImdb, seriesByName];
+              if (t.imdbId && !byImdb.has(t.imdbId)) byImdb.set(t.imdbId, t);
+              const key = norm(t.title);
+              if (key && !byName.has(key)) byName.set(key, t);
+            }
+            const cw = { ...get().continueWatching };
+            const wa = { ...get().watchedAt };
+            let changed = false;
+            for (const p of items) {
+              const at = Date.parse(p.pausedAt) || Date.now();
+              let id: string | null = null;
+              if (p.type === 'movie') {
+                const t = (p.imdbId && movieByImdb.get(p.imdbId)) || movieByName.get(norm(p.title));
+                if (t && (!t.year || !p.year || t.year === p.year)) id = t.id;
+              } else if (p.season != null && p.episode != null) {
+                const t = (p.imdbId && seriesByImdb.get(p.imdbId)) || seriesByName.get(norm(p.title));
+                if (t) id = `${t.id}_s${p.season}e${p.episode}`;
+              }
+              if (!id) continue;
+              // Whichever side touched it more recently wins.
+              if (at > (wa[id] || 0) && Math.round(p.progress) !== Math.round(cw[id] || 0)) {
+                cw[id] = Math.round(p.progress);
+                wa[id] = at;
+                changed = true;
+              }
+            }
+            if (changed) set({ continueWatching: cw, watchedAt: wa });
+          }
+          get().updateSettings({ traktLastSync: Date.now() });
+        } finally {
+          set({ traktSyncing: false });
+        }
+      },
+
       mergeTraktProgress: async (item) => {
-        const token = get().settings.traktAccessToken;
+        const token = await get().ensureTraktToken();
         if (!token) return;
         let cache = get().traktPlaybackCache;
         if (!cache) {

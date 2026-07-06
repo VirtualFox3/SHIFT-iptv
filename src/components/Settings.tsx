@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
 import type { Settings as SettingsType } from '../types';
 import { osLogin, osLogout, setOsApiKey } from '../api/opensubtitles';
-import { traktGetDeviceCode, traktPollToken, traktGetProfile, traktAuthorizeUrl } from '../api/trakt';
+import { traktGetDeviceCode, traktPollToken, traktGetProfile, traktAuthorizeUrl, traktExpiryMs, TRAKT_OOB_REDIRECT } from '../api/trakt';
 import * as Icons from './Icons';
 
 function OpenSubtitlesIcon() {
@@ -32,10 +32,10 @@ const NAV = [
   ['parental', 'Parental Controls'],
 ] as const;
 
-interface SettingsProps { onBack: () => void; }
+interface SettingsProps { onBack: () => void; initialPane?: string; }
 
-export default function Settings({ onBack }: SettingsProps) {
-  const [pane, setPane] = useState<string>('account');
+export default function Settings({ onBack, initialPane }: SettingsProps) {
+  const [pane, setPane] = useState<string>(initialPane || 'account');
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
   const clearHistory = useStore((s) => s.clearHistory);
@@ -451,7 +451,28 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
   const [errorMsg, setErrorMsg] = useState('');
   const [code, setCode] = useState<{ user_code: string; verification_url: string; device_code: string; interval: number } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [syncedFlash, setSyncedFlash] = useState(false);
   const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const syncTraktPlayback = useStore((s) => s.syncTraktPlayback);
+  const traktSyncing = useStore((s) => s.traktSyncing);
+
+  // Store tokens the moment we have them — the profile lookup is cosmetic and
+  // must never be able to lose the connection (that was the "connected but
+  // shows disconnected" bug: a failed /users/me threw the tokens away).
+  async function acceptTokens(tokens: { access_token: string; refresh_token: string; expires_in: number; created_at?: number; token_type: string }, redirectUri: string) {
+    updateSettings({
+      traktAccessToken: tokens.access_token,
+      traktRefreshToken: tokens.refresh_token,
+      traktExpiresAt: traktExpiryMs(tokens),
+      traktRedirectUri: redirectUri,
+      traktAuthError: undefined,
+    });
+    try {
+      const profile = await traktGetProfile(tokens.access_token);
+      updateSettings({ traktUsername: profile.username });
+    } catch { /* connection stands without the username */ }
+    syncTraktPlayback(true);
+  }
 
   async function startLogin() {
     try {
@@ -466,9 +487,8 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
           const tokens = await traktPollToken(data.device_code, settings.traktClientSecret);
           if (tokens) {
             clearInterval(pollRef.current!);
-            const profile = await traktGetProfile(tokens.access_token);
-            updateSettings({ traktAccessToken: tokens.access_token, traktRefreshToken: tokens.refresh_token, traktUsername: profile.username });
             setStep('idle'); setCode(null);
+            await acceptTokens(tokens, TRAKT_OOB_REDIRECT);
           }
         } catch (e: any) {
           clearInterval(pollRef.current!);
@@ -482,9 +502,21 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
     }
   }
 
+  function startRedirectLogin() {
+    const redirectUri = window.location.origin;
+    // Remember the exact redirect_uri — the exchange after the round-trip
+    // must send the identical value or Trakt rejects it.
+    try { sessionStorage.setItem('shift_trakt_redirect', redirectUri); } catch {}
+    updateSettings({ traktAuthError: undefined });
+    window.location.href = traktAuthorizeUrl(redirectUri);
+  }
+
   function logout() {
     if (pollRef.current) clearInterval(pollRef.current);
-    updateSettings({ traktAccessToken: undefined, traktRefreshToken: undefined, traktUsername: undefined });
+    updateSettings({
+      traktAccessToken: undefined, traktRefreshToken: undefined, traktUsername: undefined,
+      traktExpiresAt: undefined, traktRedirectUri: undefined, traktAuthError: undefined, traktLastSync: undefined,
+    });
     setStep('idle'); setCode(null);
   }
 
@@ -492,20 +524,43 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
     if (code) { navigator.clipboard.writeText(code.user_code); setCopied(true); setTimeout(() => setCopied(false), 2000); }
   }
 
+  async function syncNow() {
+    await syncTraktPlayback(true);
+    setSyncedFlash(true);
+    setTimeout(() => setSyncedFlash(false), 2200);
+  }
+
   React.useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  // Backfill the username if the post-connect profile lookup failed earlier.
+  React.useEffect(() => {
+    if (!settings.traktAccessToken || settings.traktUsername) return;
+    traktGetProfile(settings.traktAccessToken)
+      .then((p) => updateSettings({ traktUsername: p.username }))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.traktAccessToken]);
 
   return (
     <Card title={<span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><TraktIcon />Trakt</span>}>
       {settings.traktAccessToken ? (
-        <div style={{ padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#E54B2E', display: 'flex', alignItems: 'center', gap: 7 }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#E54B2E', boxShadow: '0 0 6px #E54B2E' }} />
-              Connected as @{settings.traktUsername}
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#46D369', display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#46D369', boxShadow: '0 0 6px #46D369' }} />
+              Connected{settings.traktUsername ? <> as @{settings.traktUsername}</> : null}
             </div>
-            <div style={{ fontSize: 12.5, color: 'var(--ink-5)', marginTop: 4 }}>Watch history synced · ratings enabled</div>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-5)', marginTop: 4 }}>
+              Playback history syncs both ways — scrobbles out, watch positions in.
+              {settings.traktLastSync ? <> Last synced {timeAgo(settings.traktLastSync)}.</> : null}
+            </div>
           </div>
-          <button onClick={logout} style={outlineBtn}>Disconnect</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={syncNow} disabled={traktSyncing} style={{ ...outlineBtn, color: syncedFlash ? '#46D369' : undefined, borderColor: syncedFlash ? '#46D369' : undefined }}>
+              {traktSyncing ? 'Syncing…' : syncedFlash ? '✓ Synced' : 'Sync now'}
+            </button>
+            <button onClick={logout} style={outlineBtn}>Disconnect</button>
+          </div>
         </div>
       ) : step === 'polling' && code ? (
         <div style={{ padding: 20 }}>
@@ -521,8 +576,11 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
         </div>
       ) : (
         <div style={{ padding: 20 }}>
-          <p style={{ fontSize: 13.5, color: 'var(--ink-5)', margin: '0 0 16px' }}>Connect Trakt to sync your watch history and get personalized ratings.</p>
+          <p style={{ fontSize: 13.5, color: 'var(--ink-5)', margin: '0 0 16px' }}>Connect Trakt to sync your watch history and playback positions across apps.</p>
           {step === 'error' && <p style={{ color: '#E50914', fontSize: 13, marginBottom: 12 }}>{errorMsg || 'Authentication failed.'} Try again.</p>}
+          {step !== 'error' && settings.traktAuthError && (
+            <p style={{ color: '#E50914', fontSize: 13, marginBottom: 12 }}>{settings.traktAuthError}</p>
+          )}
           <input
             type="password"
             placeholder="Trakt Client Secret (from trakt.tv/oauth/applications)"
@@ -533,7 +591,7 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
           <p style={{ fontSize: 11.5, color: 'var(--ink-5)', margin: '0 0 14px', lineHeight: 1.45 }}>
             Paste your Trakt app's Client Secret here (kept only in this browser) — needed once to authorize. It's the secret paired with the app's Client ID.
           </p>
-          <button onClick={() => { window.location.href = traktAuthorizeUrl(window.location.origin); }} style={primaryBtn}>Sign in with Trakt</button>
+          <button onClick={startRedirectLogin} style={primaryBtn}>Sign in with Trakt</button>
           <button onClick={startLogin} style={{ ...outlineBtn, marginLeft: 10 }}>Use a code instead</button>
         </div>
       )}
@@ -586,6 +644,16 @@ function ParentalPane({ settings, set }: { settings: SettingsType; set: any }) {
       <Row icon={<Icons.Info size={17} />} title="Maturity rating" desc="Only show titles at or below this rating." control={<Seg value={settings.maturity} options={['Kids', 'TV-PG', 'TV-14', 'All']} onChange={(v) => set('maturity', v)} />} last />
     </Card>
   );
+}
+
+function timeAgo(ts: number): string {
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (s < 60) return 'just now';
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} h ago`;
+  return `${Math.round(h / 24)} d ago`;
 }
 
 const inp: React.CSSProperties = { background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, padding: '11px 14px', color: 'var(--fg-1)', fontSize: 14, fontFamily: 'inherit', outline: 'none', width: '100%' };

@@ -61,6 +61,17 @@ export interface TraktTokens {
   refresh_token: string;
   expires_in: number;
   token_type: string;
+  created_at?: number;
+}
+
+// Device-flow tokens are issued against this pseudo redirect URI; Trakt wants
+// the same value back when refreshing them.
+export const TRAKT_OOB_REDIRECT = 'urn:ietf:wg:oauth:2.0:oob';
+
+export function traktExpiryMs(tokens: TraktTokens): number {
+  const issuedAt = tokens.created_at ? tokens.created_at * 1000 : Date.now();
+  // Fall back to Trakt's documented 3-month lifetime if expires_in is missing.
+  return issuedAt + (tokens.expires_in || 7_776_000) * 1000;
 }
 
 // ── "Sign in with Trakt" redirect flow (authorization_code — no PIN) ──
@@ -80,6 +91,19 @@ export async function traktExchangeCode(code: string, redirectUri: string, clien
   if (res.status === 200) return res.json();
   const j = await res.json().catch(() => ({}));
   throw new Error(j.error_description || j.error || `Trakt sign-in failed (${res.status})`);
+}
+
+// Swap an expiring/expired access token for a fresh pair. Throws on a real
+// rejection (revoked app, bad secret) so the caller can drop the dead session.
+export async function traktRefreshTokens(refreshToken: string, redirectUri?: string, clientSecret?: string): Promise<TraktTokens> {
+  const res = await fetch('/api/trakt-token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: refreshToken, redirect_uri: redirectUri || TRAKT_OOB_REDIRECT, client_id: CLIENT_ID, client_secret: clientSecret || undefined }),
+  });
+  if (res.status === 200) return res.json();
+  const j = await res.json().catch(() => ({} as any));
+  throw new Error(j.error_description || j.error || `Trakt token refresh failed (${res.status})`);
 }
 
 export async function traktGetDeviceCode(): Promise<TraktDeviceCode> {

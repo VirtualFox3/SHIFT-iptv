@@ -17,8 +17,8 @@ export default async function handler(req: any, res: any): Promise<void> {
   let payload: any;
   try { payload = JSON.parse(body); } catch { res.statusCode = 400; res.end('Bad JSON'); return; }
 
-  const { device_code, code, redirect_uri, client_id, client_secret } = payload || {};
-  if (!client_id || (!device_code && !code)) { res.statusCode = 400; res.end('Missing client_id and device_code/code'); return; }
+  const { device_code, code, refresh_token, redirect_uri, client_id, client_secret } = payload || {};
+  if (!client_id || (!device_code && !code && !refresh_token)) { res.statusCode = 400; res.end('Missing client_id and device_code/code/refresh_token'); return; }
 
   // Prefer the server env var; fall back to a secret the user supplied in-app
   // (stored only in their browser) so Trakt works without Vercel env config.
@@ -30,10 +30,16 @@ export default async function handler(req: any, res: any): Promise<void> {
     return;
   }
 
-  // Two flows share this endpoint:
+  // Three flows share this endpoint:
   //  - Redirect "Sign in with Trakt" (authorization_code) — no PIN.
   //  - Device code (fallback) — /oauth/device/token.
-  const r = code
+  //  - Token refresh (refresh_token) — keeps the connection alive after expiry.
+  const r = refresh_token
+    ? await fetch('https://api.trakt.tv/oauth/token', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token, client_id, client_secret: secret, redirect_uri: redirect_uri || 'urn:ietf:wg:oauth:2.0:oob', grant_type: 'refresh_token' }),
+      })
+    : code
     ? await fetch('https://api.trakt.tv/oauth/token', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, client_id, client_secret: secret, redirect_uri, grant_type: 'authorization_code' }),

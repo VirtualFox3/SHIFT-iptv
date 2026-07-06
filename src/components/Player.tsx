@@ -352,17 +352,21 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   // contract), not a polling timer. This is what makes progress visible to
   // any other Trakt-connected app (e.g. UHF): they read the same account's
   // scrobble/pause state via sync/playback.
+  // ensureTraktToken reads the store fresh and refreshes an expired access
+  // token before scrobbling — a token that quietly expired mid-binge was
+  // silently dropping every scrobble.
+  const ensureTraktToken = useStore((s) => s.ensureTraktToken);
   useEffect(() => {
-    const token = settings.traktAccessToken;
-    if (live || !token) return;
+    if (live || !settings.traktAccessToken) return;
     const { currentTime: ct, duration: dur } = progressRef.current;
     const pct = dur ? Math.round((ct / dur) * 100) : 0;
-    if (playing) {
-      traktScrobbleStart(token, item as Title, pct);
-      traktStartedRef.current = true;
-    } else if (traktStartedRef.current) {
-      traktScrobblePause(token, item as Title, pct);
-    }
+    const wasStarted = traktStartedRef.current;
+    if (playing) traktStartedRef.current = true;
+    ensureTraktToken().then((token) => {
+      if (!token) return;
+      if (playing) traktScrobbleStart(token, item as Title, pct);
+      else if (wasStarted) traktScrobblePause(token, item as Title, pct);
+    });
   }, [playing]);
 
   // Stop scrobbling on close/unmount — read from the ref (not component state)
@@ -370,12 +374,14 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   // fixed at mount time.
   useEffect(() => {
     return () => {
-      const token = settings.traktAccessToken;
-      if (live || !token || !traktStartedRef.current) return;
+      if (live || !traktStartedRef.current) return;
       const { currentTime: ct, duration: dur } = progressRef.current;
       const pct = dur ? Math.round((ct / dur) * 100) : 0;
-      traktScrobbleStop(token, item as Title, pct);
+      ensureTraktToken().then((token) => {
+        if (token) traktScrobbleStop(token, item as Title, pct);
+      });
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Detect native subtitle tracks embedded in the video (HLS WebVTT, MP4 TTML, etc.)

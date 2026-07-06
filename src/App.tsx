@@ -13,7 +13,7 @@ import TweaksPanel from './components/TweaksPanel';
 import Poster, { ChannelCard } from './components/Poster';
 import { DEMO_RAILS } from './data';
 import { setOsApiKey } from './api/opensubtitles';
-import { traktExchangeCode, traktGetProfile } from './api/trakt';
+import { traktExchangeCode, traktGetProfile, traktExpiryMs } from './api/trakt';
 import type { Channel, Title, Rail as RailType } from './types';
 
 // Flagship titles pinned to the front of the home billboard rotation, in this order.
@@ -96,6 +96,7 @@ export default function App() {
   const [nextItem, setNextItem] = useState<Title | null>(null);
   const [detail, setDetail] = useState<Channel | Title | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsPane, setSettingsPane] = useState<string | undefined>(undefined);
   const [seenWelcome, setSeenWelcome] = useState(() => {
     try { return localStorage.getItem('shift_seen_welcome') === '1'; } catch { return false; }
   });
@@ -122,26 +123,66 @@ export default function App() {
   // Keep the OpenSubtitles API key in sync with settings.
   useEffect(() => { setOsApiKey(settings.openSubtitlesApiKey); }, [settings.openSubtitlesApiKey]);
 
-  // "Sign in with Trakt" redirect callback — Trakt sends us back to the app with
-  // ?code=…; exchange it for tokens, store, then clean the URL.
+  // "Sign in with Trakt" redirect callback — Trakt sends us back to the app
+  // with ?code=… (or ?error=…). Exchange the code, store tokens IMMEDIATELY
+  // (the cosmetic profile lookup must never be able to lose the connection),
+  // then reopen Settings → Integrations so the user actually sees the result
+  // — connected or the exact error — instead of landing on Home wondering.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
-    if (!code || settings.traktAccessToken) return;
+    const authError = params.get('error');
+    if (!code && !authError) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    const openIntegrations = () => { setSettingsPane('integrations'); setShowSettings(true); };
+    if (authError) {
+      updateSettings({ traktAuthError: params.get('error_description') || 'Trakt sign-in was cancelled or denied.' });
+      openIntegrations();
+      return;
+    }
+    if (settings.traktAccessToken) return;
     (async () => {
       try {
-        const tokens = await traktExchangeCode(code, window.location.origin, settings.traktClientSecret);
+        // Use the exact redirect_uri the authorize step was started with —
+        // Trakt rejects the exchange if they differ even by a trailing slash.
+        let redirectUri = window.location.origin;
+        try { redirectUri = sessionStorage.getItem('shift_trakt_redirect') || redirectUri; } catch {}
+        const tokens = await traktExchangeCode(code!, redirectUri, settings.traktClientSecret);
         if (tokens) {
-          const profile = await traktGetProfile(tokens.access_token);
-          updateSettings({ traktAccessToken: tokens.access_token, traktRefreshToken: tokens.refresh_token, traktUsername: profile.username });
+          updateSettings({
+            traktAccessToken: tokens.access_token,
+            traktRefreshToken: tokens.refresh_token,
+            traktExpiresAt: traktExpiryMs(tokens),
+            traktRedirectUri: redirectUri,
+            traktAuthError: undefined,
+          });
+          try {
+            const profile = await traktGetProfile(tokens.access_token);
+            updateSettings({ traktUsername: profile.username });
+          } catch { /* username is a nice-to-have; the connection stands */ }
         }
-      } catch (e) { /* surfaced when the user reopens Settings */ }
-      finally {
-        window.history.replaceState({}, '', window.location.pathname);
+      } catch (e: any) {
+        updateSettings({ traktAuthError: e?.message || 'Trakt sign-in failed.' });
+      } finally {
+        try { sessionStorage.removeItem('shift_trakt_redirect'); } catch {}
+        openIntegrations();
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Trakt playback-history sync — pull cross-app watch positions when the
+  // catalogue is ready, and again whenever the tab regains focus (the user
+  // may have watched something in another app in between).
+  const syncTraktPlayback = useStore((s) => s.syncTraktPlayback);
+  useEffect(() => {
+    if (!settings.traktAccessToken || titles.length === 0) return;
+    syncTraktPlayback();
+    const onVis = () => { if (document.visibilityState === 'visible') syncTraktPlayback(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.traktAccessToken, titles.length]);
 
   // On load: if a provider was persisted but its content is empty, re-fetch it.
   useEffect(() => {
@@ -288,7 +329,7 @@ export default function App() {
 
   if (!provider && !seenWelcome) return <Welcome onStart={dismissWelcome} />;
   if (!provider) return <Auth />;
-  if (showSettings) return <Settings onBack={() => setShowSettings(false)} />;
+  if (showSettings) return <Settings onBack={() => { setShowSettings(false); setSettingsPane(undefined); }} initialPane={settingsPane} />;
 
   // Real provider still fetching its catalogue
   if (reconnecting && channels.length === 0 && titles.length === 0) {

@@ -126,6 +126,10 @@ export interface Settings {
   traktRefreshToken?: string;
   traktUsername?: string;
   traktClientSecret?: string;   // optional: user-supplied Trakt app secret (browser-only)
+  traktExpiresAt?: number;      // ms epoch when the access token expires (refresh before this)
+  traktRedirectUri?: string;    // redirect_uri the tokens were issued with (Trakt requires it again on refresh)
+  traktAuthError?: string;      // last connect/refresh failure, shown in Settings → Integrations
+  traktLastSync?: number;       // ms epoch of the last playback-history pull from Trakt
   omdbApiKey?: string;
   tmdbApiKey?: string;
   // Appearance

@@ -48,12 +48,13 @@ export const Camera = (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="
 export const Star = (p: any) => (<svg viewBox="0 0 24 24" width={p.size||16} height={p.size||16} fill={p.filled ? '#F5C518' : 'none'} stroke="#F5C518" strokeWidth="2" strokeLinejoin="round"><polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.6 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2"/></svg>);
 
 /**
- * SHIFT logo — plain heavy wordmark, no glyph (matches design Logo.jsx).
- * Arial Black, brand accent, tight tracking.
+ * SHIFT logo — the cat mark (white cat, transparent background — reads best
+ * on the dark chrome) next to the heavy wordmark in the brand accent.
  */
 export function ShiftLogo({ size = 28, color }: { size?: number; color?: string }) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', lineHeight: 1 }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: Math.round(size * 0.32), lineHeight: 1 }}>
+      <img src="/logo.png" alt="" draggable={false} style={{ width: Math.round(size * 1.5), height: Math.round(size * 1.5), display: 'block', objectFit: 'contain' }} />
       <span className="shift-wordmark" style={{ fontSize: size, color: color || 'var(--accent,#E50914)' }}>SHIFT</span>
     </span>
   );
