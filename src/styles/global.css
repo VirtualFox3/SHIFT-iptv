@@ -45,6 +45,10 @@ video::-webkit-media-controls { display: none !important; }
   --fg-3: #b3b3b3;
   --fg-4: #808080;
   --fg-5: #4d4d4d;
+  /* Cat logo — fur is the head + outer whiskers, ink the eyes/nose (and the
+     whisker roots that overlap the head), so each part contrasts its backdrop. */
+  --logo-fur: #f5f5f5;
+  --logo-ink: #141414;
   /* Aliases: handoff token names mapped onto the theme tokens above. Because they
      reference the theme vars (which flip under [data-theme="light"]), they flip too. */
   --app-bg: var(--bg-page);
@@ -80,6 +84,8 @@ video::-webkit-media-controls { display: none !important; }
   --fg-3: #555555;
   --fg-4: #888888;
   --bb-scrim-grad: linear-gradient(90deg, rgba(242,242,242,0.92) 0%, rgba(242,242,242,0.5) 45%, rgba(242,242,242,0) 72%);
+  --logo-fur: #1a1a1a;
+  --logo-ink: #f5f5f5;
 }
 
 [data-theme="light"] body,

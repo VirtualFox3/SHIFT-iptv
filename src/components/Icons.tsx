@@ -1,4 +1,5 @@
 import React from 'react';
+import { CAT_VIEWBOX, CAT_TRANSFORM, CAT_FUR, CAT_INK } from './catLogoPaths';
 
 export const Play = (p: any) => (<svg viewBox="0 0 24 24" fill="currentColor" width={p.size||20} height={p.size||20}><path d="M6 4l14 8-14 8V4z"/></svg>);
 export const Pause = (p: any) => (<svg viewBox="0 0 24 24" fill="currentColor" width={p.size||20} height={p.size||20}><path d="M7 4h4v16H7zM13 4h4v16h-4z"/></svg>);
@@ -48,13 +49,24 @@ export const Camera = (p: any) => (<svg viewBox="0 0 24 24" fill="none" stroke="
 export const Star = (p: any) => (<svg viewBox="0 0 24 24" width={p.size||16} height={p.size||16} fill={p.filled ? '#F5C518' : 'none'} stroke="#F5C518" strokeWidth="2" strokeLinejoin="round"><polygon points="12 2 15.1 8.6 22 9.3 17 14.1 18.2 21 12 17.6 5.8 21 7 14.1 2 9.3 8.9 8.6 12 2"/></svg>);
 
 /**
- * SHIFT logo — the cat mark (white cat, transparent background — reads best
- * on the dark chrome) next to the heavy wordmark in the brand accent.
+ * SHIFT logo — the cat mark as inline SVG (fur/ink fills follow the active
+ * theme via --logo-fur / --logo-ink) next to the heavy wordmark.
  */
+export function CatMark({ height = 32 }: { height?: number }) {
+  return (
+    <svg viewBox={CAT_VIEWBOX} height={height} width={Math.round(height * (1205 / 935))} style={{ display: 'block' }} aria-hidden="true">
+      <g transform={CAT_TRANSFORM} fillRule="evenodd">
+        <path fill="var(--logo-fur, #f5f5f5)" d={CAT_FUR} />
+        <path fill="var(--logo-ink, #141414)" d={CAT_INK} />
+      </g>
+    </svg>
+  );
+}
+
 export function ShiftLogo({ size = 28, color }: { size?: number; color?: string }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: Math.round(size * 0.32), lineHeight: 1 }}>
-      <img src="/logo.png" alt="" draggable={false} style={{ width: Math.round(size * 1.5), height: Math.round(size * 1.5), display: 'block', objectFit: 'contain' }} />
+      <CatMark height={Math.round(size * 1.3)} />
       <span className="shift-wordmark" style={{ fontSize: size, color: color || 'var(--accent,#E50914)' }}>SHIFT</span>
     </span>
   );
