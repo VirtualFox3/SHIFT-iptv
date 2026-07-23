@@ -59,6 +59,11 @@ interface AppStore {
   setSearchQuery: (q: string) => void;
   searchOpen: boolean;
   setSearchOpen: (o: boolean) => void;
+
+  // Result of the "Sign in with Trakt" redirect callback (not persisted) —
+  // shown in Settings so the outcome is never silent.
+  traktAuthMsg: { kind: 'ok' | 'error'; text: string } | null;
+  setTraktAuthMsg: (m: { kind: 'ok' | 'error'; text: string } | null) => void;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -234,6 +239,9 @@ export const useStore = create<AppStore>()(
       setSearchQuery: (q) => set({ searchQuery: q }),
       searchOpen: false,
       setSearchOpen: (o) => set({ searchOpen: o }),
+
+      traktAuthMsg: null,
+      setTraktAuthMsg: (m) => set({ traktAuthMsg: m }),
     }),
     {
       name: 'shift-iptv-store',

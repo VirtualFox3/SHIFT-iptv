@@ -449,6 +449,8 @@ function OpenSubtitlesSection({ settings, updateSettings }: { settings: Settings
 function TraktSection({ settings, updateSettings }: { settings: SettingsType; updateSettings: any }) {
   const [step, setStep] = useState<'idle' | 'polling' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  const traktAuthMsg = useStore((s) => s.traktAuthMsg);
+  const setTraktAuthMsg = useStore((s) => s.setTraktAuthMsg);
   const [code, setCode] = useState<{ user_code: string; verification_url: string; device_code: string; interval: number } | null>(null);
   const [copied, setCopied] = useState(false);
   const pollRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
@@ -522,6 +524,9 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
       ) : (
         <div style={{ padding: 20 }}>
           <p style={{ fontSize: 13.5, color: 'var(--ink-5)', margin: '0 0 16px' }}>Connect Trakt to sync your watch history and get personalized ratings.</p>
+          {traktAuthMsg?.kind === 'error' && (
+            <p style={{ color: '#E50914', fontSize: 13, marginBottom: 12 }}>Sign-in failed: {traktAuthMsg.text}</p>
+          )}
           {step === 'error' && <p style={{ color: '#E50914', fontSize: 13, marginBottom: 12 }}>{errorMsg || 'Authentication failed.'} Try again.</p>}
           <input
             type="password"
@@ -532,9 +537,10 @@ function TraktSection({ settings, updateSettings }: { settings: SettingsType; up
           />
           <p style={{ fontSize: 11.5, color: 'var(--ink-5)', margin: '0 0 14px', lineHeight: 1.45 }}>
             Paste your Trakt app's Client Secret here (kept only in this browser) — needed once to authorize. It's the secret paired with the app's Client ID.
+            {' '}Also make sure <strong style={{ color: 'var(--ink-3)' }}>{typeof location !== 'undefined' ? location.origin : ''}</strong> is listed as a Redirect URI in your Trakt app settings.
           </p>
-          <button onClick={() => { window.location.href = traktAuthorizeUrl(window.location.origin); }} style={primaryBtn}>Sign in with Trakt</button>
-          <button onClick={startLogin} style={{ ...outlineBtn, marginLeft: 10 }}>Use a code instead</button>
+          <button onClick={() => { setTraktAuthMsg(null); window.location.href = traktAuthorizeUrl(window.location.origin); }} style={primaryBtn}>Sign in with Trakt</button>
+          <button onClick={() => { setTraktAuthMsg(null); startLogin(); }} style={{ ...outlineBtn, marginLeft: 10 }}>Use a code instead</button>
         </div>
       )}
     </Card>

@@ -123,7 +123,10 @@ export default function App() {
   useEffect(() => { setOsApiKey(settings.openSubtitlesApiKey); }, [settings.openSubtitlesApiKey]);
 
   // "Sign in with Trakt" redirect callback — Trakt sends us back to the app with
-  // ?code=…; exchange it for tokens, store, then clean the URL.
+  // ?code=…; exchange it for tokens, store, then clean the URL. Whatever the
+  // outcome, drop the user straight into Settings so it's visible — a silent
+  // failure here looks identical to "connect just doesn't work".
+  const setTraktAuthMsg = useStore((s) => s.setTraktAuthMsg);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
@@ -134,10 +137,13 @@ export default function App() {
         if (tokens) {
           const profile = await traktGetProfile(tokens.access_token);
           updateSettings({ traktAccessToken: tokens.access_token, traktRefreshToken: tokens.refresh_token, traktUsername: profile.username });
+          setTraktAuthMsg({ kind: 'ok', text: `Connected as @${profile.username}` });
         }
-      } catch (e) { /* surfaced when the user reopens Settings */ }
-      finally {
+      } catch (e: any) {
+        setTraktAuthMsg({ kind: 'error', text: e?.message || 'Trakt sign-in failed.' });
+      } finally {
         window.history.replaceState({}, '', window.location.pathname);
+        setShowSettings(true);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
