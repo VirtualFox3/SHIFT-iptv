@@ -68,7 +68,8 @@ export default function Header({
       backgroundImage: scrolled ? 'none' : 'linear-gradient(180deg, rgba(0,0,0,0.82) 10%, rgba(0,0,0,0) 100%)',
     }}>
       {/* Logo */}
-      <button onClick={() => onNav('home')} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, marginRight: 4, flexShrink: 0 }}>
+      <button onClick={() => onNav('home')} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, marginRight: 4, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <img src="/favicon-cat.png" alt="" width={26} height={26} style={{ display: 'block', flexShrink: 0 }} />
         <ShiftLogo size={22} />
       </button>
 
