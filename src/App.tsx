@@ -10,6 +10,7 @@ import DetailModal from './components/DetailModal';
 import LiveGuide from './components/LiveGuide';
 import Settings from './components/Settings';
 import TweaksPanel from './components/TweaksPanel';
+import Shifty from './components/Shifty';
 import Poster, { ChannelCard } from './components/Poster';
 import { DEMO_RAILS } from './data';
 import { setOsApiKey } from './api/opensubtitles';
@@ -301,7 +302,7 @@ export default function App() {
     return (
       <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg-page)' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid var(--border)', borderTopColor: settings.accentColor, animation: 'spin 0.7s linear infinite', margin: '0 auto 20px' }} />
+          <Shifty size={120} mood="loading" style={{ margin: '0 auto 14px' }} />
           <div style={{ fontSize: 16, color: 'var(--fg-3)' }}>Loading your channels & titles…</div>
         </div>
       </div>
@@ -314,6 +315,7 @@ export default function App() {
     return (
       <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg-page)', padding: 24 }}>
         <div style={{ textAlign: 'center', maxWidth: 420 }}>
+          <Shifty size={110} mood="sad" style={{ margin: '0 auto 16px' }} />
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--fg-1)', marginBottom: 10 }}>Couldn't load your channels</div>
           <div style={{ fontSize: 14, color: 'var(--fg-3)', lineHeight: 1.55, marginBottom: 22 }}>
             Your provider may be busy — it allows one connection at a time, so make sure it's closed on your phone and other devices, then try again.

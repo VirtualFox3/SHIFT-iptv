@@ -1,4 +1,5 @@
 import React from 'react';
+import Shifty from './Shifty';
 
 // First-run welcome / intro screen — branded SHIFT hero shown before the login
 // screen. Themed (dark/light) via the app's CSS variables.
@@ -19,6 +20,7 @@ export default function Welcome({ onStart }: { onStart: () => void }) {
       </header>
 
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '20px 24px 60px', position: 'relative', zIndex: 1 }}>
+        <Shifty size={132} mood="idle" style={{ marginBottom: 10 }} />
         <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 18 }}>
           Your IPTV, beautifully
         </div>

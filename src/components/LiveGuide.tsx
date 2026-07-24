@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import type { Channel, Provider } from '../types';
 import { SCHEDULE } from '../data';
 import { xtreamGetFullEpg, type EPGListing } from '../api/xtream';
+import Shifty from './Shifty';
 
 interface LiveGuideProps {
   channels: Channel[];
@@ -107,7 +108,7 @@ export default function LiveGuide({ channels: allChannels, onPlay, onOpen, accen
   if (allChannels.length === 0) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--app-bg)', color: 'var(--ink-5)', gap: 12 }}>
-        <div style={{ fontSize: 48 }}>📡</div>
+        <Shifty size={120} mood="idle" />
         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink-3)' }}>No live channels</div>
         <div style={{ fontSize: 14, color: 'var(--ink-5)' }}>Connect a real provider in Settings to see your channel guide.</div>
       </div>
