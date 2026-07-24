@@ -24,9 +24,10 @@ const FEATURED = ['dexter', 'supernatural', 'breaking bad', 'the boys', 'strange
 
 interface Props {
   onPlay: (item: Title | Channel) => void;
+  onSettings: () => void;
 }
 
-export default function HomeScreen({ onPlay }: Props) {
+export default function HomeScreen({ onPlay, onSettings }: Props) {
   const provider = useStore((s) => s.provider);
   const setProvider = useStore((s) => s.setProvider);
   const channels = useStore((s) => s.channels);
@@ -262,8 +263,8 @@ export default function HomeScreen({ onPlay }: Props) {
           onChangeText={setQuery}
           returnKeyType="search"
         />
-        <TouchableOpacity onPress={() => setProvider(null)} style={styles.signOutBtn}>
-          <Text style={styles.signOutText}>Sign out</Text>
+        <TouchableOpacity onPress={onSettings} style={styles.signOutBtn}>
+          <Text style={styles.gearIcon}>⚙</Text>
         </TouchableOpacity>
       </View>
 
@@ -298,8 +299,8 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: '#1e1e1e', borderRadius: 8,
     paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 14,
   },
-  signOutBtn: { paddingHorizontal: 10, paddingVertical: 8 },
-  signOutText: { color: '#888', fontSize: 13 },
+  signOutBtn: { paddingHorizontal: 8, paddingVertical: 6 },
+  gearIcon: { color: '#aaa', fontSize: 22 },
   tabBar: { maxHeight: 44, borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
   tabBarContent: { paddingHorizontal: 12 },
   tabItem: { paddingHorizontal: 14, paddingVertical: 12, marginRight: 4 },

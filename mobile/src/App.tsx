@@ -7,6 +7,7 @@ import AuthScreen from './screens/AuthScreen';
 import HomeScreen from './screens/HomeScreen';
 import PlayerScreen from './screens/PlayerScreen';
 import EpisodesScreen from './screens/EpisodesScreen';
+import SettingsScreen from './screens/SettingsScreen';
 import type { Title, Channel } from './types';
 
 function isTitle(item: Title | Channel): item is Title {
@@ -62,6 +63,7 @@ export default function App() {
 function HomeWithPlayer(_props: any) {
   const [playing, setPlaying] = useState<Title | Channel | null>(null);
   const [seriesDetail, setSeriesDetail] = useState<Title | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   function handlePlay(item: Title | Channel) {
     if (isTitle(item) && !isMovie(item) && item.id.startsWith('xt_series_')) {
@@ -83,5 +85,8 @@ function HomeWithPlayer(_props: any) {
       />
     );
   }
-  return <HomeScreen onPlay={handlePlay} />;
+  if (showSettings) {
+    return <SettingsScreen onClose={() => setShowSettings(false)} />;
+  }
+  return <HomeScreen onPlay={handlePlay} onSettings={() => setShowSettings(true)} />;
 }
