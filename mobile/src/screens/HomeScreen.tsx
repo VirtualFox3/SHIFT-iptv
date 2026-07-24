@@ -1,13 +1,15 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, FlatList, ActivityIndicator,
+  TextInput, FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStore } from '../store';
 import Rail from '../components/Rail';
 import TitleCard from '../components/TitleCard';
 import ChannelCard from '../components/ChannelCard';
+import Billboard from '../components/Billboard';
+import Shifty from '../components/Shifty';
 import type { Title, Channel } from '../types';
 
 type Tab = 'home' | 'movies' | 'series' | 'live' | 'mylist';
@@ -16,6 +18,9 @@ function isMovie(t: Title) {
   const s = (t.seasons || '').toLowerCase();
   return s === 'movie' || s === 'film';
 }
+
+// Flagship titles pinned to the front of the billboard, matching the web app.
+const FEATURED = ['dexter', 'supernatural', 'breaking bad', 'the boys', 'stranger things', 'the last of us', 'five nights at freddy', 'fnaf'];
 
 interface Props {
   onPlay: (item: Title | Channel) => void;
@@ -31,6 +36,7 @@ export default function HomeScreen({ onPlay }: Props) {
   const watchedAt = useStore((s) => s.watchedAt);
   const loading = useStore((s) => s.loading);
   const accent = useStore((s) => s.settings.accentColor);
+  const tmdbApiKey = useStore((s) => s.settings.tmdbApiKey);
 
   const [tab, setTab] = useState<Tab>('home');
   const [query, setQuery] = useState('');
@@ -42,6 +48,16 @@ export default function HomeScreen({ onPlay }: Props) {
 
   const movies = useMemo(() => titles.filter(isMovie), [titles]);
   const series = useMemo(() => titles.filter((t) => !isMovie(t)), [titles]);
+
+  // Hero for the home billboard — a pinned flagship if present, else the first
+  // title that has artwork (TMDB fills the rest).
+  const hero = useMemo(() => {
+    const rank = (t: Title) => {
+      const i = FEATURED.findIndex((n) => t.title.toLowerCase().includes(n));
+      return (i >= 0 ? 1000 - i : 0) + (t.logoUrl ? 10 : 0);
+    };
+    return [...titles].sort((a, b) => rank(b) - rank(a))[0] || null;
+  }, [titles]);
 
   const continueWatchingRail = useMemo(() => {
     const ids = Object.keys(continueWatching)
@@ -79,7 +95,7 @@ export default function HomeScreen({ onPlay }: Props) {
   if (loading && titles.length === 0 && channels.length === 0) {
     return (
       <View style={styles.loadingWrap}>
-        <ActivityIndicator size="large" color={accent} />
+        <Shifty size={120} mood="loading" />
         <Text style={styles.loadingText}>Loading your content…</Text>
       </View>
     );
@@ -121,7 +137,16 @@ export default function HomeScreen({ onPlay }: Props) {
     if (tab === 'home') {
       return (
         <ScrollView>
-          <View style={styles.content}>
+          {hero && (
+            <Billboard
+              title={hero}
+              accentColor={accent}
+              tmdbApiKey={tmdbApiKey}
+              onPlay={() => onPlay(hero)}
+              onInfo={() => onPlay(hero)}
+            />
+          )}
+          <View style={[styles.content, hero ? { paddingTop: 20 } : null]}>
             {continueWatchingRail.length > 0 && (
               <Rail
                 title="Continue Watching"

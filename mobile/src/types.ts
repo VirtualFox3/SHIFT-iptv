@@ -27,9 +27,11 @@ export interface Title {
   synopsis: string;
   streamUrl: string;
   logoUrl?: string;
+  backdropUrl?: string;
   imdbRating?: string;
 }
 
 export interface Settings {
   accentColor: string;
+  tmdbApiKey?: string;
 }

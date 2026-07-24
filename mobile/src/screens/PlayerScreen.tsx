@@ -101,7 +101,6 @@ export default function PlayerScreen({ item, onClose }: Props) {
           style={StyleSheet.absoluteFill}
           contentFit="contain"
           nativeControls={false}
-          allowsFullscreen
           allowsPictureInPicture
         />
       </TouchableOpacity>
