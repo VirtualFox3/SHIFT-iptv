@@ -9,14 +9,21 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#141414"
+      "backgroundColor": "#000000"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.shift.iptv",
+      "infoPlist": {
+        "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
+      }
     },
     "android": {
       "package": "com.shift.iptv",
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png",
-        "backgroundColor": "#E50914"
+        "backgroundColor": "#000000"
       },
       "permissions": ["INTERNET", "ACCESS_NETWORK_STATE"]
     },
@@ -24,8 +31,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "./plugins/withAndroidTv.js",
-      "expo-av"
+      ["expo-video", { "supportsBackgroundPlayback": true, "supportsPictureInPicture": true }]
     ]
   }
 }

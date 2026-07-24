@@ -3,7 +3,8 @@ import {
   View, Text, TouchableOpacity, StyleSheet, StatusBar,
   Platform, BackHandler,
 } from 'react-native';
-import { Video, ResizeMode, type AVPlaybackStatus } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { useEvent } from 'expo';
 import { useStore } from '../store';
 import type { Title, Channel } from '../types';
 
@@ -32,17 +33,43 @@ export default function PlayerScreen({ item, onClose }: Props) {
   const continueWatching = useStore((s) => s.continueWatching);
   const accent = useStore((s) => s.settings.accentColor);
 
-  const videoRef = useRef<Video>(null);
   const live = isChannel(item);
+  const streamUrl = (item as any).streamUrl || '';
 
-  const [paused, setPaused] = useState(false);
+  const [uiVisible, setUiVisible] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [buffering, setBuffering] = useState(true);
-  const [uiVisible, setUiVisible] = useState(true);
-  const [seeked, setSeeked] = useState(false);
-
+  const seekedRef = useRef(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // expo-video player — created once, auto-plays. timeUpdate fires ~2x/sec.
+  const player = useVideoPlayer(streamUrl, (p) => {
+    p.timeUpdateEventInterval = 0.5;
+    p.play();
+  });
+
+  const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
+  const { status } = useEvent(player, 'statusChange', { status: player.status });
+  const buffering = status === 'loading';
+
+  useEffect(() => {
+    const sub = player.addListener('timeUpdate', ({ currentTime: ct }) => {
+      const dur = player.duration || 0;
+      setCurrentTime(ct);
+      if (dur > 0) setDuration(dur);
+      // Resume from saved position once duration is known
+      if (!live && !seekedRef.current && dur > 0) {
+        const savedPct = continueWatching[item.id];
+        if (savedPct && savedPct > 0 && savedPct < 95) {
+          player.currentTime = (savedPct / 100) * dur;
+        }
+        seekedRef.current = true;
+      }
+      // Persist progress
+      if (!live && dur > 0) setProgress(item.id, Math.round((ct / dur) * 100));
+    });
+    return () => sub.remove();
+  }, [player, live, item.id, continueWatching, setProgress]);
 
   const showUi = useCallback(() => {
     setUiVisible(true);
@@ -56,74 +83,26 @@ export default function PlayerScreen({ item, onClose }: Props) {
   }, [showUi]);
 
   useEffect(() => {
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      onClose();
-      return true;
-    });
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { onClose(); return true; });
     return () => sub.remove();
   }, [onClose]);
 
-  const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
-    if (!status.isLoaded) {
-      setBuffering(true);
-      return;
-    }
-
-    const ct = status.positionMillis / 1000;
-    const dur = status.durationMillis ? status.durationMillis / 1000 : 0;
-
-    setCurrentTime(ct);
-    if (dur > 0) setDuration(dur);
-    setBuffering(status.isBuffering || false);
-
-    // Resume from saved position once duration is known
-    if (!live && !seeked && dur > 0) {
-      const savedPct = continueWatching[item.id];
-      if (savedPct && savedPct > 0 && savedPct < 95) {
-        const seekToMs = Math.floor((savedPct / 100) * dur * 1000);
-        videoRef.current?.setPositionAsync(seekToMs);
-      }
-      setSeeked(true);
-    }
-
-    // Persist progress
-    if (!live && dur > 0) {
-      const pct = Math.round((ct / dur) * 100);
-      setProgress(item.id, pct);
-    }
-  }, [live, seeked, continueWatching, item.id, setProgress]);
-
-  const seekRel = (delta: number) => {
-    const targetMs = Math.max(0, (currentTime + delta) * 1000);
-    videoRef.current?.setPositionAsync(targetMs);
-    showUi();
-  };
-
-  const togglePause = () => {
-    if (paused) {
-      videoRef.current?.playAsync();
-    } else {
-      videoRef.current?.pauseAsync();
-    }
-    setPaused((p) => !p);
-    showUi();
-  };
+  const seekRel = (delta: number) => { player.seekBy(delta); showUi(); };
+  const togglePause = () => { isPlaying ? player.pause() : player.play(); showUi(); };
 
   const progress = duration > 0 ? currentTime / duration : 0;
-  const streamUrl = (item as any).streamUrl || '';
 
   return (
     <View style={styles.root}>
       <StatusBar hidden />
       <TouchableOpacity style={StyleSheet.absoluteFill} onPress={showUi} activeOpacity={1}>
-        <Video
-          ref={videoRef}
-          source={{ uri: streamUrl }}
+        <VideoView
+          player={player}
           style={StyleSheet.absoluteFill}
-          resizeMode={ResizeMode.CONTAIN}
-          shouldPlay={!paused}
-          useNativeControls={false}
-          onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+          contentFit="contain"
+          nativeControls={false}
+          allowsFullscreen
+          allowsPictureInPicture
         />
       </TouchableOpacity>
 
@@ -135,7 +114,6 @@ export default function PlayerScreen({ item, onClose }: Props) {
 
       {uiVisible && (
         <View style={styles.overlay} pointerEvents="box-none">
-          {/* Top bar */}
           <View style={styles.topBar}>
             <TouchableOpacity onPress={onClose} style={styles.backBtn}>
               <Text style={styles.backIcon}>‹</Text>
@@ -144,13 +122,10 @@ export default function PlayerScreen({ item, onClose }: Props) {
               <Text style={styles.titleText} numberOfLines={1}>
                 {isChannel(item) ? item.name : (item as Title).title}
               </Text>
-              {!live && (
-                <Text style={styles.metaText}>{(item as Title).year}</Text>
-              )}
+              {!live && <Text style={styles.metaText}>{(item as Title).year}</Text>}
             </View>
           </View>
 
-          {/* Center controls */}
           <View style={styles.centerControls} pointerEvents="box-none">
             {!live && (
               <TouchableOpacity style={styles.seekBtn} onPress={() => seekRel(-10)}>
@@ -158,7 +133,7 @@ export default function PlayerScreen({ item, onClose }: Props) {
               </TouchableOpacity>
             )}
             <TouchableOpacity style={[styles.playBtn, { backgroundColor: accent }]} onPress={togglePause}>
-              <Text style={styles.playIcon}>{paused ? '▶' : '⏸'}</Text>
+              <Text style={styles.playIcon}>{isPlaying ? '⏸' : '▶'}</Text>
             </TouchableOpacity>
             {!live && (
               <TouchableOpacity style={styles.seekBtn} onPress={() => seekRel(10)}>
@@ -167,7 +142,6 @@ export default function PlayerScreen({ item, onClose }: Props) {
             )}
           </View>
 
-          {/* Progress bar (VOD only) */}
           {!live && duration > 0 && (
             <View style={styles.bottomBar}>
               <View style={styles.scrubRow}>
@@ -200,27 +174,14 @@ const styles = StyleSheet.create({
   titleWrap: { flex: 1 },
   titleText: { color: '#fff', fontSize: 17, fontWeight: '700' },
   metaText: { color: '#b3b3b3', fontSize: 13, marginTop: 2 },
-  centerControls: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24,
-  },
-  playBtn: {
-    width: 64, height: 64, borderRadius: 32,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  centerControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24 },
+  playBtn: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
   playIcon: { color: '#fff', fontSize: 24 },
-  seekBtn: {
-    backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8,
-    paddingHorizontal: 16, paddingVertical: 12,
-  },
+  seekBtn: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 12 },
   seekText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  bottomBar: {
-    padding: 16, paddingBottom: Platform.OS === 'ios' ? 32 : 16,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
+  bottomBar: { padding: 16, paddingBottom: Platform.OS === 'ios' ? 32 : 16, backgroundColor: 'rgba(0,0,0,0.6)' },
   scrubRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   timeText: { color: '#fff', fontSize: 13, minWidth: 44, textAlign: 'center' },
-  progressBg: {
-    flex: 1, height: 4, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 2, overflow: 'hidden',
-  },
+  progressBg: { flex: 1, height: 4, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 2, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 2 },
 });
