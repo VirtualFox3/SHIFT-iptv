@@ -1,0 +1,9 @@
+# Rust / Tauri build artifacts
+/target
+/gen
+
+# Generated icons (run `npm run icons` to regenerate from ../public/icon-1024.png)
+/icons/*.png
+/icons/*.ico
+/icons/*.icns
+/icons/*.svg

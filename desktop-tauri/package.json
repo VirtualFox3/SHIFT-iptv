@@ -1,0 +1,15 @@
+{
+  "name": "shift-tauri",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SHIFT desktop (Tauri) — native Windows installer for the Microsoft Store",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "icons": "tauri icon ../public/icon-1024.png"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}
