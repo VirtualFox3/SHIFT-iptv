@@ -66,6 +66,10 @@ interface AppStore {
   setTraktAuthMsg: (m: { kind: 'ok' | 'error'; text: string } | null) => void;
 }
 
+// Shared in-flight Trakt playback request, so a burst of per-episode
+// mergeTraktProgress() calls collapses into a single network fetch.
+let traktPlaybackInflight: Promise<TraktPlaybackItem[]> | null = null;
+
 const DEFAULT_SETTINGS: Settings = {
   autoplayNext: true,
   autoplayPreviews: true,
@@ -92,7 +96,7 @@ export const useStore = create<AppStore>()(
     (set, get) => ({
       provider: null,
       setProvider: (p) => {
-        if (!p) { set({ provider: null, channels: [], titles: [], accountKey: null, traktPlaybackCache: null }); return; }
+        if (!p) { traktPlaybackInflight = null; set({ provider: null, channels: [], titles: [], accountKey: null, traktPlaybackCache: null }); return; }
         // Demo providers load the built-in catalogue.
         if (p.type === 'demo') {
           set({ provider: p, channels: DEMO_CHANNELS, titles: DEMO_TITLES });
@@ -204,7 +208,15 @@ export const useStore = create<AppStore>()(
         if (!token) return;
         let cache = get().traktPlaybackCache;
         if (!cache) {
-          cache = await traktGetPlaybackProgress(token);
+          // Callers fire this once per episode in a synchronous loop, so a
+          // plain "if (!cache) await fetch" would let every episode start its
+          // own request before the first one resolved (one series = hundreds
+          // of identical Trakt calls). Share the in-flight promise instead.
+          if (!traktPlaybackInflight) {
+            traktPlaybackInflight = traktGetPlaybackProgress(token)
+              .finally(() => { traktPlaybackInflight = null; });
+          }
+          cache = await traktPlaybackInflight;
           set({ traktPlaybackCache: cache });
         }
         const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
