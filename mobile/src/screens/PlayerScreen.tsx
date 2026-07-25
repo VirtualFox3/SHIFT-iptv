@@ -52,6 +52,12 @@ export default function PlayerScreen({ item, onClose }: Props) {
   const { status } = useEvent(player, 'statusChange', { status: player.status });
   const buffering = status === 'loading';
 
+  // The saved position is only read once (to resume), so hold it in a ref.
+  // Keeping `continueWatching` in the dep array below would tear down and
+  // re-create the native timeUpdate subscription on every tick, because
+  // setProgress replaces that object several times a second.
+  const resumePctRef = useRef(continueWatching[item.id]);
+
   useEffect(() => {
     const sub = player.addListener('timeUpdate', ({ currentTime: ct }) => {
       const dur = player.duration || 0;
@@ -59,7 +65,7 @@ export default function PlayerScreen({ item, onClose }: Props) {
       if (dur > 0) setDuration(dur);
       // Resume from saved position once duration is known
       if (!live && !seekedRef.current && dur > 0) {
-        const savedPct = continueWatching[item.id];
+        const savedPct = resumePctRef.current;
         if (savedPct && savedPct > 0 && savedPct < 95) {
           player.currentTime = (savedPct / 100) * dur;
         }
@@ -69,7 +75,7 @@ export default function PlayerScreen({ item, onClose }: Props) {
       if (!live && dur > 0) setProgress(item.id, Math.round((ct / dur) * 100));
     });
     return () => sub.remove();
-  }, [player, live, item.id, continueWatching, setProgress]);
+  }, [player, live, item.id, setProgress]);
 
   const showUi = useCallback(() => {
     setUiVisible(true);
