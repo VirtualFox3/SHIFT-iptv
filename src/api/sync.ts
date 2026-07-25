@@ -48,13 +48,20 @@ export async function pullProgress(accountKey: string): Promise<RemoteProgress[]
 // nobody needs sub-10-second sync resolution for "resume where you left off".
 const lastPush = new Map<string, number>();
 const pending = new Map<string, ReturnType<typeof setTimeout>>();
+// Latest value seen while a trailing push is queued. The timer reads from here
+// rather than closing over the values it was created with — otherwise the
+// trailing write would persist a position from the START of the throttle
+// window (up to 8s stale) instead of where playback actually reached.
+const latest = new Map<string, { pct: number; updatedAt: number }>();
 const THROTTLE_MS = 8000;
 
 export function schedulePush(accountKey: string, titleId: string, pct: number, updatedAt: number) {
   const key = `${accountKey}:${titleId}`;
+  latest.set(key, { pct, updatedAt });
   const since = Date.now() - (lastPush.get(key) || 0);
   if (since >= THROTTLE_MS) {
     lastPush.set(key, Date.now());
+    latest.delete(key);
     pushProgress(accountKey, titleId, pct, updatedAt);
     return;
   }
@@ -62,7 +69,9 @@ export function schedulePush(accountKey: string, titleId: string, pct: number, u
   const t = setTimeout(() => {
     pending.delete(key);
     lastPush.set(key, Date.now());
-    pushProgress(accountKey, titleId, pct, updatedAt);
+    const v = latest.get(key) ?? { pct, updatedAt };
+    latest.delete(key);
+    pushProgress(accountKey, titleId, v.pct, v.updatedAt);
   }, THROTTLE_MS - since);
   pending.set(key, t);
 }
@@ -72,6 +81,7 @@ export function flushProgress(accountKey: string, titleId: string, pct: number, 
   const key = `${accountKey}:${titleId}`;
   const t = pending.get(key);
   if (t) { clearTimeout(t); pending.delete(key); }
+  latest.delete(key);
   lastPush.set(key, Date.now());
   pushProgress(accountKey, titleId, pct, updatedAt);
 }

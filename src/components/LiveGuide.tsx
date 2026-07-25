@@ -23,14 +23,23 @@ const MAX_CATS = 11; // + "All"
 const EPG_WINDOW_BEFORE = 1;
 const EPG_WINDOW_HOURS = 7;
 
-function tsToHour(ts: number): number {
-  const d = new Date(ts * 1000);
-  return d.getHours() + d.getMinutes() / 60;
+// Hours since TODAY's midnight — deliberately NOT hour-of-day. The xmltv feed
+// spans several days, so a plain getHours() would map tomorrow 20:00 onto the
+// same grid slot as today 20:00 and stack the two programmes on top of each
+// other. Values past 24 simply fall outside the visible window.
+function hoursFromMidnight(ts: number, midnightMs: number): number {
+  return (ts * 1000 - midnightMs) / 3600000;
 }
 
 export default function LiveGuide({ channels: allChannels, onPlay, onOpen, accentColor, provider }: LiveGuideProps) {
   const now = new Date();
   const nowH = now.getHours() + now.getMinutes() / 60;
+  // Grid origin: today's local midnight. All programme positions are measured
+  // in hours from here so multi-day listings don't collide (see hoursFromMidnight).
+  const midnightMs = useMemo(
+    () => new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime(),
+    [now.getFullYear(), now.getMonth(), now.getDate()],
+  );
   const start = Math.max(0, Math.floor(nowH) - EPG_WINDOW_BEFORE);
   const hours = EPG_WINDOW_HOURS;
 
@@ -58,7 +67,7 @@ export default function LiveGuide({ channels: allChannels, onPlay, onOpen, accen
     if (listings?.length) {
       const nowTs = Date.now() / 1000;
       return listings.map((e) => ({
-        t: tsToHour(e.start),
+        t: hoursFromMidnight(e.start, midnightMs),
         dur: (e.end - e.start) / 3600,
         title: e.title,
         desc: e.description,
