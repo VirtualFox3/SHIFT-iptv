@@ -156,7 +156,10 @@ export default function LiveGuide({ channels: allChannels, onPlay, onOpen, accen
       <div style={{ overflowX: 'auto', paddingBottom: 60 }}>
         <div style={{ minWidth: LABEL_W + hours * COL_W }}>
           {/* time header */}
-          <div style={{ display: 'flex', position: 'sticky', top: 66, zIndex: 4 }}>
+          {/* top: 0 — the app scrolls inside #app-scroll, whose scrollport already
+              starts below the fixed nav. Offsetting by the nav height (66) would
+              pin this 66px too low and cover the first channel row. */}
+          <div style={{ display: 'flex', position: 'sticky', top: 0, zIndex: 4 }}>
             <div style={{ width: LABEL_W, flexShrink: 0, background: 'var(--app-bg)' }} />
             <div style={{ position: 'relative', height: 38, flex: 1, background: 'var(--app-bg)', borderBottom: '1px solid var(--hair-2)' }}>
               {timeHeaders.map((h, i) => (

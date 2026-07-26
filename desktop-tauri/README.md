@@ -1,4 +1,4 @@
-# SHIFT — Tauri desktop (Windows installer / Microsoft Store)
+# SHIFT — Tauri desktop (Windows installer)
 
 A lightweight native Windows shell around the deployed SHIFT web app
 (`https://shift-iptv.vercel.app`). It loads the live site so the Vercel
@@ -46,31 +46,9 @@ Either is a real, double-clickable native installer.
 
 ---
 
-## Getting it on the Microsoft Store
-
-You need a **Microsoft Partner Center** developer account (one-time ~$19):
-https://partner.microsoft.com/dashboard
-
-Two paths:
-
-**A. Submit the MSI/EXE directly (simplest).**
-The Store now accepts unpackaged Win32 installers (EXE/MSI). Create a new app in
-Partner Center → "Packages" → upload the `.msi` (or `-setup.exe`). Microsoft
-wraps it for distribution. Least effort.
-
-**B. Wrap to MSIX (cleaner Store integration).**
-Install the **MSIX Packaging Tool** from the Store, point it at the generated
-`.msi`, and it produces a `.msix` you upload to Partner Center. Better Store
-features (auto-update, clean uninstall) at the cost of one extra step.
-
-Reserve the app name in Partner Center first — it must match `productName`
-("SHIFT") in `src-tauri/tauri.conf.json`.
-
----
-
 ## Notes
-- `identifier` (`com.shift.iptv`) must be unique to your publisher — change it
-  if the Store reports a conflict.
-- Signing: the Store signs Store submissions for you. For distributing the
-  installer *outside* the Store without SmartScreen warnings, you'd need your
-  own code-signing certificate (optional).
+- `identifier` (`com.shift.iptv`) is the app's unique id — change it if you fork
+  this for your own distribution.
+- Signing: to hand the installer to other people without a Windows SmartScreen
+  warning you'd need your own code-signing certificate (optional — it installs
+  fine either way, SmartScreen just shows a "more info" prompt first).

@@ -13,6 +13,30 @@ SHIFT connects to your own **Xtream Codes** or **M3U** IPTV provider and gives i
 
 > **Legal:** SHIFT is a media *player*, like VLC. It ships with zero channels or media. You supply your own IPTV subscription. What you stream is your responsibility.
 
+## 📸 Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/01-home.png" width="90%" alt="Home — billboard hero and Continue Watching" /><br/>
+  <em>Home — billboard hero, Continue Watching, genre rails</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/02-live-guide.png" width="90%" alt="Live TV guide" /><br/>
+  <em>Live TV — full EPG grid with category filters and a live "NOW" marker</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/04-detail.png" width="90%" alt="Title detail modal" /><br/>
+  <em>Title details — ratings, synopsis, My List</em>
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/03-series.png" alt="Series grid" /><br/><em align="center">Series — full catalogue grid</em></td>
+    <td width="50%"><img src="docs/screenshots/05-light.png" alt="Light theme" /><br/><em>Light theme</em></td>
+  </tr>
+</table>
+
 ## ✨ Features
 
 - **Live TV + EPG** — thousands of channels with a real programme guide (fetched from your provider's XMLTV feed), live-now channels sorted to the top
