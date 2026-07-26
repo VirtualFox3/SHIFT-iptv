@@ -166,9 +166,11 @@ export default function PlayerScreen({ item, onClose }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
-  bufferingWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
+  // absoluteFillObject (not absoluteFill) — the latter is a registered style ID,
+  // which can't be spread into a style object.
+  bufferingWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   bufferingText: { color: '#fff', fontSize: 32, opacity: 0.7 },
-  overlay: { ...StyleSheet.absoluteFill, justifyContent: 'space-between' },
+  overlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'space-between' },
   topBar: {
     flexDirection: 'row', alignItems: 'center',
     padding: 16, paddingTop: Platform.OS === 'ios' ? 48 : 16,

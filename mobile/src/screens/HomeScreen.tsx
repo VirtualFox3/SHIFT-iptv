@@ -10,6 +10,7 @@ import TitleCard from '../components/TitleCard';
 import ChannelCard from '../components/ChannelCard';
 import Billboard from '../components/Billboard';
 import Shifty from '../components/Shifty';
+import { useResponsive } from '../useResponsive';
 import type { Title, Channel } from '../types';
 
 type Tab = 'home' | 'movies' | 'series' | 'live' | 'mylist';
@@ -41,6 +42,17 @@ export default function HomeScreen({ onPlay, onSettings }: Props) {
 
   const [tab, setTab] = useState<Tab>('home');
   const [query, setQuery] = useState('');
+  const r = useResponsive();
+
+  // Shared config for the poster grids (Movies / Series / My List). Columns are
+  // computed from the live window width, so iPad shows 5–7 across instead of 3
+  // giant cards, and it re-flows on rotation.
+  const gridProps = {
+    key: `grid-${r.numColumns}`,   // remount when the column count changes (RN requirement)
+    numColumns: r.numColumns,
+    columnWrapperStyle: r.numColumns > 1 ? { gap: r.gap, marginBottom: r.gap } : undefined,
+    contentContainerStyle: { paddingHorizontal: r.gutter, paddingTop: 12, paddingBottom: 40 },
+  };
 
   const titlesById = useMemo(
     () => Object.fromEntries(titles.map((t) => [t.id, t])),
@@ -106,8 +118,8 @@ export default function HomeScreen({ onPlay, onSettings }: Props) {
     // Search
     if (query.trim()) {
       return (
-        <ScrollView contentContainerStyle={styles.content}>
-          <Text style={styles.searchHeading}>
+        <ScrollView contentContainerStyle={{ paddingHorizontal: r.gutter, paddingTop: 12, paddingBottom: 40 }}>
+          <Text style={[styles.searchHeading, r.isTablet && { fontSize: 22 }]}>
             Results for "{query}"
           </Text>
           {searchResults.titles.length === 0 && searchResults.channels.length === 0 && (
@@ -147,7 +159,9 @@ export default function HomeScreen({ onPlay, onSettings }: Props) {
               onInfo={() => onPlay(hero)}
             />
           )}
-          <View style={[styles.content, hero ? { paddingTop: 20 } : null]}>
+          {/* No horizontal padding here — Rails bleed edge-to-edge and apply
+              their own gutter, so the row can scroll past the screen edge. */}
+          <View style={{ paddingTop: hero ? 22 : 12, paddingBottom: 40 }}>
             {continueWatchingRail.length > 0 && (
               <Rail
                 title="Continue Watching"
@@ -174,8 +188,8 @@ export default function HomeScreen({ onPlay, onSettings }: Props) {
               />
             )}
             {channels.length > 0 && (
-              <View style={styles.section}>
-                <Text style={styles.railHeading}>Live Channels</Text>
+              <View style={[styles.section, { paddingHorizontal: r.gutter }]}>
+                <Text style={[styles.railHeading, { fontSize: r.headingSize }]}>Live Channels</Text>
                 {channels.slice(0, 12).map((c) => (
                   <ChannelCard key={c.id} channel={c} onPress={() => onPlay(c)} />
                 ))}
@@ -191,10 +205,9 @@ export default function HomeScreen({ onPlay, onSettings }: Props) {
         <FlatList
           data={movies}
           keyExtractor={(t) => t.id}
-          numColumns={3}
-          contentContainerStyle={styles.content}
-          renderItem={({ item, index }) => (
-            <TitleCard title={item} accentColor={accent} onPress={() => onPlay(item)} />
+          {...gridProps}
+          renderItem={({ item }) => (
+            <TitleCard title={item} accentColor={accent} width={r.gridCardW} spacing={0} onPress={() => onPlay(item)} />
           )}
           ListEmptyComponent={<Text style={styles.emptyText}>No movies in this provider.</Text>}
         />
@@ -206,10 +219,9 @@ export default function HomeScreen({ onPlay, onSettings }: Props) {
         <FlatList
           data={series}
           keyExtractor={(t) => t.id}
-          numColumns={3}
-          contentContainerStyle={styles.content}
+          {...gridProps}
           renderItem={({ item }) => (
-            <TitleCard title={item} accentColor={accent} onPress={() => onPlay(item)} />
+            <TitleCard title={item} accentColor={accent} width={r.gridCardW} spacing={0} onPress={() => onPlay(item)} />
           )}
           ListEmptyComponent={<Text style={styles.emptyText}>No series in this provider.</Text>}
         />
@@ -221,7 +233,7 @@ export default function HomeScreen({ onPlay, onSettings }: Props) {
         <FlatList
           data={channels}
           keyExtractor={(c) => c.id}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={{ paddingHorizontal: r.gutter, paddingTop: 12, paddingBottom: 40 }}
           renderItem={({ item }) => (
             <ChannelCard channel={item} onPress={() => onPlay(item)} />
           )}
@@ -235,10 +247,9 @@ export default function HomeScreen({ onPlay, onSettings }: Props) {
         <FlatList
           data={myListTitles}
           keyExtractor={(t) => t.id}
-          numColumns={3}
-          contentContainerStyle={styles.content}
+          {...gridProps}
           renderItem={({ item }) => (
-            <TitleCard title={item} accentColor={accent} onPress={() => onPlay(item)} />
+            <TitleCard title={item} accentColor={accent} width={r.gridCardW} spacing={0} onPress={() => onPlay(item)} />
           )}
           ListEmptyComponent={
             <Text style={styles.emptyText}>Add titles to your list using the ♥ button.</Text>
@@ -253,32 +264,50 @@ export default function HomeScreen({ onPlay, onSettings }: Props) {
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={[styles.logoText, { color: accent }]}>SHIFT</Text>
+      <View style={[styles.header, { paddingHorizontal: r.gutter }]}>
+        <Text style={[styles.logoText, { color: accent, fontSize: r.isTablet ? 27 : 22 }]}>SHIFT</Text>
         <TextInput
-          style={styles.searchInput}
-          placeholder="Search…"
-          placeholderTextColor="#666"
+          style={[styles.searchInput, r.isTablet && { fontSize: 16, paddingVertical: 11, maxWidth: 460 }]}
+          placeholder="Search titles and channels…"
+          placeholderTextColor="#6b6b6b"
           value={query}
           onChangeText={setQuery}
           returnKeyType="search"
+          clearButtonMode="while-editing"
         />
-        <TouchableOpacity onPress={onSettings} style={styles.signOutBtn}>
-          <Text style={styles.gearIcon}>⚙</Text>
+        <TouchableOpacity onPress={onSettings} style={styles.signOutBtn} hitSlop={10}>
+          <Text style={[styles.gearIcon, r.isTablet && { fontSize: 26 }]}>⚙</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Tab bar */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar} contentContainerStyle={styles.tabBarContent}>
-        {TABS.map((t) => (
-          <TouchableOpacity
-            key={t.id}
-            style={[styles.tabItem, tab === t.id && { borderBottomColor: accent, borderBottomWidth: 2 }]}
-            onPress={() => { setTab(t.id); setQuery(''); }}
-          >
-            <Text style={[styles.tabText, tab === t.id && { color: '#fff' }]}>{t.label}</Text>
-          </TouchableOpacity>
-        ))}
+      {/* Tab bar — pill style, scrolls on phones, fits inline on iPad */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabBar}
+        contentContainerStyle={[styles.tabBarContent, { paddingHorizontal: r.gutter }]}
+      >
+        {TABS.map((t) => {
+          const active = tab === t.id;
+          return (
+            <TouchableOpacity
+              key={t.id}
+              style={[
+                styles.tabItem,
+                r.isTablet && { paddingHorizontal: 18, paddingVertical: 10 },
+                active && { backgroundColor: accent },
+              ]}
+              onPress={() => { setTab(t.id); setQuery(''); }}
+              activeOpacity={0.8}
+            >
+              <Text style={[
+                styles.tabText,
+                r.isTablet && { fontSize: 15 },
+                active && styles.tabTextActive,
+              ]}>{t.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       {/* Content */}
@@ -292,19 +321,24 @@ const styles = StyleSheet.create({
   loadingWrap: { flex: 1, backgroundColor: '#141414', alignItems: 'center', justifyContent: 'center' },
   loadingText: { color: '#b3b3b3', fontSize: 15, marginTop: 16 },
   header: {
-    flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10,
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 12,
   },
-  logoText: { fontSize: 22, fontWeight: '900', letterSpacing: 1.5, marginRight: 4 },
+  logoText: { fontWeight: '900', letterSpacing: 1.5, marginRight: 2 },
   searchInput: {
-    flex: 1, backgroundColor: '#1e1e1e', borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 8, color: '#fff', fontSize: 14,
+    flex: 1, backgroundColor: '#1e1e1e', borderRadius: 10,
+    borderWidth: 1, borderColor: '#2c2c2c',
+    paddingHorizontal: 14, paddingVertical: 9, color: '#fff', fontSize: 14.5,
   },
-  signOutBtn: { paddingHorizontal: 8, paddingVertical: 6 },
+  signOutBtn: { paddingHorizontal: 4, paddingVertical: 6 },
   gearIcon: { color: '#aaa', fontSize: 22 },
-  tabBar: { maxHeight: 44, borderBottomWidth: 1, borderBottomColor: '#2a2a2a' },
-  tabBarContent: { paddingHorizontal: 12 },
-  tabItem: { paddingHorizontal: 14, paddingVertical: 12, marginRight: 4 },
-  tabText: { color: '#888', fontSize: 14, fontWeight: '600' },
+  tabBar: { flexGrow: 0, marginBottom: 4 },
+  tabBarContent: { paddingVertical: 8, gap: 8 },
+  tabItem: {
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
+    backgroundColor: '#1e1e1e',
+  },
+  tabText: { color: '#b3b3b3', fontSize: 14, fontWeight: '700' },
+  tabTextActive: { color: '#fff' },
   content: { padding: 16, paddingBottom: 40 },
   section: { marginBottom: 24 },
   railHeading: { color: '#fff', fontSize: 17, fontWeight: '700', marginBottom: 12 },
