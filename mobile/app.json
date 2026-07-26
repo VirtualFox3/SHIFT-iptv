@@ -15,7 +15,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.shift.iptv",
       "infoPlist": {
-        "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
       }
     },
     "android": {
@@ -25,13 +27,38 @@
         "monochromeImage": "./assets/android-icon-monochrome.png",
         "backgroundColor": "#000000"
       },
-      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE"]
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ],
+      "usesCleartextTraffic": true,
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      ["expo-video", { "supportsBackgroundPlayback": true, "supportsPictureInPicture": true }]
-    ]
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": true,
+          "supportsPictureInPicture": true
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c1e6f109-5dfe-4079-8705-bf8c6bfd9a87"
+      }
+    },
+    "owner": "foxy512"
   }
 }
