@@ -120,14 +120,20 @@ export default function Player({ item, onClose, channels = [], nextEpisode, onNe
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [nextDismissed, setNextDismissed] = useState(false);
 
-  // In the desktop app, mpv handles playback — pass the ORIGINAL provider URL
-  // (deproxified) and return to the library. mpv connects directly and plays it.
+  // In the desktop app, mpv handles playback — it renders INSIDE this window
+  // (see --wid in desktop/main.js), so it covers the UI while playing. Return to
+  // the library when mpv actually exits rather than on a timer, so a failed
+  // launch leaves this screen visible instead of dumping the user on a blank page.
   useEffect(() => {
     if (!isDesktop || !streamUrl) return;
     const title = live ? (current as Channel).name : (item as Title).title;
     electronAPI.playStream({ url: deproxify(streamUrl), title });
-    const t = setTimeout(onClose, 600);
-    return () => clearTimeout(t);
+    const off = electronAPI.onPlayerClosed?.(() => onClose());
+    return () => {
+      off?.();
+      // Leaving the player view (e.g. Back) should stop playback too.
+      electronAPI.stopStream?.();
+    };
   }, [isDesktop, streamUrl, chIdx]);
 
   // Stream setup. For direct VOD files we try the provider URL DIRECTLY first

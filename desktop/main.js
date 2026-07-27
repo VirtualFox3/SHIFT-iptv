@@ -27,17 +27,36 @@ function mpvPath() {
   return 'mpv';
 }
 
+// Read the OS window handle for the main window so mpv can render *into* it.
+function windowHandle(win) {
+  try {
+    const buf = win.getNativeWindowHandle();
+    // 64-bit builds return an 8-byte pointer; 32-bit returns 4.
+    return buf.length === 8 ? buf.readBigUInt64LE(0).toString() : String(buf.readUInt32LE(0));
+  } catch {
+    return null;
+  }
+}
+
 function playStream(_e, payload) {
   const { url, title, subUrl } = payload || {};
   if (!url) return { ok: false, error: 'no url' };
   try { if (mpvProc) mpvProc.kill(); } catch {}
 
+  const win = BrowserWindow.getAllWindows()[0];
+  // --wid embeds mpv's video output into SHIFT's own window, so playback happens
+  // INSIDE the app (no second window, no extra taskbar entry). Falls back to a
+  // standalone mpv window only if the handle can't be read.
+  const wid = win ? windowHandle(win) : null;
+
   const args = [
     `--user-agent=${UA}`,
     '--force-window=yes',
-    '--fullscreen',
     '--keep-open=no',
-    '--osc=yes',
+    '--osc=yes',                 // mpv's on-screen controls (seek bar etc.)
+    '--osd-bar=yes',
+    '--input-default-bindings=yes',
+    wid ? `--wid=${wid}` : '--fullscreen',
     title ? `--force-media-title=${title}` : '',
     subUrl ? `--sub-file=${subUrl}` : '',
     url,
@@ -46,10 +65,24 @@ function playStream(_e, payload) {
   try {
     mpvProc = spawn(mpvPath(), args, { stdio: 'ignore' });
     mpvProc.on('error', (err) => { console.error('mpv launch failed:', err.message); });
-    return { ok: true };
+    // When playback ends the embedded surface goes away — tell the UI so it can
+    // restore the library view instead of sitting on a blank window.
+    mpvProc.on('close', () => {
+      mpvProc = null;
+      try { win?.webContents.send('player-closed'); } catch {}
+      try { win?.focus(); } catch {}
+    });
+    return { ok: true, embedded: !!wid };
   } catch (e) {
     return { ok: false, error: String(e && e.message || e) };
   }
+}
+
+// Let the renderer stop playback (e.g. its own Back button).
+function stopStream() {
+  try { mpvProc?.kill(); } catch {}
+  mpvProc = null;
+  return { ok: true };
 }
 
 function createWindow() {
@@ -58,6 +91,7 @@ function createWindow() {
     height: 900,
     backgroundColor: '#141414',
     autoHideMenuBar: true,
+    icon: path.join(__dirname, 'build', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -74,6 +108,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   ipcMain.handle('play-stream', playStream);
+  ipcMain.handle('stop-stream', stopStream);
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

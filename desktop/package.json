@@ -15,14 +15,30 @@
     "extraResources": [
       { "from": "bin", "to": "bin", "filter": ["**/*"] }
     ],
+    "icon": "build/icon.ico",
     "win": {
-      "target": "nsis",
+      "target": ["msi", "nsis"],
+      "icon": "build/icon.ico",
       "artifactName": "SHIFT-Setup-${version}.${ext}",
       "signAndEditExecutable": false
     },
+    "msi": {
+      "oneClick": false,
+      "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SHIFT",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
     }
   },
   "devDependencies": {
